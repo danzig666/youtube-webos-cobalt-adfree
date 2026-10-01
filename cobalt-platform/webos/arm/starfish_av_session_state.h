@@ -226,6 +226,8 @@ class StarfishAvSessionState {
   size_t queued_packets(Stream stream) const { return Get(stream).packets.size(); }
 
  private:
+  // Host regressions exercise counter exhaustion without billions of resets.
+  friend struct StarfishAvSessionStateTestPeer;
   struct Entry {
     uint64_t sequence;
     Packet packet;

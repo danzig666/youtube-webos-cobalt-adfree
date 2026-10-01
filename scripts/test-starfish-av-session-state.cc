@@ -22,6 +22,25 @@ using starboard::shared::webos::StarfishOpusConfig;
 using starboard::shared::webos::StarfishOpusSessionPlan;
 using starboard::shared::webos::StarfishVideoConfiguration;
 
+namespace starboard {
+namespace shared {
+namespace webos {
+struct StarfishAvSessionStateTestPeer {
+  template <typename Handle>
+  static void SetGeneration(StarfishAvSessionState<Handle>& state, uint64_t value) {
+    state.generation_ = value;
+  }
+  template <typename Handle>
+  static void SetSequence(StarfishAvSessionState<Handle>& state,
+                          typename StarfishAvSessionState<Handle>::Stream stream,
+                          uint64_t value) {
+    state.Get(stream).next_sequence = value;
+  }
+};
+}  // namespace webos
+}  // namespace shared
+}  // namespace starboard
+
 namespace {
 
 void TestExperimentMode() {
@@ -223,6 +242,9 @@ void TestVideoConfigurationTransitions() {
   assert(!configuration.initialized());
   assert(configuration.Update(1920, 1080, false, 8, false) ==
          Result::kInitial);
+  assert(configuration.Update(1920, 1080, true, 10, true) ==
+         Result::kColorChanged);  // SDR -> HDR must also reject atomically.
+  assert(!configuration.hdr() && configuration.bits() == 8);
 }
 
 using State = StarfishAvSessionState<std::shared_ptr<int>>;
@@ -324,6 +346,103 @@ void TestGenerationsAndOwnership() {
 
 }  // namespace
 
+void TestRepeatedResets() {
+  // Vary independent queue occupancy, pending EOS and BufferFull retries.
+  State state({2, 20}, {2, 20});
+  for (unsigned seek = 0; seek < 100; ++seek) {
+    const auto old = state.generation();
+    State::FeedTicket a{}, v{};
+    const bool have_audio = (seek % 4) != 0;
+    const bool have_video = (seek % 4) != 1;
+    if (have_audio) {
+      assert(state.Enqueue(old, audio, {Packet(10), Packet(10)}) == Enqueue::kAccepted);
+      assert(state.NextFeed(audio, &a));
+      assert(state.CompleteFeed(a, Feed::kRetry));
+    }
+    if (have_video) {
+      assert(state.Enqueue(old, video, {Packet(10), Packet(10)}) == Enqueue::kAccepted);
+      assert(state.NextFeed(video, &v));
+      assert(state.CompleteFeed(v, Feed::kRetry));
+    }
+    if (seek % 2) {
+      assert(state.WriteEos(old, audio));
+      assert(state.WriteEos(old, video));
+    }
+    assert(!state.NativeEnded(old)); // Input EOS is never native EOS.
+    assert(state.Reset());
+    assert(state.generation() == old + 1);
+    assert(!state.failed() && !state.ended() && !state.ReadyToSubmitEos());
+    assert(state.queued_bytes(audio) == 0 && state.queued_packets(video) == 0);
+    assert(!state.CompleteFeed(a, Feed::kError));
+    assert(!state.CompleteFeed(v, Feed::kAccepted));
+    assert(!state.WriteEos(old, video) && !state.EosSubmitted(old));
+    assert(!state.NativeEnded(old));
+    assert(state.Enqueue(old, audio, {Packet(1)}) == Enqueue::kStale);
+    const auto current = state.generation();
+    assert(state.Enqueue(current, audio, {Packet(20)}) == Enqueue::kAccepted);
+    assert(!state.CompleteFeed(a, Feed::kAccepted));
+    assert(state.NextFeed(audio, &a));
+    assert(state.CompleteFeed(a, Feed::kAccepted));
+  }
+}
+
+void TestEosOrdering() {
+  for (const auto first : {audio, video}) {
+    const auto second = first == audio ? video : audio;
+    State state({1, 10}, {1, 10});
+    const auto generation = state.generation();
+    assert(state.Enqueue(generation, first, {Packet(10)}) == Enqueue::kAccepted);
+    assert(state.Enqueue(generation, second, {Packet(10)}) == Enqueue::kAccepted);
+    assert(state.WriteEos(generation, first));
+    assert(!state.ReadyToSubmitEos());
+    assert(state.WriteEos(generation, second));
+    assert(!state.EosSubmitted(generation));
+    assert(!state.NativeEnded(generation));
+    State::FeedTicket ticket{};
+    assert(state.NextFeed(first, &ticket));
+    assert(state.CompleteFeed(ticket, Feed::kAccepted));
+    assert(!state.ReadyToSubmitEos());
+    assert(state.NextFeed(second, &ticket));
+    assert(state.CompleteFeed(ticket, Feed::kRetry));
+    assert(!state.ReadyToSubmitEos());
+    assert(state.CompleteFeed(ticket, Feed::kAccepted));
+    assert(state.ReadyToSubmitEos());
+    assert(!state.NativeEnded(generation));
+    assert(state.EosSubmitted(generation));
+    assert(!state.EosSubmitted(generation));
+    assert(state.Reset());
+    assert(!state.NativeEnded(generation)); // Late native EOS after reset.
+    const auto current = state.generation();
+    assert(state.WriteEos(current, first) && state.WriteEos(current, second));
+    assert(state.EosSubmitted(current) && state.NativeEnded(current));
+    assert(!state.NativeEnded(current));
+  }
+}
+
+void TestCounterAndBudgetBoundaries() {
+  using Peer = starboard::shared::webos::StarfishAvSessionStateTestPeer;
+  const auto max = std::numeric_limits<uint64_t>::max();
+  State state({2, 20}, {2, 20});
+  Peer::SetSequence(state, audio, max - 1);
+  // A batch must be refused as a whole if its sequence IDs would wrap.
+  assert(state.Enqueue(state.generation(), audio, {Packet(1), Packet(1)}) == Enqueue::kInvalid);
+  assert(state.queued_packets(audio) == 0);
+  assert(state.Enqueue(state.generation(), audio, {Packet(1)}) == Enqueue::kAccepted);
+  State::FeedTicket ticket{};
+  assert(state.NextFeed(audio, &ticket) && ticket.sequence == max);
+  assert(state.CompleteFeed(ticket, Feed::kAccepted));
+  assert(state.Enqueue(state.generation(), audio, {Packet(1)}) == Enqueue::kInvalid);
+  assert(state.Enqueue(state.generation(), video, {Packet(20)}) == Enqueue::kAccepted);
+  assert(state.Enqueue(state.generation(), video, {Packet(21)}) == Enqueue::kInvalid);
+  assert(state.Enqueue(state.generation(), video,
+                       {Packet(std::numeric_limits<size_t>::max())}) == Enqueue::kInvalid);
+  Peer::SetGeneration(state, max - 1);
+  assert(state.Reset() && state.generation() == max);
+  assert(!state.Reset() && state.generation() == max && state.failed());
+  assert(state.Enqueue(max, audio, {Packet(1)}) == Enqueue::kClosed);
+  assert(!state.NextFeed(video, &ticket) && !state.NativeEnded(max));
+}
+
 int main() {
   TestExperimentMode();
   TestConfiguration();
@@ -332,5 +451,8 @@ int main() {
   TestVideoConfigurationTransitions();
   TestQueues();
   TestGenerationsAndOwnership();
+  TestRepeatedResets();
+  TestEosOrdering();
+  TestCounterAndBudgetBoundaries();
   std::cout << "Shared Starfish A/V timing and session-state tests passed\n";
 }
