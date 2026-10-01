@@ -15,6 +15,7 @@
 #include "starboard/key.h"
 #include "starboard/shared/starboard/audio_sink/audio_sink_internal.h"
 #include "starboard/webos/arm/window_internal.h"
+#include "starboard/webos/arm/webos_media_diagnostics.h"
 
 namespace starboard {
 namespace shared {
@@ -437,28 +438,43 @@ void ApplicationSdl::WakeSystemEventWait() {
   SDL_PushEvent(&event);
 }
 
+void ApplicationSdl::OnLifecycleEvent(WebOsLifecycleEvent event) {
+  const auto actions = lifecycle_.OnLifecycleEvent(event);
+  if (actions.empty()) return;
+  MediaEvent diagnostic;
+  diagnostic.event = MediaEventType::kLifecycle;
+  diagnostic.pts_us = static_cast<int>(lifecycle_.state());
+  diagnostic.accepted = true;
+  RecordMediaEvent(diagnostic);
+  if (actions.blur) Blur(nullptr, nullptr);
+  if (actions.conceal) Conceal(nullptr, nullptr);
+  if (actions.reveal) Reveal(nullptr, nullptr);
+  if (actions.focus) Focus(nullptr, nullptr);
+  if (actions.stop) Stop(0);
+}
+
 ApplicationSdl::Event* ApplicationSdl::TranslateEvent(const SDL_Event& event) {
   if (event.type == wake_event_type_) {
     return nullptr;
   }
   if (event.type == SDL_QUIT || event.type == SDL_APP_TERMINATING) {
-    Stop(0);
+    OnLifecycleEvent(WebOsLifecycleEvent::kStop);
     return nullptr;
   }
   if (event.type == SDL_APP_WILLENTERBACKGROUND) {
-    Blur(nullptr, nullptr);
+    OnLifecycleEvent(WebOsLifecycleEvent::kWillBackground);
     return nullptr;
   }
   if (event.type == SDL_APP_DIDENTERBACKGROUND) {
-    Conceal(nullptr, nullptr);
+    OnLifecycleEvent(WebOsLifecycleEvent::kDidBackground);
     return nullptr;
   }
   if (event.type == SDL_APP_WILLENTERFOREGROUND) {
-    Reveal(nullptr, nullptr);
+    OnLifecycleEvent(WebOsLifecycleEvent::kWillForeground);
     return nullptr;
   }
   if (event.type == SDL_APP_DIDENTERFOREGROUND) {
-    Focus(nullptr, nullptr);
+    OnLifecycleEvent(WebOsLifecycleEvent::kDidForeground);
     return nullptr;
   }
   if (event.type == SDL_APP_LOWMEMORY) {

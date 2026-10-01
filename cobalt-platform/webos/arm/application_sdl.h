@@ -8,6 +8,7 @@
 
 #include "starboard/common/mutex.h"
 #include "starboard/shared/starboard/queue_application.h"
+#include "starboard/webos/arm/webos_lifecycle.h"
 
 namespace starboard {
 namespace shared {
@@ -57,6 +58,8 @@ class ApplicationSdl : public starboard::QueueApplication {
 
  private:
   Event* TranslateEvent(const SDL_Event& event);
+  void OnLifecycleEvent(WebOsLifecycleEvent event);
+  WebOsLifecycle lifecycle_;
 
   bool sdl_initialized_;
   SbWindow window_;
