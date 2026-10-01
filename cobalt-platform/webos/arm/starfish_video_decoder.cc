@@ -243,12 +243,14 @@ void StarfishVideoDecoder::SetPause(bool pause) {
 }
 
 void StarfishVideoDecoder::SetPlaybackRate(double playback_rate) {
-  if (!std::isfinite(playback_rate)) {
+  double normalized;
+  if (!NormalizePlaybackRate(playback_rate, GetPlaybackRateSupport(), &normalized)) {
+    ReportError("NativeRateFailed: legacy rate rejected by webOS policy.");
     return;
   }
-  playback_rate_millionths_.store(
-      static_cast<int>(playback_rate * 1000000.0));
-  ApplicationSdl::Get()->SetVideoPaused(playback_rate <= 0.0);
+  const int millionths = static_cast<int>(std::lround(normalized * 1000000));
+  if (playback_rate_millionths_.exchange(millionths) == millionths) return;
+  ApplicationSdl::Get()->SetVideoPaused(normalized <= 0.0);
   if (decoder_thread_) {
     decoder_thread_->Schedule(std::bind(
         &StarfishVideoDecoder::ApplyPlaybackStateOnDecoderThread, this));
@@ -333,7 +335,8 @@ void StarfishVideoDecoder::InitializePipeline(
   play_issued_ = false;
   pause_issued_ = false;
   startup_play_accepted_ = false;
-  applied_playback_rate_ = -1.0;
+  playback_rate_state_.NativeReset();
+  rate_failed_ = false;
 }
 
 void StarfishVideoDecoder::ApplyHdrInfo(
@@ -422,7 +425,7 @@ void StarfishVideoDecoder::RetryPendingBuffer() {
 void StarfishVideoDecoder::EnsurePlayingOnDecoderThread(const char* reason,
                                                         bool force) {
   SB_DCHECK(decoder_thread_->BelongsToCurrentThread());
-  if (!pipeline_loaded_ || (!force && play_issued_)) {
+  if (!pipeline_loaded_ || rate_failed_ || (!force && play_issued_)) {
     return;
   }
   const bool accepted = media_api_->Play();
@@ -436,27 +439,30 @@ void StarfishVideoDecoder::EnsurePlayingOnDecoderThread(const char* reason,
 
 void StarfishVideoDecoder::ApplyPlaybackStateOnDecoderThread() {
   SB_DCHECK(decoder_thread_->BelongsToCurrentThread());
-  if (!pipeline_loaded_ || shutting_down_.load()) {
+  if (!pipeline_loaded_ || shutting_down_.load() || rate_failed_) {
     return;
   }
 
   const double playback_rate =
       playback_rate_millionths_.load() / 1000000.0;
-  if (playback_rate > 0.0 &&
-      std::fabs(playback_rate - applied_playback_rate_) > 0.0001) {
-    // webOS uses audioOutput=false for muted trick play.  Even though Cobalt
-    // renders audio separately, true keeps Starfish in its smooth A/V pacing
-    // mode for the normal 0.1x-2x playback range.
-    const bool smooth_playback = playback_rate >= 0.1 && playback_rate <= 2.0;
+  if (!playback_rate_state_.Request(playback_rate, GetPlaybackRateSupport())) {
+    rate_failed_ = true;
+    ReportError("NativeRateFailed: invalid legacy session rate state.");
+    return;
+  }
+  const auto result = playback_rate_state_.Apply([&](double value) {
     const std::string payload = FormatString(
-        "{\"playRate\":%.6g,\"audioOutput\":%s}", playback_rate,
-        smooth_playback ? "true" : "false");
-    const bool accepted = media_api_->SetPlayRate(payload.c_str());
-    SB_LOG(INFO) << "Starfish SetPlayRate(" << playback_rate << ") -> "
-                 << (accepted ? "accepted" : "refused");
-    if (accepted) {
-      applied_playback_rate_ = playback_rate;
-    }
+        "{\"playRate\":%.6g,\"audioOutput\":true}", value);
+    return media_api_->SetPlayRate(payload.c_str());
+  });
+  if (result == StarfishPlaybackRate::ApplyResult::kFailed ||
+      result == StarfishPlaybackRate::ApplyResult::kRecoveredOneX) {
+    // Cobalt owns a separate audio clock here. Even successful video recovery
+    // cannot retarget that clock, so stop this player through its error CB.
+    rate_failed_ = true;
+    media_api_->Pause();
+    ReportError("NativeRateFailed: legacy native rate rejected; player stopped to prevent A/V drift.");
+    return;
   }
 
   const bool should_pause = pause_requested_.load() || playback_rate <= 0.0;
@@ -572,7 +578,8 @@ void StarfishVideoDecoder::ResetOnDecoderThread() {
   play_issued_ = false;
   pause_issued_ = false;
   startup_play_accepted_ = false;
-  applied_playback_rate_ = -1.0;
+  playback_rate_state_.NativeReset();
+  rate_failed_ = false;
   reset_in_progress_.store(false);
 }
 

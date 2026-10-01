@@ -45,6 +45,7 @@ for source in \
   main.cc \
   player_set_bounds.cc \
   webos_media_capabilities.cc \
+  starfish_playback_rate.cc \
   starfish_video_decoder.cc \
   window_create.cc \
   window_destroy.cc \

@@ -24,6 +24,7 @@
 #include "starboard/webos/arm/starfish_av_session_state.h"
 #include "starboard/webos/arm/starfish_video_configuration.h"
 #include "starboard/webos/arm/webos_media_capabilities.h"
+#include "starboard/webos/arm/starfish_playback_rate.h"
 
 namespace starboard {
 namespace shared {
@@ -232,7 +233,8 @@ struct NativeSession {
   StarfishOpusSessionPlan plan;
   bool window = false, audio_fed = false, video_fed = false;
   bool playing = false, was_loaded = false;
-  double rate = 1, volume = -1;
+  StarfishPlaybackRate playback_rate;
+  double volume = -1;
   SbTime created = SbTimeGetMonotonicNow(), last_play_attempt = 0;
   SbTime last_progress = created, last_frame = -1;
   StarfishVideoConfiguration video_configuration;
@@ -420,9 +422,14 @@ class Owner : public player::JobQueue::JobOwner {
   void Pause(bool paused) { Guard guard(mutex_); paused_ = paused; wake_.notify_one(); }
   void Rate(double rate) {
     Guard guard(mutex_);
-    if (!std::isfinite(rate) || rate < 0 || rate > 2 || (rate > 0 && rate < 0.1))
-      FailLocked("unsupported shared A/V rate (supported: 0 or 0.1–2x)");
-    else rate_ = rate;
+    double normalized;
+    if (!NormalizePlaybackRate(rate, GetPlaybackRateSupport(), &normalized)) {
+      TraceEssential("error=NativeRateFailed event=rate_policy_rejected requested=%.6g applied=%.6g",
+                     rate, rate_);
+      return;
+    }
+    if (normalized == rate_) return;
+    rate_ = normalized;
     wake_.notify_one();
   }
   void Volume(double volume) {
@@ -738,10 +745,23 @@ class Owner : public player::JobQueue::JobOwner {
       if (!session.api->setVolume(payload.c_str())) { FailSession(session, "shared volume rejected"); return; }
       session.volume = volume;
     }
-    if (loaded && rate > 0 && rate != session.rate) {
-      const auto payload = FormatString("{\"playRate\":%.6g,\"audioOutput\":true}", rate);
-      if (!session.api->SetPlayRate(payload.c_str())) { FailSession(session, "shared rate rejected"); return; }
-      session.rate = rate;
+    if (loaded) {
+      if (!session.playback_rate.Request(rate, GetPlaybackRateSupport())) {
+        FailSession(session, "NativeRateFailed: invalid session rate state"); return;
+      }
+      const auto result = session.playback_rate.Apply([&](double value) {
+        const auto payload = FormatString("{\"playRate\":%.6g,\"audioOutput\":true}", value);
+        return session.api->SetPlayRate(payload.c_str());
+      });
+      if (result == StarfishPlaybackRate::ApplyResult::kFailed) {
+        FailSession(session, "NativeRateFailed: shared rate and recovery rejected"); return;
+      }
+      if (result == StarfishPlaybackRate::ApplyResult::kRecoveredOneX) {
+        TraceEssential("error=NativeRateFailed event=rate_recovered generation=%llu requested=%.6g applied=1",
+                       static_cast<unsigned long long>(session.generation), rate);
+        Guard guard(mutex_);
+        if (state_.generation() == session.generation && rate_ == rate) rate_ = 1;
+      }
     }
     if (paused && session.playing) {
       if (!session.api->Pause()) { FailSession(session, "shared Pause rejected"); return; }
@@ -768,6 +788,7 @@ class Owner : public player::JobQueue::JobOwner {
               static_cast<unsigned long long>(session.generation), static_cast<long long>(frame_ns),
               static_cast<long long>(frame_ns / 1000 - session.plan.epoch_us));
       session.last_progress = now; session.last_frame = frame_ns;
+      session.playback_rate.FrameProgress(now);
     }
     if (paused) session.last_progress = now;
     bool submit_eos = false;
@@ -805,7 +826,26 @@ class Owner : public player::JobQueue::JobOwner {
               static_cast<unsigned long long>(session.generation));
       ApplicationSdl::Get()->SetVideoPaused(true);
     } else if (!paused && now - session.last_progress > 20 * kSecond) {
-      FailSession(session, "shared A/V presentation stalled for 20 seconds");
+      if (session.playback_rate.applied_rate() > 0 &&
+          session.playback_rate.applied_rate() != 1) {
+        session.playback_rate.Request(1, PlaybackRateSupport::kOneXOnly);
+        const auto recovered = session.playback_rate.Apply([&](double value) {
+          const auto payload = FormatString("{\"playRate\":%.6g,\"audioOutput\":true}", value);
+          return session.api->SetPlayRate(payload.c_str());
+        });
+        TraceEssential("error=NativeRateFailed event=rate_stall_recovery generation=%llu requested=%.6g recovered=%d",
+                       static_cast<unsigned long long>(session.generation), rate,
+                       recovered == StarfishPlaybackRate::ApplyResult::kApplied);
+        if (recovered == StarfishPlaybackRate::ApplyResult::kApplied) {
+          Guard guard(mutex_);
+          if (state_.generation() == session.generation && rate_ == rate) rate_ = 1;
+          session.last_progress = now; // One recovery interval; 1x cannot loop.
+        } else {
+          FailSession(session, "NativeRateFailed: stalled rate recovery rejected");
+        }
+      } else {
+        FailSession(session, "shared A/V presentation stalled for 20 seconds");
+      }
     }
     int z, x, y, width, height;
     {

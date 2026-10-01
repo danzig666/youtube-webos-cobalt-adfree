@@ -10,6 +10,7 @@
 #include "starboard/common/mutex.h"
 #include "starboard/common/scoped_ptr.h"
 #include "starboard/media.h"
+#include "starboard/webos/arm/starfish_playback_rate.h"
 #include "starboard/shared/starboard/player/filter/video_decoder_internal.h"
 #include "starboard/shared/starboard/player/job_queue.h"
 #include "starboard/shared/starboard/player/job_thread.h"
@@ -79,7 +80,8 @@ class StarfishVideoDecoder
   bool play_issued_ = false;
   bool pause_issued_ = false;
   bool startup_play_accepted_ = false;
-  double applied_playback_rate_ = -1.0;
+  StarfishPlaybackRate playback_rate_state_;
+  bool rate_failed_ = false;
   std::atomic<SbTime> seek_to_time_{0};
   std::atomic<bool> pause_requested_{false};
   // Keep this 32-bit so the ARMv7 build does not require libatomic merely to

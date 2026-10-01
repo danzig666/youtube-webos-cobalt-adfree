@@ -13,6 +13,8 @@ static_library("starboard_platform") {
     "starfish_audio_timing.h",
     "starfish_audio_session.h",
     "starfish_opus_configuration.h",
+    "starfish_playback_rate.h",
+    "starfish_playback_rate.cc",
     "starfish_video_configuration.h",
     "starfish_video_decoder.cc",
     "starfish_video_decoder.h",

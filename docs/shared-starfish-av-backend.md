@@ -47,6 +47,18 @@ falls back to the existing factory.
 
 ## Verification and limits
 
+Playback-rate policy is also process-latched. Unknown devices default to pause
+and 1x. `YTAF_PLAYBACK_RATES=common` permits 0.5/0.75/1/1.25/1.5/1.75/2x.
+`full-range` is an explicit developer experiment permitting 0.1–2x, rounded to
+millionths. Invalid overrides fail closed to 1x. These overrides require TV
+validation; policy admission does not prove firmware support. Repeated requests
+do not resend native configuration. A rejected shared rate attempts confirmed
+1x recovery and reports `NativeRateFailed`. A rejected legacy native rate
+reports a player error after pausing video, because its separate audio clock
+cannot be safely retargeted by the video decoder. No app-wide fatal assertion
+is introduced. The shared stall timeout allows one recovery from a non-1x rate
+before the existing 1x stall error applies.
+
 The native session-state/timing tests, ARM/Cobalt syntax checks and a full Gold
 link are required before packaging. TV traces should show `selected shared
 AV1+Opus backend` (or the corresponding VP9/H.264 marker), load completion,
