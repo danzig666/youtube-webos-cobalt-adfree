@@ -26,6 +26,8 @@ def method(source, signature):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("cobalt_source", type=Path)
+    parser.add_argument("--require-fixed", action="store_true",
+                        help="Fail if the supplied source lacks the repeated-seek fix (CI).")
     args = parser.parse_args()
     repo = Path(__file__).resolve().parent.parent
     relative = Path("starboard/shared/starboard/player/filter")
@@ -37,6 +39,8 @@ def main():
             (folder / name).write_text((args.cobalt_source / relative / name).read_text())
         renderer = folder / "video_renderer_internal_impl.cc"
         if "decoder_->NeedsResetOnEverySeek()" not in renderer.read_text():
+            if args.require_fixed:
+                raise RuntimeError("Supplied Cobalt source is missing the repeated-seek fix")
             subprocess.run([
                 "git", "apply", str(repo / "cobalt-platform" /
                     "cobalt-23.lts.6-webos-external-video-repeated-seek.patch")
@@ -66,6 +70,8 @@ struct Decoder {
   void Reset() { ++resets; native_target = seek_to_time_.load(); }
   SbTime GetPrerollTimeout() const { return kSbTimeMax; }
   std::atomic<SbTime> seek_to_time_{0};
+  bool paused = false;
+  double rate = 1.0;
   SbTime native_target = -1;
   unsigned resets = 0;
 };
@@ -107,6 +113,30 @@ int main() {
   renderer.first_input_written_ = true;
   renderer.Seek(0);                      // A normal seek after new input.
   if (hardware.native_target != 0 || hardware.resets != 4) return 5;
+  // Rapid A/B/C before new input, then D after the first new packet. Include
+  // near-EOS, both directions, zero, pause and a non-1x clock policy.
+  for (bool paused : {false, true}) {
+    for (double rate : {0.0, 1.0, 1.25, 2.0}) {
+      hardware.paused = paused;
+      hardware.rate = rate;
+      for (SbTime target : {SbTime(900000000), SbTime(100000000),
+                           SbTime(3599999000), SbTime(0)}) {
+        const auto resets = hardware.resets;
+        renderer.Seek(target);
+        if (hardware.native_target != target ||
+            hardware.native_target != renderer.algorithm.target ||
+            hardware.resets != resets + 1 ||
+            hardware.paused != paused || hardware.rate != rate) return 8;
+      }
+      renderer.first_input_written_ = true; // First new packet after C.
+      renderer.Seek(777777777);            // D must retarget again.
+      if (hardware.native_target != 777777777) return 9;
+    }
+  }
+  for (int i = 0; i < 100; ++i) {
+    renderer.Seek(i % 2 ? 123456789 : 987654321);
+    if (hardware.native_target != renderer.algorithm.target) return 10;
+  }
   Decoder software;
   VideoRendererImpl other(&software);
   other.Seek(100);                       // Preserve software-decoder behavior.
