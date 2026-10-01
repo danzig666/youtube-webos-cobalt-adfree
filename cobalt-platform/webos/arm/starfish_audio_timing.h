@@ -6,7 +6,7 @@
 #include <cstring>
 #include <limits>
 
-#include "starfish_av_session_state.h"
+#include "starfish_opus_configuration.h"
 
 namespace starboard {
 namespace shared {
@@ -14,7 +14,7 @@ namespace webos {
 
 // Private, versioned side data for this self-contained webOS build. No public
 // sample struct layout changes; Matroska BlockAdditional remains separate.
-struct StarfishAudioTiming {
+struct AudioPacketTiming {
   using Wire = std::array<uint8_t, 48>;
   int64_t codec_delay_samples = 0;
   int64_t seek_preroll_us = 0;
@@ -32,7 +32,7 @@ struct StarfishAudioTiming {
         wire[8 + i * 8 + j] = static_cast<uint64_t>(values[i]) >> (j * 8);
     return wire;
   }
-  static bool Decode(const uint8_t* data, size_t size, StarfishAudioTiming* out) {
+  static bool Decode(const uint8_t* data, size_t size, AudioPacketTiming* out) {
     if (!data || !out || size != Wire{}.size() || std::memcmp(data, "YTAFAT01", 8))
       return false;
     int64_t values[5];
@@ -48,6 +48,9 @@ struct StarfishAudioTiming {
     return true;
   }
 };
+
+// Preserve the private side-data name and YTAFAT01 wire format.
+using StarfishAudioTiming = AudioPacketTiming;
 
 // Only the verified WebM timeline is supported by the initial player. Front
 // trimming may already move packet PTS and remains unsupported. The Starfish
