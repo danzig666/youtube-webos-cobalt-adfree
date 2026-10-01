@@ -1,6 +1,8 @@
 name: Build starterless Cobalt
 
 on:
+  schedule:
+    - cron: '17 3 * * *'
   workflow_dispatch:
     inputs:
       cobalt_ref:
@@ -29,12 +31,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: cobalt-main-${{ inputs.cobalt_ref }}-${{ inputs.build_type }}
+  group: cobalt-main-${{ inputs.cobalt_ref || '23.lts.6' }}-${{ inputs.build_type || 'gold' }}
   cancel-in-progress: false
 
 jobs:
   build:
-    name: Cobalt ${{ inputs.cobalt_ref }} from main
+    name: Cobalt ${{ inputs.cobalt_ref || '23.lts.6' }} from ${{ github.ref_name }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
@@ -42,15 +44,15 @@ jobs:
       COBALT_SOURCE_DIR: ${{ github.workspace }}/workdir/cobalt-source
       SDL2_BUNDLE_DIR: ${{ github.workspace }}/workdir/deps/SDL2-2.30.12-webos-abi
       WEBOS_LINUX_SDK_VOLUME: ytaf-webos-linux-sdk
-      COBALT_BUILD_TYPE: ${{ inputs.build_type }}
-      NINJA_PARALLEL: ${{ inputs.build_parallel }}
-      COBALT_BUILD_LOG: ${{ github.workspace }}/output/cobalt-${{ inputs.build_type }}.log
+      COBALT_BUILD_TYPE: ${{ inputs.build_type || 'gold' }}
+      NINJA_PARALLEL: ${{ inputs.build_parallel || '4' }}
+      COBALT_BUILD_LOG: ${{ github.workspace }}/output/cobalt-${{ inputs.build_type || 'gold' }}.log
 
     steps:
-      - name: Check out main
+      - name: Check out build source
         uses: actions/checkout@v5
         with:
-          ref: main
+          ref: ${{ github.sha }}
           fetch-depth: 1
 
       - name: Validate source
@@ -62,13 +64,13 @@ jobs:
           test -f scripts/install-webos-starboard-platform.sh
           test -d cobalt-platform/webos/arm
           echo "Repository SHA: $(git rev-parse HEAD)"
-          echo "Cobalt ref:     ${{ inputs.cobalt_ref }}"
-          echo "Build type:     ${{ inputs.build_type }}"
+          echo "Cobalt ref:     ${{ inputs.cobalt_ref || '23.lts.6' }}"
+          echo "Build type:     ${{ inputs.build_type || 'gold' }}"
 
       - name: Resolve artifact metadata
         id: meta
         env:
-          COBALT_REF: ${{ inputs.cobalt_ref }}
+          COBALT_REF: ${{ inputs.cobalt_ref || '23.lts.6' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -93,7 +95,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y binutils ca-certificates cmake curl findutils git gzip jq make ninja-build patch perl python3 rsync sed xz-utils
+          sudo apt-get install -y binutils ca-certificates cmake curl findutils g++ git gzip jq make ninja-build patch perl python3 rsync sed xz-utils
 
       - name: Download pinned webOS ARM SDK
         env:
@@ -126,7 +128,7 @@ jobs:
 
       - name: Check out upstream Cobalt
         env:
-          COBALT_REF: ${{ inputs.cobalt_ref }}
+          COBALT_REF: ${{ inputs.cobalt_ref || '23.lts.6' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -141,6 +143,10 @@ jobs:
             git -C "$COBALT_SOURCE_DIR" fetch --depth 1 origin "$COBALT_REF"
             git -C "$COBALT_SOURCE_DIR" checkout --detach FETCH_HEAD
           fi
+
+      - name: Run cheap native regressions against this Cobalt source
+        shell: bash
+        run: bash scripts/test-native-host.sh "$COBALT_SOURCE_DIR"
 
       - name: Prepare legacy Cobalt Docker definitions
         shell: bash
@@ -192,11 +198,12 @@ jobs:
       - name: Create Cobalt runtime archive
         id: archive
         env:
-          COBALT_REF: ${{ inputs.cobalt_ref }}
+          COBALT_REF: ${{ inputs.cobalt_ref || '23.lts.6' }}
           SOURCE_SHA: ${{ steps.meta.outputs.source_sha }}
           SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
           COBALT_SLUG: ${{ steps.meta.outputs.cobalt_slug }}
-          BUILD_TYPE: ${{ inputs.build_type }}
+          SOURCE_REF: ${{ github.ref_name }}
+          BUILD_TYPE: ${{ inputs.build_type || 'gold' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -207,7 +214,8 @@ jobs:
           archive_path="$GITHUB_WORKSPACE/output/$archive"
           tar -C "$build_dir" -cJf "$archive_path" cobalt content
           sha256sum "$archive_path" > "$archive_path.sha256"
-          printf '%s\n' "repository=$GITHUB_REPOSITORY" "source_ref=main" "source_sha=$SOURCE_SHA" "cobalt_ref=$COBALT_REF" "starboard_api=13" "build_type=$BUILD_TYPE" "archive=$archive" > "$GITHUB_WORKSPACE/output/cobalt-build.txt"
+          sha256sum "$build_dir/cobalt" > "$GITHUB_WORKSPACE/output/cobalt-binary.sha256"
+          printf '%s\n' "repository=$GITHUB_REPOSITORY" "source_ref=$SOURCE_REF" "source_sha=$SOURCE_SHA" "cobalt_ref=$COBALT_REF" "cobalt_source_sha=$(git -C "$COBALT_SOURCE_DIR" rev-parse HEAD)" "starboard_api=13" "build_type=$BUILD_TYPE" "archive=$archive" > "$GITHUB_WORKSPACE/output/cobalt-build.txt"
           echo "archive=$archive" >> "$GITHUB_OUTPUT"
 
       - name: Upload Cobalt runtime
@@ -218,6 +226,51 @@ jobs:
             output/${{ steps.archive.outputs.archive }}
             output/${{ steps.archive.outputs.archive }}.sha256
             output/cobalt-build.txt
+            output/cobalt-binary.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Set up Node for nightly package validation
+        if: github.event_name == 'schedule'
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Validate nightly IPK (artifact only)
+        if: github.event_name == 'schedule'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          runtime_dir="$GITHUB_WORKSPACE/output/nightly-runtime"
+          mkdir -p "$runtime_dir"
+          docker run --rm -v "$WEBOS_LINUX_SDK_VOLUME:/sdk:ro" -v "$runtime_dir:/output" ubuntu:24.04 bash -c '
+            set -euo pipefail
+            sysroot=/sdk/arm-webos-linux-gnueabi_sdk-buildroot/arm-webos-linux-gnueabi/sysroot
+            for library in libstdc++.so.6 libgcc_s.so.1; do
+              source="$(find "$sysroot" -name "$library" -print -quit)"
+              test -n "$source"
+              cp -L "$source" "/output/$library"
+            done
+          '
+          export COBALT_BUILD_DIR="$COBALT_SOURCE_DIR/out/webos-arm-sbversion-13_${COBALT_BUILD_TYPE}"
+          export COBALT_RUNTIME_DIR="$runtime_dir"
+          export WEBAPP_OUTPUT_DIR="$COBALT_BUILD_DIR/content/web/adblock"
+          bash scripts/package-starterless-cobalt.sh
+          for package in output/*.ipk; do
+            python3 scripts/verify-ipk-container.py "$package"
+            sha256sum "$package" > "$package.sha256"
+          done
+
+      - name: Upload nightly package validation artifacts
+        if: github.event_name == 'schedule'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-ipk-${{ steps.meta.outputs.short_sha }}
+          path: |
+            output/*.ipk
+            output/*.ipk.sha256
+            output/cobalt-build.txt
           if-no-files-found: error
           retention-days: 14
 
@@ -226,7 +279,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cobalt-build-log-${{ steps.meta.outputs.short_sha }}
-          path: output/cobalt-${{ inputs.build_type }}.log
+          path: output/cobalt-${{ inputs.build_type || 'gold' }}.log
           if-no-files-found: warn
           retention-days: 14
 
