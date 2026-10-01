@@ -36,7 +36,8 @@ if ! git -C "$cobalt_root" rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
   exit 2
 fi
 
-if [[ "$(git -C "$cobalt_root" describe --tags --always)" != 23.lts.6* ]]; then
+if [[ "$(git -C "$cobalt_root" rev-parse HEAD)" != 007628df7bddd86e53d6d151ecd122614916223d &&
+      "$(git -C "$cobalt_root" describe --tags --always)" != 23.lts.6* ]]; then
   echo "This overlay currently supports Cobalt 23.lts.6 only." >&2
   exit 3
 fi

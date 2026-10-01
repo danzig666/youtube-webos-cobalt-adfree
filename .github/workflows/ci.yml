@@ -11,6 +11,29 @@ permissions:
   contents: read
 
 jobs:
+  native-host-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check out pinned upstream Cobalt sources
+        uses: actions/checkout@v5
+        with:
+          repository: youtube/cobalt
+          ref: 007628df7bddd86e53d6d151ecd122614916223d # 23.lts.6
+          path: workdir/cobalt-23.lts.6
+          sparse-checkout: |
+            starboard
+            cobalt
+            net
+            third_party/de265_includes
+      - name: Install host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ rsync python3
+      - name: Run native policy, timing, configuration, state and seek tests
+        run: bash scripts/test-native-host.sh
+
   smoke-test:
     runs-on: ubuntu-latest
 
