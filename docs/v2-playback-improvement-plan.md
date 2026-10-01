@@ -52,7 +52,7 @@ python3 scripts/test-external-video-seek.py workdir/cobalt-23.lts.6
 WEBOS_SDK_ROOT=/path/to/relocated/sdk SDL2_BUNDLE_DIR=/path/to/sdl \
   scripts/check-webos-starboard-sources.sh
 WEBOS_SDK_ROOT=/path/to/relocated/sdk \
-  scripts/check-starfish-av-session-state-sdk.sh
+  bash scripts/check-starfish-av-session-state-sdk.sh
 ```
 
 Results: 25 webapp tests passed; native timing/state, package tools and the
@@ -84,3 +84,48 @@ On-TV diagnostics and report export require a supported native/UI bridge.
 Neither SDK declarations nor host tests prove native playback. Do not invent
 LG APIs, publish releases, replace Cobalt/UI, remove legacy/rollback paths,
 require root/SSH, or log authentication data or signed media URLs.
+
+## Host-testable delivery (2026-10-01)
+
+Branch: `playback/host-tested-v2`. Implementation is split into local,
+reviewable commits; nothing has been pushed, packaged as a release or installed
+on a TV.
+
+| Phase | Delivered evidence / remaining gate |
+| --- | --- |
+| 0 | Baseline SHA, architecture, tests and ARM syntax recorded above |
+| 1 | Behavior-preserving capability extraction committed before policy changes; boundary comparison passed |
+| 2 | Safe/UHD/UHD-HDR profiles and latched override; no speculative detection |
+| 3 | Generic audio epoch/session and packet timing separated from Opus; wire format preserved |
+| 4 | SDK/source AAC investigation documented; compressed AAC remains unproven and uses existing fallback |
+| 5 | 100 resets, stale callbacks/EOS, queue boundaries, counter exhaustion and video transitions host-tested |
+| 6 | Rate policy, idempotence and confirmed 1x recovery; firmware validation outstanding |
+| 7 | Existing seek fix preserved; rapid/repeated/bidirectional/zero/paused/rate-context regressions expanded |
+| 8 | Native boundary tracing and live hypotheses documented; failing TV trace/MSE instrumentation/repair outstanding |
+| 9 | SDL lifecycle policy and duplicate/skipped-event tests; actual suspend/relaunch/resource recovery outstanding |
+| 10–11 | Typed bounded event ring/report API prepared; GREEN-button diagnostics and copy/report UI bridge outstanding |
+| 12 | Required device-test form and labeled-report generator; no device reports imported or claimed verified |
+| 13 | Cheap SDK-free native host job added to ordinary CI |
+| 14 | Daily 03:17 UTC Gold ARM build/package validation configured; full workflow not executed here |
+| 15 | Typed player error categories and shared/legacy diagnostic events added |
+
+Final local validation: webapp's 25 baseline tests and production webpack build
+passed; all native host suites passed with undefined-behavior checking;
+compatibility-generator tests (4) and package-tool test passed. Patches install
+on a clean pinned Cobalt tree and on an existing baseline-patched checkout;
+repeated installation is harmless. ARM syntax checks cover the SDL platform,
+both player implementations, capability/rate/lifecycle/diagnostic components
+and patched audio/video capability queries. `actionlint` accepts both modified
+workflows; shell syntax and the issue-form YAML were checked.
+
+The behavioral defaults intentionally change: unverified devices advertise
+H.264 SDR up to 1080p60 and use 1x/pause. Developer overrides must be set before
+launch and are process-latched: `YTAF_VIDEO_CAPS=uhd` or `uhd-hdr`, and
+`YTAF_PLAYBACK_RATES=common` (or the explicit `full-range` experiment).
+Invalid overrides fail closed. `YTAF_SHARED_AV=0`, the marker and all legacy
+fallback paths remain. Normal operation requires no root/SSH.
+
+No host result establishes TV playback, live repair, AAC support, HDR/rate
+support or full Gold link success. Those gates remain open. The next meaningful
+validation is a full Gold runtime build followed by a known-device trace and
+the specified playback/lifecycle matrix in one process.
