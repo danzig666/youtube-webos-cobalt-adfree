@@ -1,0 +1,251 @@
+name: Device test (v2)
+description: Report results for one TV, firmware and app build.
+title: "[Device test] "
+labels: [device-test]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report only tests you performed. Use Not tested or Not supported when appropriate.
+        Architecture may be Unknown. Include webOS/firmware and the exact app build.
+        Do not include credentials, account IDs, cookies, signed video URLs or browsing history.
+  - type: input
+    id: tv-model
+    attributes:
+      label: "TV model"
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: "Firmware"
+    validations:
+      required: true
+  - type: input
+    id: webos-version
+    attributes:
+      label: "webOS version"
+    validations:
+      required: true
+  - type: input
+    id: architecture
+    attributes:
+      label: "Architecture"
+    validations:
+      required: true
+  - type: input
+    id: root-status
+    attributes:
+      label: "Rooted or unrooted"
+    validations:
+      required: true
+  - type: input
+    id: install-method
+    attributes:
+      label: "Install method"
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: "App build SHA/version"
+    validations:
+      required: true
+  - type: dropdown
+    id: starts
+    attributes:
+      label: "Starts"
+      options:
+        - Not tested
+        - Pass
+        - Fail
+        - Not supported
+    validations:
+      required: true
+  - type: dropdown
+    id: relaunches
+    attributes:
+      label: "Relaunches"
+      options:
+        - Not tested
+        - Pass
+        - Fail
+        - Not supported
+    validations:
+      required: true
+  - type: dropdown
+    id: vod
+    attributes:
+      label: "VOD"
+      options:
+        - Not tested
+        - Pass
+        - Fail
+        - Not supported
+    validations:
+      required: true
+  - type: dropdown
+    id: shorts
+    attributes:
+      label: "Shorts"
+      options:
+        - Not tested
+        - Pass
+        - Fail
+        - Not supported
+    validations:
+      required: true
+  - type: dropdown
+    id: live
+    attributes:
+      label: "Live"
+      options:
+        - Not tested
+        - Pass
+        - Fail
+        - Not supported
+    validations:
+      required: true
+  - type: dropdown
+    id: seek
+    attributes:
+      label: "Seek"
+      options:
+        - Not tested
+        - Pass
+        - Fail
+        - Not supported
+    validations:
+      required: true
+  - type: dropdown
+    id: pause-resume
+    attributes:
+      label: "Pause/resume"
+      options:
+        - Not tested
+        - Pass
+        - Fail
+        - Not supported
+    validations:
+      required: true
+  - type: dropdown
+    id: h264
+    attributes:
+      label: "H264"
+      options:
+        - Not tested
+        - Pass
+        - Fail
+        - Not supported
+    validations:
+      required: true
+  - type: dropdown
+    id: vp9
+    attributes:
+      label: "VP9"
+      options:
+        - Not tested
+        - Pass
+        - Fail
+        - Not supported
+    validations:
+      required: true
+  - type: dropdown
+    id: av1
+    attributes:
+      label: "AV1"
+      options:
+        - Not tested
+        - Pass
+        - Fail
+        - Not supported
+    validations:
+      required: true
+  - type: dropdown
+    id: 1080p
+    attributes:
+      label: "1080p"
+      options:
+        - Not tested
+        - Pass
+        - Fail
+        - Not supported
+    validations:
+      required: true
+  - type: dropdown
+    id: 1440p
+    attributes:
+      label: "1440p"
+      options:
+        - Not tested
+        - Pass
+        - Fail
+        - Not supported
+    validations:
+      required: true
+  - type: dropdown
+    id: 2160p
+    attributes:
+      label: "2160p"
+      options:
+        - Not tested
+        - Pass
+        - Fail
+        - Not supported
+    validations:
+      required: true
+  - type: dropdown
+    id: hdr10
+    attributes:
+      label: "HDR10"
+      options:
+        - Not tested
+        - Pass
+        - Fail
+        - Not supported
+    validations:
+      required: true
+  - type: dropdown
+    id: hlg
+    attributes:
+      label: "HLG"
+      options:
+        - Not tested
+        - Pass
+        - Fail
+        - Not supported
+    validations:
+      required: true
+  - type: dropdown
+    id: 1-25x
+    attributes:
+      label: "1.25x"
+      options:
+        - Not tested
+        - Pass
+        - Fail
+        - Not supported
+    validations:
+      required: true
+  - type: dropdown
+    id: 1-5x
+    attributes:
+      label: "1.5x"
+      options:
+        - Not tested
+        - Pass
+        - Fail
+        - Not supported
+    validations:
+      required: true
+  - type: dropdown
+    id: 2x
+    attributes:
+      label: "2x"
+      options:
+        - Not tested
+        - Pass
+        - Fail
+        - Not supported
+    validations:
+      required: true
