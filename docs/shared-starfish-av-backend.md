@@ -3,8 +3,8 @@
 The webOS starterless Cobalt player now selects one native Starfish session and
 one presentation clock by default for eligible YouTube WebM Opus streams with
 H.264, VP9 or AV1 video. AAC, DRM, audio-only, unsupported codecs and unsupported
-configurations retain the existing Cobalt player factory. This change does not
-alter the platform's video capability advertisement or the standard-app build.
+configurations retain the existing Cobalt player factory. Shared selection
+does not override the platform capability policy or alter the standard-app build.
 
 The shared player owns both compressed-input queues, serializes vendor API calls
 on one thread, and uses native frame timestamps as Cobalt's media time. It

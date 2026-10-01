@@ -103,10 +103,7 @@ bool IsVideoConfigurationSupported(SbMediaVideoCodec codec,
                             info.color_metadata.bits_per_channel != 12)) return false;
   if (codec == kSbMediaVideoCodecH264 &&
       (hdr || info.color_metadata.bits_per_channel > 8)) return false;
-  const int max_width = codec == kSbMediaVideoCodecH264 ? 1920 : 3840;
-  const int max_height = codec == kSbMediaVideoCodecH264 ? 1080 : 2160;
-  return info.frame_width > 0 && info.frame_height > 0 &&
-         info.frame_width <= max_width && info.frame_height <= max_height;
+  return info.frame_width > 0 && info.frame_height > 0;
 }
 
 bool IsFiniteAndPositive(float value) {

@@ -5,6 +5,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cobalt_root="${COBALT_SOURCE_DIR:-$repo_root/workdir/cobalt-23.lts.6}"
 sdk_root="${WEBOS_SDK_ROOT:-/sdk/arm-webos-linux-gnueabi_sdk-buildroot}"
+sdl_root="${SDL2_BUNDLE_DIR:-$repo_root/workdir/deps/SDL2-2.30.12-webos-abi}"
 compiler="$sdk_root/bin/arm-webos-linux-gnueabi-g++"
 "$compiler" \
   --sysroot="$sdk_root/arm-webos-linux-gnueabi/sysroot" \
@@ -31,7 +32,7 @@ echo 'Shared Starfish A/V state passed ARM/Cobalt InputBuffer syntax checks.'
   -DSB_SIZE_OF_POINTER=4 -DSB_SIZE_OF_LONG=4 \
   '-DSTARBOARD_CONFIGURATION_INCLUDE="starboard/webos/arm/configuration_public.h"' \
   '-DSTARBOARD_ATOMIC_INCLUDE="starboard/webos/arm/atomic_public.h"' \
-  -isystem "$repo_root/workdir/deps/SDL2-2.30.12-webos-abi/include" \
+  -isystem "$sdl_root/include" \
   -isystem "$cobalt_root" \
   "$repo_root/cobalt-platform/webos/arm/starfish_av_components.cc"
 echo 'Shared Starfish A/V native components passed ARM syntax checks.'

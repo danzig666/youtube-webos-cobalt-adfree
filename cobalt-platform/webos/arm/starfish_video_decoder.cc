@@ -250,6 +250,7 @@ void StarfishVideoDecoder::SetPause(bool pause) {
 void StarfishVideoDecoder::SetPlaybackRate(double playback_rate) {
   double normalized;
   if (!NormalizePlaybackRate(playback_rate, GetPlaybackRateSupport(), &normalized)) {
+    RecordDiagnostic(MediaEventType::kRate, 0, WebOsPlayerError::kNativeRateFailed, false);
     ReportError("NativeRateFailed: legacy rate rejected by webOS policy.");
     return;
   }
@@ -271,6 +272,7 @@ void StarfishVideoDecoder::InitializePipeline(
       sample_info.frame_height > 0 ? sample_info.frame_height : 1080;
   if (!WebOsIsVideoSupported(codec_, width, height, 0, 0,
                             sample_info.color_metadata)) {
+    RecordDiagnostic(MediaEventType::kError, 0, WebOsPlayerError::kUnsupportedResolution, false);
     ReportError("Video configuration exceeds webOS capability policy.");
     return;
   }
@@ -339,6 +341,7 @@ void StarfishVideoDecoder::InitializePipeline(
   media_api_->notifyForeground();
   if (!media_api_->Load(payload.c_str(), &StarfishVideoDecoder::PlayerCallback,
                         this)) {
+    RecordDiagnostic(MediaEventType::kError, 0, WebOsPlayerError::kNativeLoadFailed, false);
     ReportError("StarfishMediaAPIs::Load() failed.");
     return;
   }
@@ -468,6 +471,7 @@ void StarfishVideoDecoder::ApplyPlaybackStateOnDecoderThread() {
   const double playback_rate =
       playback_rate_millionths_.load() / 1000000.0;
   if (!playback_rate_state_.Request(playback_rate, GetPlaybackRateSupport())) {
+    RecordDiagnostic(MediaEventType::kRate, 0, WebOsPlayerError::kNativeRateFailed, false);
     rate_failed_ = true;
     ReportError("NativeRateFailed: invalid legacy session rate state.");
     return;
@@ -477,6 +481,15 @@ void StarfishVideoDecoder::ApplyPlaybackStateOnDecoderThread() {
         "{\"playRate\":%.6g,\"audioOutput\":true}", value);
     return media_api_->SetPlayRate(payload.c_str());
   });
+  if (result != StarfishPlaybackRate::ApplyResult::kUnchanged) {
+    MediaEvent event;
+    event.session = diagnostic_session_id_; event.generation = diagnostic_generation_.load();
+    event.event = MediaEventType::kRate; event.requested_rate = playback_rate;
+    event.applied_rate = playback_rate_state_.applied_rate();
+    event.accepted = result == StarfishPlaybackRate::ApplyResult::kApplied;
+    if (!event.accepted) event.error = WebOsPlayerError::kNativeRateFailed;
+    RecordMediaEvent(event);
+  }
   if (result == StarfishPlaybackRate::ApplyResult::kFailed ||
       result == StarfishPlaybackRate::ApplyResult::kRecoveredOneX) {
     // Cobalt owns a separate audio clock here. Even successful video recovery
@@ -583,6 +596,7 @@ void StarfishVideoDecoder::ResetOnDecoderThread() {
   const bool time_set =
       flushed && media_api_->setTimeToDecode(time_payload.c_str());
   if (!flushed || !time_set) {
+    RecordDiagnostic(MediaEventType::kError, seek_to_time_.load(), WebOsPlayerError::kNativeSeekFailed, false);
     SB_LOG(WARNING) << "Starfish seek flush failed (flush=" << flushed
                     << ", setTimeToDecode=" << time_set
                     << "); recreating the pipeline.";
@@ -593,6 +607,7 @@ void StarfishVideoDecoder::ResetOnDecoderThread() {
       if (!unload_completed_.load() &&
           !pipeline_state_condition_.WaitTimed(kSbTimeSecond)) {
         SB_LOG(WARNING) << "Timed out waiting for Starfish unload.";
+        RecordDiagnostic(MediaEventType::kError, 0, WebOsPlayerError::kNativeUnloadTimeout, false);
       }
       pipeline_state_mutex_.Release();
     }
