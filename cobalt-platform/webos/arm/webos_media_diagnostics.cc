@@ -11,6 +11,7 @@ std::mutex mutex;
 MediaEventRing ring;
 uint64_t next_session = 0;
 unsigned routine_lines = 0, error_lines = 0;
+unsigned capability_lines = 0;
 const char* EventName(MediaEventType event) {
   switch (event) {
     case MediaEventType::kVideoCapability: return "video_capability";
@@ -101,6 +102,13 @@ void RecordMediaEvent(MediaEvent event) {
         std::chrono::steady_clock::now().time_since_epoch()).count();
   std::lock_guard<std::mutex> guard(mutex);
   ring.Record(event); // Keep recent evidence after stderr's process budget ends.
+  if (event.event == MediaEventType::kVideoCapability ||
+      event.event == MediaEventType::kAudioCapability) {
+    // YouTube may query capabilities repeatedly before creating a player.
+    // Preserve at least 80 routine lines for actual playback boundaries.
+    if (capability_lines >= 16) return;
+    ++capability_lines;
+  }
   const bool essential = event.error != WebOsPlayerError::kNone ||
       event.event == MediaEventType::kUnload || event.event == MediaEventType::kNativeEos;
   unsigned& count = essential ? error_lines : routine_lines;

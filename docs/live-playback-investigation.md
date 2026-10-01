@@ -12,7 +12,8 @@ instances have separate IDs. Legacy generations describe diagnostic context,
 not proof that firmware identifies stale callbacks after a retained seek.
 
 At most 128 structured stderr lines are emitted per process (96 routine and
-32 reserved for errors/unload/native EOS), in addition to the existing bounded
+32 reserved for errors/unload/native EOS; capability queries can use at most 16
+routine lines), in addition to the existing bounded
 shared trace. A synchronized ring always retains the last 100 typed events.
 `CopyMediaDiagnosticEvents()` exposes that ring internally. No on-TV UI/export
 bridge has been implemented yet. Reports never ingest free-form input or

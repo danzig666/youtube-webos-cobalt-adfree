@@ -25,6 +25,21 @@ run_test starfish-audio-session
 run_test starfish-playback-rate "$platform/starfish_playback_rate.cc"
 run_test webos-lifecycle "$platform/webos_lifecycle.cc"
 run_test webos-media-diagnostics "$platform/webos_media_diagnostics.cc"
+"$test_dir/webos-media-diagnostics" --log-budget \
+  >"$test_dir/report" 2>"$test_dir/diagnostic-log"
+python3 - "$test_dir" <<'PY'
+from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+lines = (root / 'diagnostic-log').read_text().splitlines()
+assert len(lines) == 128
+assert sum('event=video_capability ' in line for line in lines) == 16
+assert sum('event=first_frame ' in line for line in lines) == 80
+assert sum('error=NativeRateFailed' in line for line in lines) == 32
+report = (root / 'report').read_text().splitlines()
+assert len(report) == 100 and 'pts_us=999 ' in report[-1]
+print('Capability logging budget preserves playback and error evidence')
+PY
 bash "$repo_root/scripts/test-webos-media-capabilities.sh" "$cobalt_root"
 python3 "$repo_root/scripts/test-external-video-seek.py" --require-fixed "$cobalt_root"
 echo 'All native host regressions passed (no webOS SDK required).'

@@ -4,7 +4,21 @@
 #include <vector>
 #include "webos_media_diagnostics.h"
 using namespace starboard::shared::webos;
-int main() {
+int main(int argc, char**) {
+  if (argc > 1) {
+    MediaEvent event;
+    for (auto type : {MediaEventType::kVideoCapability,
+                      MediaEventType::kFirstFrame, MediaEventType::kError}) {
+      event.event = type;
+      if (type == MediaEventType::kError) event.error = WebOsPlayerError::kNativeRateFailed;
+      for (int i = 0; i < 1000; ++i) {
+        event.pts_us = i;
+        RecordMediaEvent(event);
+      }
+    }
+    std::cout << CopyMediaDiagnosticEvents();
+    return 0;
+  }
   MediaEventRing ring;
   assert(ring.Report().empty());
   MediaEvent event;
