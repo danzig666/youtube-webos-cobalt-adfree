@@ -1,0 +1,78 @@
+--- a/starboard/linux/shared/media_is_video_supported.cc
++++ b/starboard/linux/shared/media_is_video_supported.cc
+@@ -19,6 +19,9 @@
+ #include "starboard/configuration_constants.h"
+ #include "starboard/gles.h"
+ #include "starboard/media.h"
++#if defined(STARBOARD_WEBOS)
++#include "starboard/webos/arm/webos_media_diagnostics_bridge.h"
++#endif
+ #if defined(STARBOARD_WEBOS)
+ #include "starboard/webos/arm/webos_media_capabilities.h"
+ #endif
+@@ -42,6 +45,10 @@
+                              int64_t bitrate,
+                              int fps,
+                              bool decode_to_texture_required) {
++#if defined(STARBOARD_WEBOS)
++  const bool supported = [&]() {
++#endif
++
+   if (!IsSDRVideo(bit_depth, primary_id, transfer_id, matrix_id)) {
+     if (bit_depth != 10 && bit_depth != 12) {
+       return false;
+@@ -86,4 +93,16 @@
+          frame_width <= 1920 && frame_height <= 1080 &&
+          bitrate <= kSbMediaMaxVideoBitrateInBitsPerSecond && fps <= 60;
+ #endif
++#if defined(STARBOARD_WEBOS)
++  }();
++  ::starboard::shared::webos::MediaEvent event;
++  event.event = ::starboard::shared::webos::MediaEventType::kVideoCapability;
++  event.stream = ::starboard::shared::webos::MediaStream::kVideo;
++  event.codec = ::starboard::shared::webos::DiagnosticVideoCodec(video_codec);
++    event.width = frame_width; event.height = frame_height;
++    event.bits = bit_depth;
++  event.accepted = supported;
++  ::starboard::shared::webos::RecordMediaEvent(event);
++  return supported;
++#endif
+ }
+--- a/starboard/linux/shared/media_is_audio_supported.cc
++++ b/starboard/linux/shared/media_is_audio_supported.cc
+@@ -18,12 +18,19 @@
+ #include "starboard/configuration.h"
+ #include "starboard/configuration_constants.h"
+ #include "starboard/media.h"
++#if defined(STARBOARD_WEBOS)
++#include "starboard/webos/arm/webos_media_diagnostics_bridge.h"
++#endif
+ 
+ using ::starboard::shared::starboard::media::MimeType;
+ 
+ bool SbMediaIsAudioSupported(SbMediaAudioCodec audio_codec,
+                              const MimeType* mime_type,
+                              int64_t bitrate) {
++#if defined(STARBOARD_WEBOS)
++  const bool supported = [&]() {
++#endif
++
+   if (audio_codec == kSbMediaAudioCodecAac) {
+     return bitrate <= kSbMediaMaxAudioBitrateInBitsPerSecond;
+   }
+@@ -49,4 +56,15 @@
+ #endif  // SB_API_VERSION >= 14
+ 
+   return false;
++#if defined(STARBOARD_WEBOS)
++  }();
++  ::starboard::shared::webos::MediaEvent event;
++  event.event = ::starboard::shared::webos::MediaEventType::kAudioCapability;
++  event.stream = ::starboard::shared::webos::MediaStream::kAudio;
++  event.codec = ::starboard::shared::webos::DiagnosticAudioCodec(audio_codec);
++
++  event.accepted = supported;
++  ::starboard::shared::webos::RecordMediaEvent(event);
++  return supported;
++#endif
+ }

@@ -46,6 +46,7 @@ for source in \
   player_set_bounds.cc \
   webos_media_capabilities.cc \
   starfish_playback_rate.cc \
+  webos_media_diagnostics.cc \
   starfish_video_decoder.cc \
   window_create.cc \
   window_destroy.cc \
@@ -58,5 +59,7 @@ done
 
 "$compiler" "${common_flags[@]}" \
   "$cobalt_root/starboard/linux/shared/media_is_video_supported.cc"
+"$compiler" "${common_flags[@]}" \
+  "$cobalt_root/starboard/linux/shared/media_is_audio_supported.cc"
 
 echo "webos-arm platform sources passed the SDK syntax check."

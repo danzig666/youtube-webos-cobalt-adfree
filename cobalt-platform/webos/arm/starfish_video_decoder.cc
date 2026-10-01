@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <functional>
+#include <limits>
 #include <sstream>
 
 #include "starboard/common/log.h"
@@ -13,6 +14,7 @@
 #include "starboard/shared/starboard/media/mime_type.h"
 #include "starboard/webos/arm/application_sdl.h"
 #include "starboard/webos/arm/webos_media_capabilities.h"
+#include "starboard/webos/arm/webos_media_diagnostics_bridge.h"
 
 namespace starboard {
 namespace shared {
@@ -190,9 +192,11 @@ std::string BuildHdrInfoPayload(const SbMediaColorMetadata& metadata) {
 
 StarfishVideoDecoder::StarfishVideoDecoder(SbMediaVideoCodec codec)
     : codec_(codec),
+      diagnostic_session_id_(NextMediaSessionId()),
       media_api_(new StarfishMediaAPIs()),
       pipeline_state_condition_(pipeline_state_mutex_) {
   SB_DCHECK(CodecName(codec));
+  RecordDiagnostic(MediaEventType::kSelectedLegacy);
 }
 
 StarfishVideoDecoder::~StarfishVideoDecoder() {
@@ -203,6 +207,7 @@ StarfishVideoDecoder::~StarfishVideoDecoder() {
       if (pipeline_loaded_) {
         media_api_->Stop();
         media_api_->Unload();
+        RecordDiagnostic(MediaEventType::kUnload);
         pipeline_loaded_ = false;
       }
       media_api_.reset();
@@ -324,6 +329,13 @@ void StarfishVideoDecoder::InitializePipeline(
                << " with adaptive maximum " << capabilities.width << "x"
                << capabilities.height << "@" << capabilities.frame_rate
                << " using window " << window_id;
+  MediaEvent load;
+  load.session = diagnostic_session_id_; load.generation = diagnostic_generation_.load();
+  load.event = MediaEventType::kLoad; load.stream = MediaStream::kVideo;
+  load.codec = DiagnosticVideoCodec(codec_); load.width = width; load.height = height;
+  load.bits = sample_info.color_metadata.bits_per_channel;
+  load.pts_us = seek_to_time_.load();
+  RecordMediaEvent(load);
   media_api_->notifyForeground();
   if (!media_api_->Load(payload.c_str(), &StarfishVideoDecoder::PlayerCallback,
                         this)) {
@@ -376,6 +388,11 @@ void StarfishVideoDecoder::FeedBuffer(
     return;
   }
 
+  if (!first_input_logged_) {
+    first_input_logged_ = true;
+    RecordDiagnostic(MediaEventType::kFirstPacket, input_buffer->timestamp());
+  }
+
   const uintptr_t address =
       reinterpret_cast<uintptr_t>(input_buffer->data());
   std::string feed_payload = FormatString(
@@ -385,6 +402,10 @@ void StarfishVideoDecoder::FeedBuffer(
       static_cast<int64_t>(input_buffer->timestamp()) * 1000);
   std::string result = media_api_->Feed(feed_payload.c_str());
   if (result.find("Ok") != std::string::npos) {
+    if (!first_feed_logged_) {
+      first_feed_logged_ = true;
+      RecordDiagnostic(MediaEventType::kFirstFeed, input_buffer->timestamp());
+    }
     pending_buffer_ = nullptr;
     // On some webOS releases LOADCOMPLETED is emitted only after Play(), while
     // others refuse an early Play(). Retry until one startup Play is accepted,
@@ -411,7 +432,8 @@ void StarfishVideoDecoder::FeedBuffer(
         5 * kSbTimeMillisecond);
     return;
   }
-  ReportError("Starfish Feed() failed: " + result);
+  RecordDiagnostic(MediaEventType::kError, 0, WebOsPlayerError::kNativeFeedFailed, false);
+  ReportError("Starfish Feed() failed.");
 }
 
 void StarfishVideoDecoder::RetryPendingBuffer() {
@@ -488,6 +510,7 @@ void StarfishVideoDecoder::ApplyPlaybackStateOnDecoderThread() {
 }
 
 void StarfishVideoDecoder::OnLoadCompletedOnDecoderThread() {
+  RecordDiagnostic(MediaEventType::kLoadCompleted);
   SB_DCHECK(decoder_thread_->BelongsToCurrentThread());
   if (!pipeline_loaded_ || shutting_down_.load()) {
     return;
@@ -511,6 +534,7 @@ void StarfishVideoDecoder::WriteEndOfStream() {
 }
 
 void StarfishVideoDecoder::WriteEndOfStreamOnDecoderThread() {
+  RecordDiagnostic(MediaEventType::kInputEos);
   SB_DCHECK(decoder_thread_->BelongsToCurrentThread());
   if (!pipeline_loaded_ || !media_api_->pushEOS()) {
     eos_output_ = true;
@@ -535,6 +559,12 @@ void StarfishVideoDecoder::Reset() {
 
 void StarfishVideoDecoder::ResetOnDecoderThread() {
   SB_DCHECK(decoder_thread_->BelongsToCurrentThread());
+  const unsigned generation = diagnostic_generation_.load();
+  // Diagnostic-only counter: 0 explicitly marks exhausted/unknown context.
+  if (generation != 0)
+    diagnostic_generation_.store(generation == std::numeric_limits<unsigned>::max() ? 0 : generation + 1);
+  first_input_logged_ = first_feed_logged_ = false;
+  RecordDiagnostic(MediaEventType::kSeek, seek_to_time_.load());
   pending_buffer_ = nullptr;
   if (!pipeline_loaded_) {
     return;
@@ -599,9 +629,20 @@ void StarfishVideoDecoder::ReportError(const std::string& message) {
   Schedule(std::bind(error_cb_, kSbPlayerErrorDecode, message));
 }
 
+void StarfishVideoDecoder::RecordDiagnostic(MediaEventType type, SbTime pts,
+                                           WebOsPlayerError error,
+                                           bool accepted) const {
+  MediaEvent event;
+  event.session = diagnostic_session_id_; event.generation = diagnostic_generation_.load();
+  event.event = type; event.stream = MediaStream::kVideo;
+  event.codec = DiagnosticVideoCodec(codec_); event.pts_us = pts;
+  event.error = error; event.accepted = accepted;
+  RecordMediaEvent(event);
+}
+
 void StarfishVideoDecoder::HandlePlayerEvent(int type,
                                              int64_t num_value,
-                                             const char* str_value) {
+                                             const char* /*str_value*/) {
   if (shutting_down_.load()) {
     return;
   }
@@ -616,6 +657,7 @@ void StarfishVideoDecoder::HandlePlayerEvent(int type,
     const SbTime frame_time = static_cast<SbTime>(num_value / 1000);
     const SbTime target_time = seek_to_time_.load();
     if (!first_frame_presented_.exchange(true) && decoder_thread_) {
+      RecordDiagnostic(MediaEventType::kFirstFrame, frame_time);
       decoder_thread_->Schedule(std::bind(
           &StarfishVideoDecoder::ApplyPlaybackStateOnDecoderThread, this));
     }
@@ -632,8 +674,8 @@ void StarfishVideoDecoder::HandlePlayerEvent(int type,
     }
     return;
   }
-  SB_LOG(INFO) << "Starfish event type=" << type << " value=" << num_value
-               << " text=" << (str_value ? str_value : "");
+  // Vendor text can contain URLs or other runtime data; keep numeric context.
+  SB_LOG(INFO) << "Starfish event type=" << type << " value=" << num_value;
   if (type == PF_EVENT_TYPE_STR_STATE_UPDATE__LOADCOMPLETED) {
     load_completed_.store(true);
     if (decoder_thread_) {
@@ -648,12 +690,14 @@ void StarfishVideoDecoder::HandlePlayerEvent(int type,
   } else if ((type == PF_EVENT_TYPE_STR_STATE_UPDATE__ENDOFSTREAM) &&
              !eos_output_) {
     eos_output_ = true;
+    RecordDiagnostic(MediaEventType::kNativeEos);
     Schedule(std::bind(decoder_status_cb_, kBufferFull,
                        VideoFrame::CreateEOSFrame()));
   } else if (type == PF_EVENT_TYPE_INT_ERROR ||
              type == PF_EVENT_TYPE_STR_ERROR) {
-    ReportError(FormatString("Starfish pipeline error %d/%" PRId64 ": %s",
-                             type, num_value, str_value ? str_value : ""));
+    RecordDiagnostic(MediaEventType::kError, 0, WebOsPlayerError::kNativeFeedFailed, false);
+    ReportError(FormatString("Starfish pipeline error %d/%" PRId64,
+                             type, num_value));
   }
 }
 

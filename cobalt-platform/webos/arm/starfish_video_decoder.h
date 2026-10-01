@@ -11,6 +11,7 @@
 #include "starboard/common/scoped_ptr.h"
 #include "starboard/media.h"
 #include "starboard/webos/arm/starfish_playback_rate.h"
+#include "starboard/webos/arm/webos_media_diagnostics.h"
 #include "starboard/shared/starboard/player/filter/video_decoder_internal.h"
 #include "starboard/shared/starboard/player/job_queue.h"
 #include "starboard/shared/starboard/player/job_thread.h"
@@ -56,6 +57,9 @@ class StarfishVideoDecoder
   void ResetOnDecoderThread();
   void SignalUnloadCompleted();
   void ReportError(const std::string& message);
+  void RecordDiagnostic(MediaEventType event, SbTime pts = 0,
+                        WebOsPlayerError error = WebOsPlayerError::kNone,
+                        bool accepted = true) const;
   void HandlePlayerEvent(int type, int64_t num_value, const char* str_value);
   static void PlayerCallback(int type,
                              int64_t num_value,
@@ -63,6 +67,9 @@ class StarfishVideoDecoder
                              void* context);
 
   SbMediaVideoCodec codec_;
+  const uint64_t diagnostic_session_id_;
+  std::atomic<unsigned> diagnostic_generation_{1};
+  bool first_input_logged_ = false, first_feed_logged_ = false;
   scoped_ptr<StarfishMediaAPIs> media_api_;
   scoped_ptr<starboard::player::JobThread> decoder_thread_;
   DecoderStatusCB decoder_status_cb_;

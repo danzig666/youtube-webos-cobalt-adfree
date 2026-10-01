@@ -20,6 +20,7 @@ starfish_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-starfish.patch"
 shared_av_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-shared-av.patch"
 hardware_video_capabilities_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-hardware-video-capabilities.patch"
 media_capabilities_upgrade_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-media-capabilities-upgrade.patch"
+media_diagnostics_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-media-diagnostics.patch"
 pulse_soname_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-pulse-soname.patch"
 pulse_tuning_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-pulse-tuning.patch"
 external_video_seek_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-external-video-seek.patch"
@@ -129,6 +130,12 @@ if ! grep -q 'WebOsIsVideoSupported' \
     git -C "$cobalt_root" apply --check "$hardware_video_capabilities_patch"
     git -C "$cobalt_root" apply "$hardware_video_capabilities_patch"
   fi
+fi
+
+if ! grep -q 'RecordMediaEvent(event)' \
+  "$cobalt_root/starboard/linux/shared/media_is_video_supported.cc"; then
+  git -C "$cobalt_root" apply --check "$media_diagnostics_patch"
+  git -C "$cobalt_root" apply "$media_diagnostics_patch"
 fi
 
 if ! grep -q 'kPulseLibraryName.*libpulse.so.0' \

@@ -25,6 +25,7 @@
 #include "starboard/webos/arm/starfish_video_configuration.h"
 #include "starboard/webos/arm/webos_media_capabilities.h"
 #include "starboard/webos/arm/starfish_playback_rate.h"
+#include "starboard/webos/arm/webos_media_diagnostics_bridge.h"
 
 namespace starboard {
 namespace shared {
@@ -261,8 +262,8 @@ struct NativeSession {
 class Owner : public player::JobQueue::JobOwner {
  public:
   Owner(const filter::PlayerComponents::Factory::CreationParameters& parameters,
-        const StarfishOpusConfig& config, int mode)
-      : player_(parameters.player()), config_(config),
+        const StarfishOpusConfig& config, int mode, uint64_t session_id)
+      : player_(parameters.player()), session_id_(session_id), config_(config),
         video_codec_(parameters.video_codec()), mode_(mode),
         state_({256, 1024 * 1024}, {128, 8 * 1024 * 1024}) {
     api_thread_ = std::thread([this] { Run(); });
@@ -295,7 +296,7 @@ class Owner : public player::JobQueue::JobOwner {
       }
       SbTime pts = buffer->timestamp();
       if (pts < 0 || pts > std::numeric_limits<int64_t>::max() / 1000) {
-        FailLocked("unsupported raw packet timestamp"); return;
+        FailLocked("unsupported raw packet timestamp", WebOsPlayerError::kInvalidTimestamp); return;
       }
       if (stream == Stream::kAudio) {
         const auto& info = buffer->audio_sample_info();
@@ -330,7 +331,7 @@ class Owner : public player::JobQueue::JobOwner {
         const auto& info = buffer->video_sample_info();
         if (info.codec != video_codec_ ||
             !IsVideoConfigurationSupported(video_codec_, info, mode_)) {
-          FailLocked("unsupported shared A/V video configuration"); return;
+          FailLocked("unsupported shared A/V video configuration", WebOsPlayerError::kUnsupportedResolution); return;
         }
         const bool hdr = IsHdrTransfer(info.color_metadata.transfer);
         const auto configuration_result = next_video_configuration.Update(
@@ -338,7 +339,7 @@ class Owner : public player::JobQueue::JobOwner {
             info.color_metadata.bits_per_channel, info.is_key_frame);
         if (configuration_result ==
             StarfishVideoConfiguration::UpdateResult::kColorChanged) {
-          FailLocked("shared A/V color configuration change requires a new player");
+          FailLocked("shared A/V color configuration change requires a new player", WebOsPlayerError::kUnsupportedHdr);
           return;
         }
         if (configuration_result == StarfishVideoConfiguration::UpdateResult::
@@ -357,11 +358,18 @@ class Owner : public player::JobQueue::JobOwner {
     if (result != State::EnqueueResult::kAccepted) {
       FailLocked("shared A/V input batch exceeds queue budget or arrived after EOS"); return;
     }
+    auto& previous_pts = last_packet_pts_[stream == Stream::kAudio ? 0 : 1];
+    for (const auto& packet : packets) {
+      if (previous_pts >= 0 && packet.pts_us < previous_pts)
+        Record(MediaEventType::kDiscontinuity, state_.generation(), stream, packet.pts_us);
+      previous_pts = packet.pts_us;
+    }
     if (stream == Stream::kVideo)
       queued_video_configuration_ = next_video_configuration;
     if (stream == Stream::kAudio && !first_audio_) {
       first_audio_ = true; first_audio_pts_ = packets.front().pts_us;
       audio_origin_ = packets.front().buffer->timestamp() == 0;
+      Record(MediaEventType::kFirstPacket, state_.generation(), stream, first_audio_pts_);
       Trace("first-input generation=%llu stream=audio pts_us=%lld wait_us=%lld packets=%zu",
             static_cast<unsigned long long>(state_.generation()),
             static_cast<long long>(first_audio_pts_),
@@ -376,6 +384,8 @@ class Owner : public player::JobQueue::JobOwner {
           packets.front().buffer->video_sample_info().color_metadata.transfer);
       video_bits_ =
           packets.front().buffer->video_sample_info().color_metadata.bits_per_channel;
+      Record(MediaEventType::kFirstPacket, state_.generation(), stream, first_video_pts_,
+             WebOsPlayerError::kNone, true, width_, height_, video_bits_);
       Trace("first-input generation=%llu stream=video pts_us=%lld wait_us=%lld packets=%zu",
             static_cast<unsigned long long>(state_.generation()),
             static_cast<long long>(first_video_pts_),
@@ -394,6 +404,7 @@ class Owner : public player::JobQueue::JobOwner {
   void Eos(Stream stream) {
     Guard guard(mutex_);
     state_.WriteEos(state_.generation(), stream);
+    Record(MediaEventType::kInputEos, state_.generation(), stream);
     (stream == Stream::kAudio ? audio_eos_ : video_eos_) = true;
     if (!first_audio_ || !first_video_)
       FailLocked("shared A/V EOS before both initial packets");
@@ -407,11 +418,13 @@ class Owner : public player::JobQueue::JobOwner {
     Guard guard(mutex_);
     if (target < 0 || target > std::numeric_limits<int64_t>::max() / 1000 ||
         !state_.Reset() || lease.load() == 2) {
-      FailLocked("invalid shared A/V reset"); return;
+      FailLocked("invalid shared A/V reset", WebOsPlayerError::kNativeSeekFailed); return;
     }
     target_ = current_ = target;
+    Record(MediaEventType::kSeek, state_.generation(), Stream::kVideo, target);
     input_wait_started_ = SbTimeGetMonotonicNow();
     audio_eos_ = video_eos_ = first_audio_ = first_video_ = false;
+    last_packet_pts_[0] = last_packet_pts_[1] = -1;
     queued_video_configuration_.Reset();
     video_hdr_ = false; video_bits_ = 0; hdr_payload_.clear();
     ready_ = preroll_sent_ = end_sent_ = playing_ = have_frame_ = false;
@@ -424,6 +437,8 @@ class Owner : public player::JobQueue::JobOwner {
     Guard guard(mutex_);
     double normalized;
     if (!NormalizePlaybackRate(rate, GetPlaybackRateSupport(), &normalized)) {
+      Record(MediaEventType::kRate, state_.generation(), Stream::kVideo, 0,
+             WebOsPlayerError::kNativeRateFailed, false);
       TraceEssential("error=NativeRateFailed event=rate_policy_rejected requested=%.6g applied=%.6g",
                      rate, rate_);
       return;
@@ -453,13 +468,31 @@ class Owner : public player::JobQueue::JobOwner {
   }
 
  private:
-  void FailLocked(const std::string& error) {
-    if (error_.empty()) error_ = error;
+  void Record(MediaEventType type, uint64_t generation,
+              Stream stream = Stream::kVideo, int64_t pts = 0,
+              WebOsPlayerError error = WebOsPlayerError::kNone,
+              bool accepted = true, int width = 0, int height = 0,
+              unsigned bits = 0) const {
+    MediaEvent event;
+    event.session = session_id_; event.generation = generation;
+    event.event = type; event.pts_us = pts; event.error = error;
+    event.stream = stream == Stream::kAudio ? MediaStream::kAudio : MediaStream::kVideo;
+    event.codec = stream == Stream::kAudio ? MediaCodec::kOpus : DiagnosticVideoCodec(video_codec_);
+    event.accepted = accepted; event.width = width; event.height = height; event.bits = bits;
+    RecordMediaEvent(event);
+  }
+  void FailLocked(const std::string& error,
+                  WebOsPlayerError category = WebOsPlayerError::kNativeFeedFailed) {
+    if (error_.empty()) {
+      error_ = error;
+      Record(MediaEventType::kError, state_.generation(), Stream::kVideo, 0, category, false);
+    }
   }
   void Fail(const std::string& error) { Guard guard(mutex_); FailLocked(error); }
-  void FailSession(const NativeSession& session, const std::string& error) {
+  void FailSession(const NativeSession& session, const std::string& error,
+                   WebOsPlayerError category = WebOsPlayerError::kNativeFeedFailed) {
     Guard guard(mutex_);
-    if (state_.generation() == session.generation) FailLocked(error);
+    if (state_.generation() == session.generation) FailLocked(error, category);
   }
   bool Current(uint64_t generation) const {
     Guard guard(mutex_);
@@ -505,6 +538,8 @@ class Owner : public player::JobQueue::JobOwner {
       // No owner pointer in the callback. One retained context, not one leak
       // per seek. No more player components may start until Cobalt restarts.
       lease.store(2);
+      Record(MediaEventType::kError, session->generation, Stream::kVideo, 0,
+             WebOsPlayerError::kNativeUnloadTimeout, false);
       session.release();
       Fail("Starfish Unload completion missing; native session quarantined until restart");
       return false;
@@ -528,6 +563,7 @@ class Owner : public player::JobQueue::JobOwner {
           static_cast<long long>(std::max(video.max_duration, video_active)),
           video.buffer_full, video.pending, video.max_queued_packets,
           video.max_queued_bytes);
+    Record(MediaEventType::kUnload, session->generation);
     session.reset();
     return true;
   }
@@ -546,7 +582,7 @@ class Owner : public player::JobQueue::JobOwner {
       width = width_; height = height_; bits = video_bits_; hdr = video_hdr_;
       if (!PlanStarfishOpusSession(config_, first_audio, first_video, target,
                                   audio_origin_, &plan)) {
-        FailLocked("cannot plan shared Opus restart: timestamp/pre-roll outside supported range");
+        FailLocked("cannot plan shared Opus restart: timestamp/pre-roll outside supported range", WebOsPlayerError::kInvalidTimestamp);
         return nullptr;
       }
     }
@@ -589,9 +625,11 @@ class Owner : public player::JobQueue::JobOwner {
           static_cast<long long>(target),
           static_cast<long long>(first_audio), static_cast<long long>(first_video),
           static_cast<long long>(plan.epoch_us), plan.discard_samples);
+    Record(MediaEventType::kLoad, generation, Stream::kVideo, target,
+           WebOsPlayerError::kNone, true, width, height, bits);
     session->api->notifyForeground();
     if (!session->api->Load(payload.c_str(), NativeSession::Callback, session.get()))
-      FailSession(*session, "shared Starfish Load rejected");
+      FailSession(*session, "shared Starfish Load rejected", WebOsPlayerError::kNativeLoadFailed);
     // Even rejected Load may have installed callbacks: caller always unloads.
     return session;
   }
@@ -632,7 +670,7 @@ class Owner : public player::JobQueue::JobOwner {
       }
       int64_t pts_ns;
       if (!session.plan.ToNativeNanoseconds(ticket.packet.pts_us, &pts_ns)) {
-        FailSession(session, "packet predates shared epoch or overflows native PTS"); return;
+        FailSession(session, "packet predates shared epoch or overflows native PTS", WebOsPlayerError::kInvalidTimestamp); return;
       }
       const auto payload = FormatString(
           "{\"bufferAddr\":\"%p\",\"bufferSize\":%zu,\"pts\":%lld,\"esData\":%d}",
@@ -656,6 +694,8 @@ class Owner : public player::JobQueue::JobOwner {
                                    : session.video_backpressure;
       const SbTime now = SbTimeGetMonotonicNow();
       if (result == State::FeedResult::kAccepted) {
+        if (!(stream == Stream::kAudio ? session.audio_fed : session.video_fed))
+          Record(MediaEventType::kFirstFeed, session.generation, stream, ticket.packet.pts_us);
         (stream == Stream::kAudio ? session.audio_fed : session.video_fed) = true;
         if (pressure.started != 0) {
           const SbTime duration = std::max<SbTime>(0, now - pressure.started);
@@ -727,8 +767,10 @@ class Owner : public player::JobQueue::JobOwner {
     }
     const auto now = SbTimeGetMonotonicNow();
     const bool loaded = session.loaded.load();
-    if (loaded && !session.was_loaded)
+    if (loaded && !session.was_loaded) {
+      Record(MediaEventType::kLoadCompleted, session.generation);
       Trace("load-completed generation=%llu", static_cast<unsigned long long>(session.generation));
+    }
     if (loaded && hdr_expected && hdr_payload.empty() && !session.hdr_auto_logged) {
       session.hdr_auto_logged = true;
       Trace("HDR metadata unavailable generation=%llu; using elementary-stream detection",
@@ -747,14 +789,23 @@ class Owner : public player::JobQueue::JobOwner {
     }
     if (loaded) {
       if (!session.playback_rate.Request(rate, GetPlaybackRateSupport())) {
-        FailSession(session, "NativeRateFailed: invalid session rate state"); return;
+        FailSession(session, "NativeRateFailed: invalid session rate state", WebOsPlayerError::kNativeRateFailed); return;
       }
       const auto result = session.playback_rate.Apply([&](double value) {
         const auto payload = FormatString("{\"playRate\":%.6g,\"audioOutput\":true}", value);
         return session.api->SetPlayRate(payload.c_str());
       });
       if (result == StarfishPlaybackRate::ApplyResult::kFailed) {
-        FailSession(session, "NativeRateFailed: shared rate and recovery rejected"); return;
+        FailSession(session, "NativeRateFailed: shared rate and recovery rejected", WebOsPlayerError::kNativeRateFailed); return;
+      }
+      if (result != StarfishPlaybackRate::ApplyResult::kUnchanged) {
+        MediaEvent event;
+        event.session = session_id_; event.generation = session.generation;
+        event.event = MediaEventType::kRate; event.requested_rate = rate;
+        event.applied_rate = session.playback_rate.applied_rate();
+        event.accepted = result == StarfishPlaybackRate::ApplyResult::kApplied;
+        if (!event.accepted) event.error = WebOsPlayerError::kNativeRateFailed;
+        RecordMediaEvent(event);
       }
       if (result == StarfishPlaybackRate::ApplyResult::kRecoveredOneX) {
         TraceEssential("error=NativeRateFailed event=rate_recovered generation=%llu requested=%.6g applied=1",
@@ -783,10 +834,13 @@ class Owner : public player::JobQueue::JobOwner {
     const int64_t frame_ns = session.frame_ns.load();
     const bool new_frame = frame_ns >= 0 && frame_ns != session.last_frame;
     if (new_frame) {
-      if (session.last_frame < 0)
+      if (session.last_frame < 0) {
+        Record(MediaEventType::kFirstFrame, session.generation, Stream::kVideo,
+               frame_ns / 1000 - session.plan.epoch_us);
         Trace("first-frame generation=%llu native_ns=%lld presentation_us=%lld",
               static_cast<unsigned long long>(session.generation), static_cast<long long>(frame_ns),
               static_cast<long long>(frame_ns / 1000 - session.plan.epoch_us));
+      }
       session.last_progress = now; session.last_frame = frame_ns;
       session.playback_rate.FrameProgress(now);
     }
@@ -804,6 +858,8 @@ class Owner : public player::JobQueue::JobOwner {
     }
     if (submit_eos) {
       const bool accepted = session.api->pushEOS();
+      Record(MediaEventType::kPushEos, session.generation, Stream::kVideo, 0,
+             WebOsPlayerError::kNone, accepted);
       TraceEssential("push-eos generation=%llu accepted=%d",
             static_cast<unsigned long long>(session.generation), accepted);
       Guard guard(mutex_);
@@ -821,9 +877,11 @@ class Owner : public player::JobQueue::JobOwner {
             FailLocked("unexpected shared native EOS before input drain");
         }
       }
-      if (newly_ended)
+      if (newly_ended) {
+        Record(MediaEventType::kNativeEos, session.generation);
         TraceEssential("native-eos generation=%llu",
               static_cast<unsigned long long>(session.generation));
+      }
       ApplicationSdl::Get()->SetVideoPaused(true);
     } else if (!paused && now - session.last_progress > 20 * kSecond) {
       if (session.playback_rate.applied_rate() > 0 &&
@@ -841,10 +899,10 @@ class Owner : public player::JobQueue::JobOwner {
           if (state_.generation() == session.generation && rate_ == rate) rate_ = 1;
           session.last_progress = now; // One recovery interval; 1x cannot loop.
         } else {
-          FailSession(session, "NativeRateFailed: stalled rate recovery rejected");
+          FailSession(session, "NativeRateFailed: stalled rate recovery rejected", WebOsPlayerError::kNativeRateFailed);
         }
       } else {
-        FailSession(session, "shared A/V presentation stalled for 20 seconds");
+        FailSession(session, "shared A/V presentation stalled for 20 seconds", WebOsPlayerError::kNativeBufferStall);
       }
     }
     int z, x, y, width, height;
@@ -881,6 +939,7 @@ class Owner : public player::JobQueue::JobOwner {
   }
 
   const SbPlayer player_;
+  const uint64_t session_id_;
   const StarfishOpusConfig config_;
   const SbMediaVideoCodec video_codec_;
   const int mode_;
@@ -895,6 +954,7 @@ class Owner : public player::JobQueue::JobOwner {
   bool error_sent_ = false, have_frame_ = false, bounds_dirty_ = true;
   bool video_hdr_ = false;
   SbTime target_ = 0, current_ = 0, first_audio_pts_ = 0, first_video_pts_ = 0, frame_time_ = 0;
+  int64_t last_packet_pts_[2] = {-1, -1};
   SbTime input_wait_started_ = SbTimeGetMonotonicNow();
   int width_ = 0, height_ = 0, z_ = 0, x_ = 0, y_ = 0, bounds_width_ = 0, bounds_height_ = 0;
   unsigned video_bits_ = 0;
@@ -950,8 +1010,8 @@ class Clock : public filter::MediaTimeProvider {
 class Components : public filter::PlayerComponents {
  public:
   Components(const Factory::CreationParameters& parameters,
-             const StarfishOpusConfig& config, int mode)
-      : owner_(parameters, config, mode), audio_(&owner_), video_(&owner_), clock_(&owner_) {}
+             const StarfishOpusConfig& config, int mode, uint64_t session_id)
+      : owner_(parameters, config, mode, session_id), audio_(&owner_), video_(&owner_), clock_(&owner_) {}
   filter::AudioRenderer* GetAudioRenderer() override { return &audio_; }
   filter::VideoRenderer* GetVideoRenderer() override { return &video_; }
   filter::MediaTimeProvider* GetMediaTimeProvider() override { return &clock_; }
@@ -966,6 +1026,16 @@ class Components : public filter::PlayerComponents {
 bool TryCreateStarfishAvComponents(
     const filter::PlayerComponents::Factory::CreationParameters& parameters,
     scoped_ptr<filter::PlayerComponents>* components, std::string* error_message) {
+  const uint64_t session_id = NextMediaSessionId();
+  MediaEvent selection;
+  selection.session = session_id;
+  selection.event = MediaEventType::kFactory;
+  selection.stream = MediaStream::kVideo;
+  selection.codec = DiagnosticVideoCodec(parameters.video_codec());
+  RecordMediaEvent(selection);
+  selection.stream = MediaStream::kAudio;
+  selection.codec = DiagnosticAudioCodec(parameters.audio_codec());
+  RecordMediaEvent(selection);
   const int mode = SharedAvBackendMode();
   if (mode == 0) return false;
   // A still-owned or quarantined native session can retain both the exported
@@ -1009,7 +1079,14 @@ bool TryCreateStarfishAvComponents(
   TraceEssential("selected shared %s+Opus backend mode=%d size=%dx%d bits=%u transfer=%d",
         CodecName(video_codec), mode, video.frame_width, video.frame_height,
         video.color_metadata.bits_per_channel, video.color_metadata.transfer);
-  components->reset(new Components(parameters, config, mode));
+  selection.event = MediaEventType::kSelectedShared;
+  selection.generation = 1; selection.accepted = true;
+  selection.stream = MediaStream::kVideo;
+  selection.codec = DiagnosticVideoCodec(video_codec);
+  selection.width = video.frame_width; selection.height = video.frame_height;
+  selection.bits = video.color_metadata.bits_per_channel;
+  RecordMediaEvent(selection);
+  components->reset(new Components(parameters, config, mode, session_id));
   return true;
 }
 
