@@ -19,6 +19,7 @@ dav1d_api_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-dav1d-api.patc
 starfish_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-starfish.patch"
 shared_av_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-shared-av.patch"
 hardware_video_capabilities_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-hardware-video-capabilities.patch"
+media_capabilities_upgrade_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-media-capabilities-upgrade.patch"
 pulse_soname_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-pulse-soname.patch"
 pulse_tuning_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-pulse-tuning.patch"
 external_video_seek_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-external-video-seek.patch"
@@ -84,13 +85,13 @@ if ! grep -q 'defined(STARBOARD_WEBOS)' \
   git -C "$cobalt_root" apply "$video_fallback_patch"
 fi
 
-if ! grep -Eq "VP9-only libvpx|TV's Starfish hardware pipeline" \
+if ! grep -Eq "VP9-only libvpx|TV's Starfish hardware pipeline|WebOsIsVideoSupported" \
   "$cobalt_root/starboard/linux/shared/media_is_video_supported.cc"; then
   git -C "$cobalt_root" apply --check "$vp9_patch"
   git -C "$cobalt_root" apply "$vp9_patch"
 fi
 
-if ! grep -Eq "dav1d handles AV1|TV's Starfish hardware pipeline" \
+if ! grep -Eq "dav1d handles AV1|TV's Starfish hardware pipeline|WebOsIsVideoSupported" \
   "$cobalt_root/starboard/linux/shared/media_is_video_supported.cc"; then
   git -C "$cobalt_root" apply --check "$av1_patch"
   git -C "$cobalt_root" apply "$av1_patch"
@@ -117,10 +118,17 @@ if ! grep -q 'TryCreateStarfishAvComponents' \
   git -C "$cobalt_root" apply "$shared_av_patch"
 fi
 
-if ! grep -q "TV's Starfish hardware pipeline" \
+if ! grep -q 'WebOsIsVideoSupported' \
   "$cobalt_root/starboard/linux/shared/media_is_video_supported.cc"; then
-  git -C "$cobalt_root" apply --check "$hardware_video_capabilities_patch"
-  git -C "$cobalt_root" apply "$hardware_video_capabilities_patch"
+  if grep -q "TV's Starfish hardware pipeline" \
+    "$cobalt_root/starboard/linux/shared/media_is_video_supported.cc"; then
+    # Upgrade an existing incremental build as well as clean Cobalt checkouts.
+    git -C "$cobalt_root" apply --check "$media_capabilities_upgrade_patch"
+    git -C "$cobalt_root" apply "$media_capabilities_upgrade_patch"
+  else
+    git -C "$cobalt_root" apply --check "$hardware_video_capabilities_patch"
+    git -C "$cobalt_root" apply "$hardware_video_capabilities_patch"
+  fi
 fi
 
 if ! grep -q 'kPulseLibraryName.*libpulse.so.0' \

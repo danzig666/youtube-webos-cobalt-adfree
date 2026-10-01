@@ -23,6 +23,7 @@ common_flags=(
   -mfpu=neon
   -mfloat-abi=softfp
   -DSTARBOARD
+  -DSTARBOARD_WEBOS
   -DCOBALT
   -DSTARBOARD_IMPLEMENTATION
   -DSB_API_VERSION=13
@@ -36,12 +37,15 @@ common_flags=(
   -I"$sdl_root/include"
   -I"$sysroot/usr/include"
   -I"$cobalt_root"
+  -I"$cobalt_root/third_party/de265_includes"
 )
 
 for source in \
   application_sdl.cc \
   main.cc \
   player_set_bounds.cc \
+  webos_media_capabilities.cc \
+  starfish_video_decoder.cc \
   window_create.cc \
   window_destroy.cc \
   window_get_platform_handle.cc \
@@ -50,5 +54,8 @@ for source in \
   "$compiler" "${common_flags[@]}" \
     "$cobalt_root/starboard/webos/arm/$source"
 done
+
+"$compiler" "${common_flags[@]}" \
+  "$cobalt_root/starboard/linux/shared/media_is_video_supported.cc"
 
 echo "webos-arm platform sources passed the SDK syntax check."
