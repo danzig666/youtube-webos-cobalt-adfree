@@ -12,6 +12,7 @@
 #include "starboard/common/string.h"
 #include "starboard/shared/starboard/media/mime_type.h"
 #include "starboard/webos/arm/application_sdl.h"
+#include "starboard/webos/arm/webos_media_capabilities.h"
 
 namespace starboard {
 namespace shared {
@@ -40,10 +41,9 @@ const char* CodecName(SbMediaVideoCodec codec) {
 AdaptiveVideoCapabilities GetAdaptiveVideoCapabilities(
     SbMediaVideoCodec codec,
     const SbMediaVideoSampleInfo& sample_info) {
-  const int codec_max_width =
-      codec == kSbMediaVideoCodecH264 ? 1920 : 3840;
-  const int codec_max_height =
-      codec == kSbMediaVideoCodecH264 ? 1080 : 2160;
+  const auto& caps = VideoCapabilityForCodec(GetWebOsMediaCapabilities(), codec);
+  const int codec_max_width = caps.max_width;
+  const int codec_max_height = caps.max_height;
   int width = codec_max_width;
   int height = codec_max_height;
   int frame_rate = 60;
@@ -262,6 +262,11 @@ void StarfishVideoDecoder::InitializePipeline(
       sample_info.frame_width > 0 ? sample_info.frame_width : 1920;
   const int height =
       sample_info.frame_height > 0 ? sample_info.frame_height : 1080;
+  if (!WebOsIsVideoSupported(codec_, width, height, 0, 0,
+                            sample_info.color_metadata)) {
+    ReportError("Video configuration exceeds webOS capability policy.");
+    return;
+  }
   if (width != video_width_ || height != video_height_) {
     video_width_ = width;
     video_height_ = height;

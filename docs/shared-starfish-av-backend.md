@@ -15,6 +15,21 @@ the decoded tail may exceed the container end by at most one Opus packet.
 
 ## Rollback and diagnostic modes
 
+Video advertisement is now process-latched independently of backend selection:
+
+| `YTAF_VIDEO_CAPS` | Advertisement |
+| --- | --- |
+| absent, `safe`, invalid | H.264 SDR up to 1080p60; VP9/AV1/HDR disabled |
+| `uhd` | H.264 SDR 1080p60; VP9/AV1 SDR up to 2160p60 |
+| `uhd-hdr` | UHD plus VP9/AV1 HDR10/HLG at 10/12 bits |
+
+Unknown devices default to safe. No reliable firmware capability probe has
+been established, so UHD tiers require an explicit developer override after
+device verification. Setting a tier is a test policy, not hardware detection.
+Set it before launch and fully restart Cobalt after changing it. The shared
+and legacy video paths enforce the same policy. Normal operation requires
+neither root nor SSH. The environment overrides are developer diagnostics.
+
 The backend mode is latched at the first query in each Cobalt process. With no
 override, mode 3 supports eligible H.264 SDR and VP9/AV1 UHD SDR/HDR streams.
 Set `YTAF_SHARED_AV=0` before launch to use the existing backend. On a rooted

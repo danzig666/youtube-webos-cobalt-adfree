@@ -8,6 +8,10 @@ namespace starboard {
 namespace shared {
 namespace webos {
 
+enum class CapabilityTier { kSafe, kKnownUhd, kKnownUhdHdr };
+CapabilityTier ParseVideoCapabilityTier(const char* override_value);
+const char* VideoCapabilityTierName(CapabilityTier tier);
+
 struct WebOsVideoCapability {
   bool supported;
   int max_width;
@@ -19,12 +23,20 @@ struct WebOsVideoCapability {
 };
 
 struct WebOsMediaCapabilities {
+  CapabilityTier tier;
   WebOsVideoCapability h264;
   WebOsVideoCapability vp9;
   WebOsVideoCapability av1;
 };
 
+WebOsMediaCapabilities MediaCapabilitiesForTier(CapabilityTier tier);
+const WebOsVideoCapability& VideoCapabilityForCodec(
+    const WebOsMediaCapabilities& caps, SbMediaVideoCodec codec);
 const WebOsMediaCapabilities& GetWebOsMediaCapabilities();
+bool WebOsIsVideoSupported(const WebOsMediaCapabilities& caps,
+                          SbMediaVideoCodec codec, int width, int height,
+                          int64_t bitrate, int fps,
+                          const SbMediaColorMetadata& color);
 bool WebOsIsVideoSupported(SbMediaVideoCodec codec, int width, int height,
                           int64_t bitrate, int fps,
                           const SbMediaColorMetadata& color);
