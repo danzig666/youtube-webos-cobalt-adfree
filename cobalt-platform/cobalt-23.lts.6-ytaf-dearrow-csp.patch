@@ -1,0 +1,14 @@
+--- a/cobalt/csp/directive_list.cc
++++ b/cobalt/csp/directive_list.cc
+@@ -906,6 +906,11 @@
+   DCHECK(!name.empty());
+   value.append(" sponsor.ajay.app returnyoutubedislikeapi.com");
+   std::string lower_name = base::ToLowerASCII(name);
++  // DeArrow uses a fixed image host; include default-src for image fallback.
++  if (lower_name == ContentSecurityPolicy::kImgSrc ||
++      lower_name == ContentSecurityPolicy::kDefaultSrc) {
++    value.append(" https://dearrow-thumb.ajay.app");
++  }
+   if (lower_name == ContentSecurityPolicy::kDefaultSrc) {
+     SetCSPDirective(name, value, &default_src_);
+   } else if (lower_name == ContentSecurityPolicy::kScriptSrc) {

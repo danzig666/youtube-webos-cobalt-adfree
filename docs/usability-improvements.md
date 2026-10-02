@@ -59,18 +59,37 @@ The stop control depends on the TV client's natural-ended and navigation event
 ordering. It must be tested on a TV; a client that navigates before emitting
 `ended` can cancel the pending stop. Host tests cannot confirm that ordering.
 
+## Implemented for 2.4.0
+
+- **Caption preferences:** GREEN → Captions on each video, Preferred caption
+  language, Caption text size. Defaults defer to YouTube. Prefer on/off, choose
+  an available language (including Hungarian), and choose Large or Extra large.
+  Requests apply once per video, with bounded retries while controls load;
+  manual caption actions cancel pending requests. Missing languages keep the
+  current choice. There is no automatic translation. Returning to YouTube choice
+  stops future overrides; reset the current video through YouTube's caption menu.
+- **Optional DeArrow:** Off (default), Titles only, or Titles and thumbnails.
+  Changes supported visible video cards, using community submissions. Missing
+  data and image failures preserve original content. Show original titles and
+  thumbnails pauses replacements for the session; Resume DeArrow restores them.
+  Off cancels pending requests and restores content still owned by the feature.
+  No video history or DeArrow cache is persisted. The setting explains external
+  requests before activation. Account credentials are never added to requests.
+- **Cobalt DOM compatibility:** marker and focus checks use `contains()` because
+  Cobalt 23 does not expose `Node.isConnected`.
+
+See [caption and DeArrow integration evidence](caption-dearrow-integration.md)
+for API sources, bounds, privacy behavior and outstanding TV checks.
+
 ## Follow-up ideas, not implemented in this batch
 
-1. **Caption preferences:** preferred language and readable caption presets.
-   First verify how the current YouTube TV client exposes these choices and
-   retains them; avoid repeatedly overriding the user's in-player selection.
-2. **Guided device check:** a checklist for launch, VOD, live/DVR, seeking, HDR
+1. **Guided device check:** a checklist for launch, VOD, live/DVR, seeking, HDR
    and lifecycle behavior, with an exportable result. Report observed results
    rather than automatically enabling codecs from a TV model name.
-3. **Undo the last SponsorBlock skip:** bounded per-video seek history and an
+2. **Undo the last SponsorBlock skip:** bounded per-video seek history and an
    explicit remote action. Validate interaction with live/DVR windows and
    prevent the same segment from immediately skipping again.
-4. **Compact and larger-text settings layouts:** preview sizing before saving,
+3. **Compact and larger-text settings layouts:** preview sizing before saving,
    then verify focus and scrolling at actual TV output resolutions.
 
 ## Validation

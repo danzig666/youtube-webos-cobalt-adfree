@@ -182,3 +182,13 @@ use Cancel to disarm it before the ending. Existing SponsorBlock choices and
 0/1/3 shortcut defaults are preserved. Channel exceptions override segment modes.
 See [usability behavior and validation limits](docs/usability-improvements.md).
 Backup/restore is not included. On-TV behavior still needs device validation.
+
+### Captions and DeArrow (2.4.0)
+
+The GREEN menu now offers **caption startup behavior, preferred language and
+text size**. Defaults preserve YouTube settings; manual changes take priority.
+**DeArrow** is optional and off by default: choose **Titles only** or **Titles
+and thumbnails**, and use **Show original titles and thumbnails** to pause it.
+Enabling it sends visible video IDs to DeArrow's public services. Unsupported
+cards and missing submissions keep their originals. See the
+[integration details and TV validation limits](docs/caption-dearrow-integration.md).

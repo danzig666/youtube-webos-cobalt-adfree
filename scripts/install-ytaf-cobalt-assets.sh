@@ -51,6 +51,13 @@ if [[ "$has_preload_hook" == "0" ]]; then
   git -C "$cobalt_root" apply "$preload_patch"
 fi
 
+# Permit the fixed DeArrow thumbnail host for images on fresh and existing trees.
+dearrow_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-ytaf-dearrow-csp.patch"
+if ! git -C "$cobalt_root" apply --reverse --check "$dearrow_patch" 2>/dev/null; then
+  git -C "$cobalt_root" apply --check "$dearrow_patch"
+  git -C "$cobalt_root" apply "$dearrow_patch"
+fi
+
 mkdir -p "$content_target"
 for asset in adblockMain.js adblockMain.css adblockPreload.js; do
   cp -p "$webapp_output/$asset" "$content_target/$asset"

@@ -4,6 +4,8 @@
 import './navigation-checkbox.js';
 
 import './ui.css';
+import { createCaptionSettings } from './caption-preferences.mjs';
+import { createDeArrowSettings } from './dearrow.mjs';
 import { createShortcutHandler, createShortcutSettings } from './remote-shortcuts.mjs';
 import { createEndStopPanel } from './stop-after-video.mjs';
 import { createVideoCapabilitySetting } from './video-capability-setting.mjs';
@@ -303,6 +305,8 @@ export function userScriptStartUI() {
   ));
   uiContainer.appendChild(createShortcutSettings(document, choiceTools, configRead, configWrite));
   uiContainer.appendChild(createEndStopPanel(document, window, showNotification));
+  uiContainer.appendChild(createCaptionSettings(document, window, choiceTools, configRead, configWrite));
+  uiContainer.appendChild(createDeArrowSettings(document, window, choiceTools, configRead, configWrite));
   uiContainer.appendChild(createRemoteHelp(document));
   uiContainer.appendChild(
     checkboxTools.add(
@@ -552,7 +556,7 @@ export function userScriptStartUI() {
     latestFocus = null;
     const restoreFocus = () => {
       if (
-        focusBeforeMenu?.isConnected &&
+        focusBeforeMenu && document.documentElement.contains(focusBeforeMenu) &&
         typeof focusBeforeMenu.focus === 'function' &&
         !uiContainer.contains(focusBeforeMenu)
       ) {

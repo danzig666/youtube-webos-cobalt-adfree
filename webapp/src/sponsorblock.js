@@ -507,7 +507,7 @@ class SponsorBlockController {
     const connected =
       this.markerNodes.length &&
       this.markerHost === host &&
-      this.markerNodes.every((marker) => marker.isConnected && marker.parentNode === host);
+      this.markerNodes.every((marker) => document.documentElement.contains(marker) && marker.parentNode === host);
     return connected ? this.markerNodes[0] : null;
   }
 
@@ -518,10 +518,10 @@ class SponsorBlockController {
     // darf die Suche nicht auf einen davon umspringen.
     const hasConnectedMarkers =
       this.markerNodes.length &&
-      this.markerHost?.isConnected &&
-      this.progressBar?.isConnected &&
-      this.progressSegment?.isConnected &&
-      this.markerNodes.every((marker) => marker.isConnected && marker.parentNode === this.markerHost);
+      document.documentElement.contains(this.markerHost) &&
+      document.documentElement.contains(this.progressBar) &&
+      document.documentElement.contains(this.progressSegment) &&
+      this.markerNodes.every((marker) => document.documentElement.contains(marker) && marker.parentNode === this.markerHost);
     if (hasConnectedMarkers) {
       this.syncOverlayWithSegment();
       this.markerStatus = `rendered ${this.markerNodes.length}`;

@@ -36,7 +36,7 @@ export function showSegmentPrompt(doc, win, label, confirm, decline) {
     closed = true;
     panel.parentNode?.removeChild(panel);
     if (win.__ytafSponsorPrompt === api) delete win.__ytafSponsorPrompt;
-    if (hadFocus && previousFocus?.isConnected) previousFocus.focus();
+    if (hadFocus && (previousFocus?.isConnected || doc.documentElement?.contains(previousFocus))) previousFocus.focus();
   }
   function finish(skip) {
     if (closed) return;

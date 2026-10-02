@@ -164,6 +164,7 @@ export function toggleSubtitles(notify) {
 
   if (!document.querySelector('video')) return false;
 
+  window.__ytafCaptions?.manual();
   const player = getPlayer();
   return toggleWhenButtonIsReady(player, showNotification);
 }

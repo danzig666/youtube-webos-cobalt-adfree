@@ -144,3 +144,11 @@ test('ask waits for the GREEN menu to close and expires without seeking',()=>{
   s.video.currentTime=21;s.controller.scheduleSkip();assert.equal(s.controller.pendingPrompt,null);
   s.prompts[0].confirm();assert.equal(s.video.currentTime,21);
 });
+
+test('connected SponsorBlock markers work on Cobalt without Node.isConnected',()=>{
+  const f=controllerFixture(),host={},marker={parentNode:host};
+  f.doc.documentElement={contains:node=>node===marker || node===host};
+  f.controller.markerNodes=[marker];f.controller.markerHost=host;f.controller.progressSegment=host;
+  assert.equal(f.controller.findExistingOverlay(host),marker);
+  f.doc.documentElement.contains=()=>false;assert.equal(f.controller.findExistingOverlay(host),null);
+});

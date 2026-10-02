@@ -64,3 +64,11 @@ test('channel exceptions persist through a fresh configuration load without acco
   const reloaded=load(s.saved());
   assert.equal(reloaded.context.configRead('sponsorBlockExcludedChannels')[0].id, 'UCaaaaaaaaaaaaaaaaaaaaaa');
 });
+
+test('caption and DeArrow defaults are opt-in and their preferences survive reload',()=>{
+  const s=load('{}');
+  assert.equal(s.context.configRead('captionMode'),'youtube');
+  assert.equal(s.context.configRead('dearrowMode'),'off');
+  for(const [key,value] of Object.entries({captionMode:'on',captionLanguage:'hu',captionSize:'large',dearrowMode:'both'}))s.context.configWrite(key,value);
+  const restored=load(s.saved());assert.equal(restored.context.configRead('captionLanguage'),'hu');assert.equal(restored.context.configRead('dearrowMode'),'both');
+});
