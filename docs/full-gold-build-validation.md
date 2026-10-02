@@ -88,3 +88,7 @@ working branch and takes effect on the default branch after merge.
 The [2026-10-02 project review](v2-project-review.md) includes fixes, an incremental
 Gold rebuild and a new verified package. Consult that record for the latest source
 SHA and artifact checksums; this document retains the original full-build evidence.
+
+The later [video quality setting validation](playback-diagnostics.md#video-setting-validation-2026-10-02)
+records the current package after adding native persistence and the GREEN-menu
+control, including the new source SHA and checksums.

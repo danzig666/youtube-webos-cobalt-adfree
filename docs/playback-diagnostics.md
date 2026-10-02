@@ -57,3 +57,26 @@ does not alter existing or later players in that process; a full app restart
 applies it. An explicit YTAF_VIDEO_CAPS environment override wins, including
 invalid overrides that fail closed to Safe. Diagnostics and the menu distinguish
 the active tier from the saved next-launch preference.
+
+### Video setting validation (2026-10-02)
+
+Implementation source `57700400c8fba1ae1c8029bf8185920d757b8723` passes all
+47 webapp tests, native host suites and ARM source checks. Preference tests use
+real file I/O and separate processes to check saved-mode persistence, unchanged
+active policy before restart, invalid/corrupt inputs, unavailable storage and
+environment precedence. UI tests exercise the actual choice and remote handlers,
+including save failure, pending restart, overrides and repeated synthesized clicks.
+
+The Gold ARM build regenerated and compiled Cobalt bindings and linked successfully.
+The final IPK passes exact payload validation (executable/source SHA, current web
+assets, all three SDK runtime libraries, appinfo and non-root permissions).
+
+- IPK: `output/youtube.leanback.v4_2.0.2_arm.ipk`.
+- IPK SHA-256: `6c14c164a1097e49fb4b1398455f4e56c9b3853f14b4867285d903e0252edadf`.
+- ELF SHA-256: `6b6ec4033a0f20a976ea732ecc1bf9135c8ca2beb643699f1d6064cf6e1c39cb`.
+- Runtime archive: `output/cobalt-23.lts.6-sb13-gold-5770040.tar.xz`.
+- Logs: `output/video-setting-*.log`.
+
+This replaces the local IPK at the same filename; the previous reviewed package
+is retained in `output/pre-video-setting/`. No TV was available, so actual UHD/HDR
+playback and firmware behavior remain unverified. No stable release was published.
