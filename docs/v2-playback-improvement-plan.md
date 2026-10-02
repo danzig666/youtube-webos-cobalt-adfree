@@ -158,3 +158,12 @@ See [full validation details](full-gold-build-validation.md) for commands,
 artifact checksums, environment workaround and remaining device gates.
 The native runtime archive, final IPK, checksums, source metadata and build logs
 are retained under local `output/`; binaries are not tracked in Git.
+
+## Follow-up project review (2026-10-02)
+
+[The project review](v2-project-review.md) records reproduced and fixed bugs in
+legacy decoder admission/startup/conversions, MSE tracing, settings recovery and
+packaging. The updated source passes 42 webapp tests, native host regressions,
+ARM Gold incremental linking and exact IPK payload validation. Its artifact
+checksums supersede the earlier local package at the same filename. The review
+also checks each plan area and preserves the outstanding TV/AAC/live evidence gates.

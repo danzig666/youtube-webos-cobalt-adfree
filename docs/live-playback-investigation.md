@@ -37,9 +37,10 @@ No live playback behavior is changed based on these hypotheses. The early preloa
 open/close/end, the first eight and every 64th append/updateend, abort/remove,
 and timestampOffset changes observed at an append boundary. Each source has
 its own ID and each append a sequence, preserved across interleaved audio/video
-completion. Native session IDs remain separate: correlate source/player events
+completion, rejected overlapping calls and queued remove completions. Native session IDs remain separate: correlate source/player events
 by monotonic time rather than claiming an unproven one-to-one association.
-Configuration/append rejection records MediaSourceConfigFailed/MediaSourceAppendFailed
+Configuration/append rejection and asynchronous SourceBuffer error events record
+MediaSourceConfigFailed/MediaSourceAppendFailed
 without exception text. Read-only native bindings continue with their original
 operation. Payloads, MIME strings, exception text and object URLs never enter the bridge.
 Methods retain their arguments, return values and thrown exceptions. No finite

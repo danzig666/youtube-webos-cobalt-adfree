@@ -43,3 +43,9 @@ Packaging includes libstdc++.so.6, libgcc_s.so.1 and, when the executable needs
 it, libatomic.so.1 from the same pinned SDK. Missing required runtime inputs
 fail packaging. Both package workflows extract the atomic runtime. Package
 verification checks ownership, non-root read access and executable permissions.
+
+The host job also executes `scripts/test-starfish-video-decoder.py`, which compiles
+actual legacy decoder methods against fake firmware boundaries to check packet
+admission, timestamp bounds, asynchronous load/rate application and retained seeks.
+The smoke job runs `scripts/test-starterless-package.py` to ensure dependency
+inspection failures and pipefail/SIGPIPE cannot silently omit required libraries.

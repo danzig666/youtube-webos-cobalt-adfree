@@ -82,3 +82,9 @@ release.
 GitHub workflow dispatch returned HTTP 404 with the current connection;
 no remote build or scheduled run is claimed. Nightly CI is committed on the
 working branch and takes effect on the default branch after merge.
+
+## Subsequent reviewed build
+
+The [2026-10-02 project review](v2-project-review.md) includes fixes, an incremental
+Gold rebuild and a new verified package. Consult that record for the latest source
+SHA and artifact checksums; this document retains the original full-build evidence.
