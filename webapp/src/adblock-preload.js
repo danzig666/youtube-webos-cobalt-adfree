@@ -1,3 +1,5 @@
+import { installMediaSourceDiagnostics } from './media-source-diagnostics.mjs';
+installMediaSourceDiagnostics(window);
 import { configRead } from './config.js';
 import {
   isBrowseResponse,

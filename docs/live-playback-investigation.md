@@ -15,8 +15,8 @@ At most 128 structured stderr lines are emitted per process (96 routine and
 32 reserved for errors/unload/native EOS; capability queries can use at most 16
 routine lines), in addition to the existing bounded
 shared trace. A synchronized ring always retains the last 100 typed events.
-`CopyMediaDiagnosticEvents()` exposes that ring internally. No on-TV UI/export
-bridge has been implemented yet. Reports never ingest free-form input or
+`CopyMediaDiagnosticEvents()` exposes that ring internally; the GREEN-button
+Diagnostics menu reads the complete report through the H5VCC bridge. Reports never ingest free-form input or
 vendor callback strings. Legacy vendor error text has also been removed from
 logs; numeric event/error context remains.
 
@@ -33,10 +33,17 @@ that a failing YouTube livestream actually supplies that sequence.
 - A discontinuity or changed initialization segment may invalidate timing.
 - Network starvation may encounter the current 20-second presentation timeout.
 
-No live playback behavior is changed based on these hypotheses. Direct
-MediaSource append/discontinuity instrumentation at the Cobalt demuxer layer
-and buffering classification remain follow-up work once native traces locate
-the gap. Do not assume finite duration, terminal EOS or one initialization
+No live playback behavior is changed based on these hypotheses. The early preload now wraps MediaSource.addSourceBuffer and records source
+open/close/end, the first eight and every 64th append/updateend, abort/remove,
+and timestampOffset changes observed at an append boundary. Each source has
+its own ID and each append a sequence, preserved across interleaved audio/video
+completion. Native session IDs remain separate: correlate source/player events
+by monotonic time rather than claiming an unproven one-to-one association.
+Payloads, MIME strings, exception text and object URLs never enter the bridge.
+Methods retain their arguments, return values and thrown exceptions. No finite
+duration or terminal EOS rule is introduced. Direct Cobalt demuxer-level tracing
+and buffering classification remain follow-up work if a device trace locates
+a gap below the JS/native boundaries. Do not assume finite duration, terminal EOS or one initialization
 segment for live input.
 
 ## Required device scenarios
