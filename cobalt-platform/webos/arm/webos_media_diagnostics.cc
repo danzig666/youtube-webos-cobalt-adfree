@@ -43,6 +43,8 @@ const char* EventName(MediaEventType event) {
     case MediaEventType::kSourceAbort: return "mse_abort";
     case MediaEventType::kTimestampOffset: return "mse_timestamp_offset";
     case MediaEventType::kSourceRemove: return "mse_remove";
+    case MediaEventType::kAppendRejected: return "mse_append_rejected";
+    case MediaEventType::kSourceBufferRejected: return "mse_source_buffer_rejected";
   }
   return "unknown";
 }
@@ -72,6 +74,8 @@ const char* PlayerErrorName(WebOsPlayerError error) {
     case WebOsPlayerError::kNativeUnloadTimeout: return "NativeUnloadTimeout";
     case WebOsPlayerError::kInvalidTimestamp: return "InvalidTimestamp";
     case WebOsPlayerError::kLifecycleFailure: return "LifecycleFailure";
+    case WebOsPlayerError::kMediaSourceAppendFailed: return "MediaSourceAppendFailed";
+    case WebOsPlayerError::kMediaSourceConfigFailed: return "MediaSourceConfigFailed";
   }
   return "Unknown";
 }

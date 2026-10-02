@@ -23,6 +23,10 @@ int main() {
   assert(report.find("source=3 sequence=12") != std::string::npos);
   assert(report.find("event=mse_append type=audio") != std::string::npos);
   assert(report.find("pts_us=-2500000") != std::string::npos);
+  TraceMediaSource(3, 13, 8, 1, 0, 0);
+  assert(CopyMediaDiagnosticEvents().find("error=MediaSourceAppendFailed") != std::string::npos);
+  TraceMediaSource(3, 13, 9, 1, 0, 0);
+  assert(CopyMediaDiagnosticEvents().find("error=MediaSourceConfigFailed") != std::string::npos);
   for (int i = 0; i < 200; ++i) TraceMediaSource(3, i, 4, 1, 0, 0);
   report = CopyWebOsMediaReport();
   assert(report.size() < 65536);

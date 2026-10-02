@@ -39,7 +39,9 @@ and timestampOffset changes observed at an append boundary. Each source has
 its own ID and each append a sequence, preserved across interleaved audio/video
 completion. Native session IDs remain separate: correlate source/player events
 by monotonic time rather than claiming an unproven one-to-one association.
-Payloads, MIME strings, exception text and object URLs never enter the bridge.
+Configuration/append rejection records MediaSourceConfigFailed/MediaSourceAppendFailed
+without exception text. Read-only native bindings continue with their original
+operation. Payloads, MIME strings, exception text and object URLs never enter the bridge.
 Methods retain their arguments, return values and thrown exceptions. No finite
 duration or terminal EOS rule is introduced. Direct Cobalt demuxer-level tracing
 and buffering classification remain follow-up work if a device trace locates

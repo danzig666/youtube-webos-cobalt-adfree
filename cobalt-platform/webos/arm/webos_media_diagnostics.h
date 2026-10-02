@@ -11,6 +11,7 @@ enum class WebOsPlayerError {
   kNone, kUnsupportedCodec, kUnsupportedResolution, kUnsupportedHdr,
   kNativeLoadFailed, kNativeFeedFailed, kNativeBufferStall, kNativeSeekFailed,
   kNativeRateFailed, kNativeUnloadTimeout, kInvalidTimestamp, kLifecycleFailure,
+  kMediaSourceAppendFailed, kMediaSourceConfigFailed,
 };
 enum class MediaEventType {
   kVideoCapability, kAudioCapability, kFactory, kSelectedShared, kSelectedLegacy,
@@ -18,6 +19,7 @@ enum class MediaEventType {
   kResolutionChange, kInputEos, kPushEos, kNativeEos, kUnload, kRate, kError,
   kLifecycle, kDiscontinuity, kSourceOpen, kSourceClosed, kSourceEnded,
   kAppend, kAppendComplete, kSourceAbort, kTimestampOffset, kSourceRemove,
+  kAppendRejected, kSourceBufferRejected,
 };
 enum class MediaStream { kNone, kAudio, kVideo };
 enum class MediaCodec { kUnknown, kH264, kVp9, kAv1, kOpus, kAac, kVorbis };

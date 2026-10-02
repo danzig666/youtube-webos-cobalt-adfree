@@ -45,3 +45,17 @@ test('audio completion keeps its append sequence while video appends', () => {
   a.dispatchEvent(new Event('updateend'));
   assert.equal(events.at(-1)[1], 1); assert.equal(events.at(-1)[3], 1);
 });
+test('unsupported source buffers are traced without exposing the exception', () => {
+  const {events, win} = environment();
+  const failure = new Error('signed URL and credentials');
+  win.MediaSource.prototype.addSourceBuffer = () => {throw failure;};
+  installMediaSourceDiagnostics(win);
+  assert.throws(() => new win.MediaSource().addSourceBuffer('video/webm'), error => error === failure);
+  assert.equal(events.at(-1)[2], 9);
+  assert.ok(events.every(args => args.every(value => typeof value === 'number')));
+});
+test('read-only native bindings retain their original operation', () => {
+  const {win} = environment(); Object.freeze(win.MediaSource.prototype);
+  assert.equal(installMediaSourceDiagnostics(win), false);
+  assert.ok(new win.MediaSource().addSourceBuffer('video/webm'));
+});

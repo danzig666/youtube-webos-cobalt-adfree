@@ -55,13 +55,16 @@ void TraceMediaSource(uint32_t source, uint32_t sequence, uint32_t type,
   if (source == 0 || stream > 2 || !std::isfinite(offset) || std::abs(offset) > 9e9) return;
   const MediaEventType events[] = {MediaEventType::kSourceOpen, MediaEventType::kSourceClosed,
       MediaEventType::kSourceEnded, MediaEventType::kAppend, MediaEventType::kAppendComplete,
-      MediaEventType::kSourceAbort, MediaEventType::kTimestampOffset, MediaEventType::kSourceRemove};
+      MediaEventType::kSourceAbort, MediaEventType::kTimestampOffset, MediaEventType::kSourceRemove,
+      MediaEventType::kAppendRejected, MediaEventType::kSourceBufferRejected};
   if (type >= sizeof(events) / sizeof(events[0])) return;
   MediaEvent event;
   event.source = source; event.sequence = sequence; event.event = events[type];
   event.stream = stream == 1 ? MediaStream::kAudio : stream == 2 ? MediaStream::kVideo : MediaStream::kNone;
   event.input_bytes = bytes; event.pts_us = static_cast<int64_t>(offset * 1e6);
-  event.accepted = true;
+  event.accepted = type != 8 && type != 9;
+  if (type == 8) event.error = WebOsPlayerError::kMediaSourceAppendFailed;
+  if (type == 9) event.error = WebOsPlayerError::kMediaSourceConfigFailed;
   RecordMediaEvent(event);
 }
 }}}
