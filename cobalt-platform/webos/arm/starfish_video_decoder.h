@@ -46,7 +46,7 @@ class StarfishVideoDecoder
   SbDecodeTarget GetCurrentDecodeTarget() override;
 
  private:
-  void InitializePipeline(const SbMediaVideoSampleInfo& sample_info);
+  bool InitializePipeline(const SbMediaVideoSampleInfo& sample_info);
   void ApplyHdrInfo(const SbMediaColorMetadata& color_metadata);
   void FeedBuffer(const scoped_refptr<InputBuffer>& input_buffer);
   void RetryPendingBuffer();

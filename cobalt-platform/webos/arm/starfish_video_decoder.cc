@@ -63,7 +63,8 @@ AdaptiveVideoCapabilities GetAdaptiveVideoCapabilities(
       const float parsed_frame_rate =
           mime_type.GetParamFloatValue("framerate", frame_rate);
       if (std::isfinite(parsed_frame_rate) && parsed_frame_rate > 0.0f) {
-        frame_rate = static_cast<int>(std::ceil(parsed_frame_rate));
+        // Bound before conversion: finite MIME values can still exceed int.
+        frame_rate = static_cast<int>(std::ceil(std::min(parsed_frame_rate, 60.0f)));
       }
       width = width > 0 ? width : codec_max_width;
       height = height > 0 ? height : codec_max_height;
@@ -263,7 +264,7 @@ void StarfishVideoDecoder::SetPlaybackRate(double playback_rate) {
   }
 }
 
-void StarfishVideoDecoder::InitializePipeline(
+bool StarfishVideoDecoder::InitializePipeline(
     const SbMediaVideoSampleInfo& sample_info) {
   SB_DCHECK(decoder_thread_->BelongsToCurrentThread());
   const int width =
@@ -274,7 +275,7 @@ void StarfishVideoDecoder::InitializePipeline(
                             sample_info.color_metadata)) {
     RecordDiagnostic(MediaEventType::kError, 0, WebOsPlayerError::kUnsupportedResolution, false);
     ReportError("Video configuration exceeds webOS capability policy.");
-    return;
+    return false;
   }
   if (width != video_width_ || height != video_height_) {
     video_width_ = width;
@@ -288,7 +289,7 @@ void StarfishVideoDecoder::InitializePipeline(
   PublishSnapshotOnDecoderThread();
   if (pipeline_loaded_) {
     ApplyHdrInfo(sample_info.color_metadata);
-    return;
+    return true;
   }
 
   const char* codec_name = CodecName(codec_);
@@ -299,10 +300,16 @@ void StarfishVideoDecoder::InitializePipeline(
   const std::string& window_id = ApplicationSdl::Get()->GetExportedWindowId();
   if (window_id.empty()) {
     ReportError("SDL did not create a webOS exported video window.");
-    return;
+    return false;
   }
 
-  const int64_t target_pts_ns = seek_to_time_.load() * 1000;
+  const SbTime target = seek_to_time_.load();
+  if (target < 0 || target > std::numeric_limits<int64_t>::max() / 1000) {
+    RecordDiagnostic(MediaEventType::kError, target, WebOsPlayerError::kInvalidTimestamp, false);
+    ReportError("Invalid Starfish seek timestamp.");
+    return false;
+  }
+  const int64_t target_pts_ns = target * 1000;
   const AdaptiveVideoCapabilities capabilities =
       GetAdaptiveVideoCapabilities(codec_, sample_info);
   std::string payload = FormatString(
@@ -342,12 +349,13 @@ void StarfishVideoDecoder::InitializePipeline(
   load.bits = sample_info.color_metadata.bits_per_channel;
   load.pts_us = seek_to_time_.load();
   RecordMediaEvent(load);
+  load_completed_.store(false);
   media_api_->notifyForeground();
   if (!media_api_->Load(payload.c_str(), &StarfishVideoDecoder::PlayerCallback,
                         this)) {
     RecordDiagnostic(MediaEventType::kError, 0, WebOsPlayerError::kNativeLoadFailed, false);
     ReportError("StarfishMediaAPIs::Load() failed.");
-    return;
+    return false;
   }
   pipeline_loaded_ = true;
   ApplyHdrInfo(sample_info.color_metadata);
@@ -356,6 +364,7 @@ void StarfishVideoDecoder::InitializePipeline(
   startup_play_accepted_ = false;
   playback_rate_state_.NativeReset();
   rate_failed_ = false;
+  return true;
 }
 
 void StarfishVideoDecoder::ApplyHdrInfo(
@@ -390,8 +399,13 @@ void StarfishVideoDecoder::WriteInputBuffers(
 void StarfishVideoDecoder::FeedBuffer(
     const scoped_refptr<InputBuffer>& input_buffer) {
   SB_DCHECK(decoder_thread_->BelongsToCurrentThread());
-  InitializePipeline(input_buffer->video_sample_info());
-  if (!pipeline_loaded_) {
+  const SbTime pts = input_buffer->timestamp();
+  if (pts < 0 || pts > std::numeric_limits<int64_t>::max() / 1000) {
+    RecordDiagnostic(MediaEventType::kError, pts, WebOsPlayerError::kInvalidTimestamp, false);
+    ReportError("Invalid Starfish packet timestamp.");
+    return;
+  }
+  if (!InitializePipeline(input_buffer->video_sample_info())) {
     return;
   }
 
@@ -475,35 +489,39 @@ void StarfishVideoDecoder::ApplyPlaybackStateOnDecoderThread() {
 
   const double playback_rate =
       playback_rate_millionths_.load() / 1000000.0;
-  if (!playback_rate_state_.Request(playback_rate, GetPlaybackRateSupport())) {
-    RecordDiagnostic(MediaEventType::kRate, 0, WebOsPlayerError::kNativeRateFailed, false);
-    rate_failed_ = true;
-    ReportError("NativeRateFailed: invalid legacy session rate state.");
-    return;
-  }
-  const auto result = playback_rate_state_.Apply([&](double value) {
-    const std::string payload = FormatString(
-        "{\"playRate\":%.6g,\"audioOutput\":true}", value);
-    return media_api_->SetPlayRate(payload.c_str());
-  });
-  PublishSnapshotOnDecoderThread();
-  if (result != StarfishPlaybackRate::ApplyResult::kUnchanged) {
-    MediaEvent event;
-    event.session = diagnostic_session_id_; event.generation = diagnostic_generation_.load();
-    event.event = MediaEventType::kRate; event.requested_rate = playback_rate;
-    event.applied_rate = playback_rate_state_.applied_rate();
-    event.accepted = result == StarfishPlaybackRate::ApplyResult::kApplied;
-    if (!event.accepted) event.error = WebOsPlayerError::kNativeRateFailed;
-    RecordMediaEvent(event);
-  }
-  if (result == StarfishPlaybackRate::ApplyResult::kFailed ||
-      result == StarfishPlaybackRate::ApplyResult::kRecoveredOneX) {
-    // Cobalt owns a separate audio clock here. Even successful video recovery
-    // cannot retarget that clock, so stop this player through its error CB.
-    rate_failed_ = true;
-    media_api_->Pause();
-    ReportError("NativeRateFailed: legacy native rate rejected; player stopped to prevent A/V drift.");
-    return;
+  // Load acceptance does not mean firmware is ready for SetPlayRate. Keep
+  // the startup Play path running until LOADCOMPLETED, then apply once.
+  if (load_completed_.load()) {
+    if (!playback_rate_state_.Request(playback_rate, GetPlaybackRateSupport())) {
+      RecordDiagnostic(MediaEventType::kRate, 0, WebOsPlayerError::kNativeRateFailed, false);
+      rate_failed_ = true;
+      ReportError("NativeRateFailed: invalid legacy session rate state.");
+      return;
+    }
+    const auto result = playback_rate_state_.Apply([&](double value) {
+      const std::string payload = FormatString(
+          "{\"playRate\":%.6g,\"audioOutput\":true}", value);
+      return media_api_->SetPlayRate(payload.c_str());
+    });
+    PublishSnapshotOnDecoderThread();
+    if (result != StarfishPlaybackRate::ApplyResult::kUnchanged) {
+      MediaEvent event;
+      event.session = diagnostic_session_id_; event.generation = diagnostic_generation_.load();
+      event.event = MediaEventType::kRate; event.requested_rate = playback_rate;
+      event.applied_rate = playback_rate_state_.applied_rate();
+      event.accepted = result == StarfishPlaybackRate::ApplyResult::kApplied;
+      if (!event.accepted) event.error = WebOsPlayerError::kNativeRateFailed;
+      RecordMediaEvent(event);
+    }
+    if (result == StarfishPlaybackRate::ApplyResult::kFailed ||
+        result == StarfishPlaybackRate::ApplyResult::kRecoveredOneX) {
+      // Cobalt owns a separate audio clock here. Even successful video recovery
+      // cannot retarget that clock, so stop this player through its error CB.
+      rate_failed_ = true;
+      media_api_->Pause();
+      ReportError("NativeRateFailed: legacy native rate rejected; player stopped to prevent A/V drift.");
+      return;
+    }
   }
 
   const bool should_pause = pause_requested_.load() || playback_rate <= 0.0;
@@ -568,7 +586,6 @@ void StarfishVideoDecoder::Reset() {
   eos_output_ = false;
   preroll_frame_sent_.store(false);
   first_frame_presented_.store(false);
-  load_completed_.store(false);
   if (decoder_thread_) {
     decoder_thread_->ScheduleAndWait(
         std::bind(&StarfishVideoDecoder::ResetOnDecoderThread, this));
@@ -596,7 +613,14 @@ void StarfishVideoDecoder::ResetOnDecoderThread() {
   // queue, and setTimeToDecode() starts a fresh BUFFERSTREAM segment at the
   // requested nanosecond PTS.
   reset_in_progress_.store(true);
-  const int64_t target_pts_ns = seek_to_time_.load() * 1000;
+  const SbTime target = seek_to_time_.load();
+  if (target < 0 || target > std::numeric_limits<int64_t>::max() / 1000) {
+    reset_in_progress_.store(false);
+    RecordDiagnostic(MediaEventType::kError, target, WebOsPlayerError::kInvalidTimestamp, false);
+    ReportError("Invalid Starfish seek timestamp.");
+    return;
+  }
+  const int64_t target_pts_ns = target * 1000;
   const bool flushed = media_api_->flush();
   const std::string time_payload =
       FormatString("{\"position\":%" PRId64 "}", target_pts_ns);
@@ -620,6 +644,7 @@ void StarfishVideoDecoder::ResetOnDecoderThread() {
     }
     media_api_.reset(new StarfishMediaAPIs());
     pipeline_loaded_ = false;
+    load_completed_.store(false);
     video_width_ = 0;
     video_height_ = 0;
     last_hdr_payload_.clear();

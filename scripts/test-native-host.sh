@@ -42,4 +42,5 @@ print('Capability logging budget preserves playback and error evidence')
 PY
 bash "$repo_root/scripts/test-webos-media-capabilities.sh" "$cobalt_root"
 python3 "$repo_root/scripts/test-external-video-seek.py" --require-fixed "$cobalt_root"
+python3 "$repo_root/scripts/test-starfish-video-decoder.py"
 echo 'All native host regressions passed (no webOS SDK required).'
