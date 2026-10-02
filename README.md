@@ -193,10 +193,12 @@ Enabling it sends visible video IDs to DeArrow's public services. Unsupported
 cards and missing submissions keep their originals. See the
 [integration details and TV validation limits](docs/caption-dearrow-integration.md).
 
-### Comments (2.5.0)
+### Comments and wheel scrolling (2.5.1)
 
 While watching a video, open **GREEN → Comments for this video**. Browse Top or
-Newest comments, open long text and read replies. Use arrows and OK; BACK returns
-one level and GREEN returns to settings. Pages load on demand. This is a read-only
+Newest comments and replies with full text visible by default. Scroll with the
+Magic Remote wheel or Up/Down; Left/Right skips between controls/comments. BACK
+returns one level and GREEN returns to settings. Load more fetches another page.
+The wheel also scrolls the GREEN settings menu, including help and diagnostics. This is a read-only
 viewer; no comments or account actions are submitted. See
 [controls, API evidence and validation limits](docs/comments-viewer.md).

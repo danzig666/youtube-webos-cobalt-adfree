@@ -11,7 +11,7 @@ import {
 } from '../src/comments-client.mjs';
 import {
   createCommentsPanel,
-  commentTextPages
+  readingScrollStep
 } from '../src/comments-panel.mjs';
 const id = 'aaaaaaaaaaa';
 const continuation = (token) => ({
@@ -377,6 +377,7 @@ function panelFixture() {
     pending,
     requests,
     timers,
+    events,
     all,
     key,
     press,
@@ -409,10 +410,7 @@ test('panel makes no background request; held opening OK cannot activate a secon
     count: '1 comment'
   });
   await flush();
-  f.choose('Author');
   assert.ok(f.all().some((n) => n.textContent.includes('Body')));
-  f.press(461);
-  assert.equal(f.api.isOpen(), true);
   f.press(461);
   assert.equal(f.api.isOpen(), false);
   assert.equal(f.back, 1);
@@ -453,7 +451,6 @@ test('sorting resets pagination, replies return to their parent, repeated tokens
     count: ''
   });
   await flush();
-  f.choose('Author');
   f.choose('Read replies');
   assert.equal(f.requests[1][2], 'reply');
   f.pending[1].resolve({
@@ -466,7 +463,6 @@ test('sorting resets pagination, replies return to their parent, repeated tokens
   f.choose('Load more');
   assert.equal(f.requests.length, 2);
   assert.ok(f.all().some((n) => n.textContent.includes('repeated')));
-  f.press(461);
   f.press(461);
   f.choose('Sort:');
   assert.equal(f.requests[2][1], 'newest');
@@ -482,14 +478,12 @@ test('network failure offers explicit Retry and does not discard playback or aut
   assert.equal(f.requests.length, 2);
   f.api.close();
 });
-test('text pages bound hard newlines and preserve Unicode without losing characters', () => {
-  const text = '😀 test\n'.repeat(100);
-  const pages = commentTextPages(text);
-  assert.equal(pages.join(''), text);
-  for (const part of pages) {
-    assert.ok(Array.from(part).length <= 300);
-    assert.ok((part.match(/\n/g) || []).length <= 4);
-  }
+test('reading scrolls within a tall comment before advancing focus', () => {
+  assert.equal(readingScrollStep(0, 300, 0, 1000, 1), 195);
+  assert.equal(readingScrollStep(600, 300, 0, 1000, 1), 700);
+  assert.equal(readingScrollStep(700, 300, 0, 1000, 1), null);
+  assert.equal(readingScrollStep(700, 300, 0, 1000, -1), 505);
+  assert.equal(readingScrollStep(0, 300, 0, 1000, -1), null);
 });
 
 test('panel pagination retains loaded comments and held keys do not send duplicate requests', async () => {
@@ -545,4 +539,67 @@ test('comment display bounds total retained text', async () => {
   await flush();
   assert.ok(f.all().some((n) => n.textContent === 'Display limit reached.'));
   assert.ok(!f.all().some((n) => n.textContent === 'Load more'));
+});
+
+test('full Unicode comment text is immediately visible without opening a detail page', async () => {
+  const f = panelFixture(),
+    text = 'Long comment 💚\nSecond line\n'.repeat(120);
+  f.api.open();
+  f.pending[0].resolve({
+    comments: [{ ...item(), text }],
+    next: null,
+    count: ''
+  });
+  await flush();
+  assert.equal(
+    f.all().find((n) => n.className === 'ytaf-comment-body').textContent,
+    text
+  );
+  assert.equal(f.doc.activeElement.className, 'ytaf-comment-card');
+  f.press(13);
+  assert.equal(
+    f.all().find((n) => n.className === 'ytaf-comment-body').textContent,
+    text
+  );
+  assert.equal(f.requests.length, 1);
+});
+test('wheel scroll clamps bounds, arrows continue reading, closed panel leaves events alone', async () => {
+  const f = panelFixture();
+  const wheel = (deltaY, props = {}) => {
+    const event = {
+      deltaY,
+      deltaMode: 1,
+      ...props,
+      preventDefault() {
+        this.prevented = true;
+      },
+      stopPropagation() {}
+    };
+    f.events.wheel(event);
+    return event;
+  };
+  assert.equal(wheel(1).prevented, undefined);
+  f.api.open();
+  f.pending[0].resolve({ comments: [item()], next: null, count: '' });
+  await flush();
+  const find = (cls) => f.all().find((n) => n.className === cls);
+  const viewport = find('ytaf-comments-viewport'),
+    content = find('ytaf-comments-content'),
+    card = find('ytaf-comment-card');
+  viewport.clientHeight = 300;
+  content.scrollHeight = 1000;
+  content.getBoundingClientRect = () => ({ top: 0, height: 1000 });
+  card.getBoundingClientRect = () => ({ top: 0, bottom: 1000 });
+  assert.equal(wheel(1).prevented, true);
+  assert.equal(content.style.top, '-48px');
+  f.press(40);
+  assert.equal(content.style.top, '-243px');
+  assert.equal(wheel(1, { ctrlKey: true }).prevented, undefined);
+  assert.equal(content.style.top, '-243px');
+  for (let i = 0; i < 10; i++) wheel(100);
+  assert.equal(content.style.top, '-700px');
+  for (let i = 0; i < 10; i++) wheel(-100);
+  assert.equal(content.style.top, '0px');
+  f.api.close();
+  assert.equal(wheel(1).prevented, undefined);
 });

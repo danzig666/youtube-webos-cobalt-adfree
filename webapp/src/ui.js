@@ -4,6 +4,7 @@
 import './navigation-checkbox.js';
 
 import './ui.css';
+import { wheelScrollDelta } from './wheel-scroll.mjs';
 import { createCommentsSetting } from './comments-panel.mjs';
 import { createCaptionSettings } from './caption-preferences.mjs';
 import { createDeArrowSettings } from './dearrow.mjs';
@@ -42,6 +43,7 @@ export function userScriptStartUI() {
   let currentFocusIndex = -1;
   let menuScrollFrame = null;
   let menuOffset = 0;
+  let wheelFocusing = false;
   let menuContent = null;
   let menuViewport = null;
   let heldDirection = null;
@@ -169,7 +171,17 @@ export function userScriptStartUI() {
       currentFocusIndex = activeIndex === -1 ? 0 : activeIndex;
     }
 
-    if (dir === 'down' || dir === 'right') {
+    if (document.activeElement === uiContainer) {
+      // Continue from a text-only section reached with the wheel.
+      const rect = menuViewport.getBoundingClientRect();
+      const forward = dir === 'down' || dir === 'right';
+      const ordered = forward ? focusableItems : focusableItems.slice().reverse();
+      const target = ordered.find(item => {
+        const box = item.getBoundingClientRect();
+        return forward ? box.bottom > rect.top : box.top < rect.bottom;
+      }) || ordered[ordered.length - 1];
+      currentFocusIndex = focusableItems.indexOf(target);
+    } else if (dir === 'down' || dir === 'right') {
       currentFocusIndex = (currentFocusIndex + 1) % focusableItems.length;
     } else if (dir === 'up' || dir === 'left') {
       currentFocusIndex =
@@ -221,6 +233,7 @@ export function userScriptStartUI() {
   uiContainer.addEventListener(
     'focus',
     (event) => {
+      if (wheelFocusing) return;
       console.info('uiContainer focused!');
       const focusedElement = event.target;
       if (
@@ -257,7 +270,7 @@ export function userScriptStartUI() {
   divTitle.appendChild(title);
   const menuHint = document.createElement('div');
   menuHint.className = 'ytaf-setting-help';
-  menuHint.textContent = 'Arrows: move · OK: change · BACK: close';
+  menuHint.textContent = 'Wheel: scroll · Arrows: move · OK: change · BACK: close';
   divTitle.appendChild(menuHint);
   const saveStatus = document.createElement('div');
   saveStatus.className = 'ytaf-setting-help';
@@ -732,6 +745,54 @@ export function userScriptStartUI() {
   // YouTube's visible player controls can reclaim focus after handling a key.
   // While our menu is open, keep focus modal and restore the last menu item.
   document.addEventListener('focus', guardMenuFocus, true);
+
+  // Own the wheel only while our modal menu is open. Otherwise Cobalt's
+  // native wheel event reaches YouTube unchanged.
+  document.addEventListener('wheel', (event) => {
+    if (!isContainerOpen() || window.__ytafComments?.isOpen() || event.ctrlKey) return;
+    const rect = menuViewport.getBoundingClientRect();
+    const delta = wheelScrollDelta(event, rect.height);
+    if (!delta) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (menuScrollFrame !== null) {
+      window.cancelAnimationFrame(menuScrollFrame);
+      menuScrollFrame = null;
+    }
+    if (directionMoveFrame !== null) {
+      window.cancelAnimationFrame(directionMoveFrame);
+      directionMoveFrame = null;
+    }
+    menuOffset = Math.max(0, Math.min(
+      Math.max(0, menuContent.scrollHeight - rect.height), menuOffset + delta
+    ));
+    menuContent.style.top = `${-menuOffset}px`;
+    // Keep OK and subsequent arrows attached to a visible control, without
+    // activating it or snapping back to the previously focused setting.
+    const items = Array.from(menuContent.querySelectorAll('[tabindex]'))
+      .filter(item => item.tabIndex > 0);
+    const visible = item => {
+      const box = item.getBoundingClientRect();
+      return box.top >= rect.top && box.bottom <= rect.bottom;
+    };
+    const target = visible(document.activeElement) && items.includes(document.activeElement)
+      ? document.activeElement : items.find(visible);
+    if (target) {
+      wheelFocusing = true;
+      try { target.focus(); } finally { wheelFocusing = false; }
+      currentFocusIndex = items.indexOf(target);
+      lastTabIndex = target.tabIndex;
+    } else {
+      // A tall text-only section (help/report) may fill the entire viewport.
+      // Focus the container so OK cannot toggle an off-screen setting.
+      uiContainer.focus();
+      currentFocusIndex = -1;
+    }
+    menuViewport.scrollTop = 0;
+    uiContainer.scrollTop = 0;
+  }, {capture: true, passive: false});
+
+
 
   setTimeout(() => {
     showNotification(text('openHint'), 3000, 'green');

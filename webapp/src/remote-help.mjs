@@ -20,7 +20,7 @@ export function createRemoteHelp(doc) {
   const panel = doc.createElement('div');
   const help = doc.createElement('div');
   help.className = 'ytaf-setting-help'; help.style.display = 'none';
-  help.textContent = 'GREEN or =: open settings. Arrows: move. OK: change a setting. BACK: close settings. Number keys are customizable below Numeric playback shortcuts. Defaults: 0 captions, 1 slower, 3 faster. Stop after this video holds autoplay paused until Continue playback is selected. Speed support depends on the TV and native runtime. The sleep timer pauses playback, not the TV. Fully close and reopen the app after changing Video quality.';
+  help.textContent = 'GREEN or =: open settings. Wheel: scroll settings and comments. Arrows: move. OK: change a setting. BACK: close settings. Number keys are customizable below Numeric playback shortcuts. Defaults: 0 captions, 1 slower, 3 faster. Stop after this video holds autoplay paused until Continue playback is selected. Speed support depends on the TV and native runtime. The sleep timer pauses playback, not the TV. Fully close and reopen the app after changing Video quality.';
   const row = doc.createElement('div');
   const button = doc.createElement('div');
   button.id = '__remote_help'; button.tabIndex = 901;

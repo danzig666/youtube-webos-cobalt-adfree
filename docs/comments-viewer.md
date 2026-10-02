@@ -1,14 +1,17 @@
-# On-TV comment reader (2.5.0)
+# On-TV comment reader (2.5.1)
 
 Open a video, press GREEN and choose **Comments for this video**.
 
-- Up/Down chooses a control; OK opens it. Left/Right pages through loaded
-  comments or the text of a long comment. BACK returns one level; GREEN returns
+- Comments and replies show their full received text immediately, including
+  line breaks. No text expansion or text-page buttons are needed.
+- Use the Magic Remote wheel or Up/Down to scroll. Up/Down reads through a tall
+  comment before moving focus; Left/Right skips to the next control/comment.
+  OK activates a button such as Read replies or Load more. BACK returns from
+  replies to the parent's scroll position, then to settings; GREEN returns
   directly to settings. The normal media keys remain available.
-- Sort by Top comments or Newest first. Three previews are shown per screen;
-  open a comment for full text and Read replies where available. Load more
-  explicitly requests another page. Returning from replies retains the parent
-  list position. A new video clears the old comments and offers Load current video.
+- Sort by Top comments or Newest first. All loaded comments share a scrolling
+  list. Load more explicitly requests another page. A new video clears the old
+  comments and offers Load current video.
 - Failed requests offer Retry. An empty or disabled section is distinguished
   from a connection failure or unsupported response format. The reader does not
   change playback state. It does not submit comments, likes or account actions.
@@ -52,16 +55,16 @@ One request at a time; 12-second timeout; accepted response size up to 2 MiB.
 At most 50 comments are decoded per response, 200 main comments and 100 replies
 retained, with a combined 500,000-character text budget. Pagination has a
 20-continuation limit per list and rejects repeated tokens. Individual text is
-bounded to 12,000 characters and shown in short Unicode-safe pages, including
-limits on hard line breaks. All remote text is assigned through `textContent`;
+bounded to 12,000 characters and displayed without preview truncation. All remote text is assigned through `textContent`;
 no remote HTML, images or links are activated. No comment content, authors,
 continuations or browsing history are persisted or added to diagnostic reports.
 
 Tests cover legacy and modern formats, reply separation, empty/unknown responses,
 request cancellation, stale video results, sorting, pagination, retained-text
-limits, held keys, trailing key events, errors/Retry and Unicode/newline paging.
-A Chromium preview with synthetic comments was visually checked at 1280×720;
-list and detail controls fit the viewport. This is not a TV validation claim.
+limits, held keys, trailing key events, errors/Retry, full Unicode/newline text,
+wheel units and scroll boundaries. A Chromium preview with synthetic comments
+was checked at 1280×720 for wheel/arrow navigation, full text, reply return
+position and focus, and closed-panel wheel passthrough. This is not a TV validation claim.
 
 The managed environment returned HTTP 403 / CONNECT denial for direct YouTube
 access on October 2, 2026, so a live comment fetch could not be verified here.
@@ -69,3 +72,18 @@ No LG TV is available. Both ARM packages are build-validated; real YouTube API
 availability, account/region restrictions, Cobalt rendering and physical remote
 behavior still need device testing. Failures are shown in the reader and do not
 replace or interrupt the YouTube playback UI.
+
+## Wheel support beyond comments
+
+The GREEN settings menu also supports the wheel, including caption/DeArrow
+preferences, SponsorBlock categories and channel exceptions, help and diagnostic
+report sections. Wheel input scrolls without activating settings. Focus follows
+visible controls so OK cannot change an off-screen setting. Diagnostic report
+page buttons remain available; the wheel scrolls the current menu/report page.
+
+The native SDL platform now converts wheel input into Starboard wheel events,
+including direction and fractional deltas. Cobalt delivers these as DOM line
+units, which the overlays normalize alongside pixel/page units. When no custom
+panel is open, events pass to YouTube unchanged: scrolling there depends on the
+YouTube TV interface's own wheel support. We do not synthesize remote keys,
+seeking or volume changes from the wheel.

@@ -16,6 +16,7 @@
 #include "starboard/shared/starboard/audio_sink/audio_sink_internal.h"
 #include "starboard/webos/arm/window_internal.h"
 #include "starboard/webos/arm/webos_media_diagnostics.h"
+#include "starboard/webos/arm/webos_scroll_input.h"
 
 namespace starboard {
 namespace shared {
@@ -497,6 +498,36 @@ ApplicationSdl::Event* ApplicationSdl::TranslateEvent(const SDL_Event& event) {
     data->key_location = kSbKeyLocationUnspecified;
     data->key_modifiers = SdlModifiersToSbModifiers(
         static_cast<SDL_Keymod>(event.key.keysym.mod));
+    return new Event(kSbEventTypeInput, data, &DeleteDestructor<SbInputData>);
+  }
+
+  if (event.type == SDL_MOUSEWHEEL) {
+    float x = static_cast<float>(event.wheel.x);
+    float y = static_cast<float>(event.wheel.y);
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+    // Keep integer fallback for backends that leave the precise fields zero.
+    if (event.wheel.preciseX != 0) x = event.wheel.preciseX;
+    if (event.wheel.preciseY != 0) y = event.wheel.preciseY;
+#endif
+    const auto delta = ResolveWebOsWheelDelta(
+        x, y, event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED);
+    if (delta.x == 0 && delta.y == 0) return nullptr;
+    SbInputData* data = new SbInputData();
+    std::memset(data, 0, sizeof(*data));
+    data->window = window_;
+    data->type = kSbInputEventTypeWheel;
+    data->device_type = kSbInputDeviceTypeMouse;
+    data->device_id = 2;
+    data->delta.x = delta.x;
+    data->delta.y = delta.y;
+    int mouse_x = 0, mouse_y = 0;
+    SDL_GetMouseState(&mouse_x, &mouse_y);
+    data->position.x = mouse_x;
+    data->position.y = mouse_y;
+    data->key_modifiers = SdlModifiersToSbModifiers(SDL_GetModState());
+    data->pressure = std::numeric_limits<float>::quiet_NaN();
+    data->size.x = data->size.y = data->pressure;
+    data->tilt.x = data->tilt.y = data->pressure;
     return new Event(kSbEventTypeInput, data, &DeleteDestructor<SbInputData>);
   }
 

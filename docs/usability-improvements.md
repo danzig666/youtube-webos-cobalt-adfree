@@ -84,10 +84,22 @@ for API sources, bounds, privacy behavior and outstanding TV checks.
 ## Implemented for 2.5.0
 
 - **Read-only comments:** GREEN → Comments for this video. Top/Newest sorting,
-  paged previews, full-text pages and replies; remote arrows/OK/BACK/GREEN.
+  on-demand pages and replies; remote arrows/OK/BACK/GREEN.
   Requests are on demand with cancellation, bounded memory, Retry and explicit
   handling of unavailable comments. Old results cannot populate a new video.
   [Behavior, evidence and validation limits](comments-viewer.md).
+
+## Implemented for 2.5.1
+
+- **Expanded comments:** full received text in a scrolling list, no preview
+  expansion or text pages. Replies return to the parent scroll position.
+- **Magic Remote wheel:** native SDL-to-Starboard wheel delivery; scrolling in
+  comments/replies and throughout GREEN settings, help and diagnostics. Wheel
+  scrolling preserves useful focus without toggling settings. Outside our
+  overlays, YouTube receives native wheel events unchanged.
+- Host regressions cover wheel direction, precise/invalid deltas, line/pixel/page
+  units, boundaries and full text. Chromium checks cover wheel/arrow switching,
+  reply return position and settings focus. Physical TV validation is pending.
 
 ## Follow-up ideas, not implemented in this batch
 

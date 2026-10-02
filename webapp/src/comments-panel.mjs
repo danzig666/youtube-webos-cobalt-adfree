@@ -1,26 +1,13 @@
+import { wheelScrollDelta } from './wheel-scroll.mjs';
 import { getCurrentVideoId } from './sponsorblock-channels.mjs';
 import { createCommentsClient } from './comments-client.mjs';
-const pageSize = 3;
-export function commentTextPages(text) {
-  const pages = [];
-  let part = '',
-    count = 0,
-    lines = 0;
-  for (const char of Array.from(text)) {
-    part += char;
-    count++;
-    if (char === '\n') lines++;
-    if (count >= 300 || lines >= 4) {
-      const space = part.lastIndexOf(' ');
-      const split = lines < 4 && space > 0 && part.length - space < 40 ? space + 1 : part.length;
-      pages.push(part.slice(0, split));
-      part = part.slice(split);
-      count = Array.from(part).length;
-      lines = (part.match(/\n/g) || []).length;
-    }
-  }
-  if (part || !pages.length) pages.push(part);
-  return pages;
+// Scroll through a tall comment before advancing focus to the next item.
+export function readingScrollStep(offset, height, top, bottom, direction) {
+  const step = Math.max(40, height * 0.65);
+  if (direction > 0 && bottom > offset + height + 1)
+    return Math.min(offset + step, bottom - height);
+  if (direction < 0 && top < offset - 1) return Math.max(top, offset - step);
+  return null;
 }
 export function createCommentsPanel(
   doc,
@@ -43,14 +30,15 @@ export function createCommentsPanel(
     status = '',
     sort = 'top',
     view = 'list',
-    page = 0,
-    replyPage = 0,
-    textPage = 0;
+    offset = 0,
+    viewport = null,
+    content = null,
+    parentPosition = null,
+    heldAt = 0;
   let comments = [],
     next = null,
     count = '',
     selected = null,
-    replySelected = null,
     replies = [],
     replyNext = null;
   const usedTokens = new Set(),
@@ -74,10 +62,10 @@ export function createCommentsPanel(
     videoId = null;
     comments = [];
     replies = [];
-    selected = replySelected = null;
+    selected = null;
     next = replyNext = null;
     view = 'list';
-    page = 0;
+    offset = 0;
     status = 'Video changed. Choose Load current video.';
     render();
     return false;
@@ -109,6 +97,8 @@ export function createCommentsPanel(
     poll = null;
     const closing = panel;
     panel = null;
+    viewport = content = parentPosition = null;
+    offset = 0;
     buttons = [];
     closing.parentNode?.removeChild(closing);
     videoId = null;
@@ -116,7 +106,7 @@ export function createCommentsPanel(
     count = status = '';
     comments = [];
     replies = [];
-    selected = replySelected = null;
+    selected = null;
     usedTokens.clear();
     replyTokens.clear();
     if (held !== null) {
@@ -133,11 +123,12 @@ export function createCommentsPanel(
     comments = [];
     replies = [];
     next = replyNext = null;
-    selected = replySelected = null;
+    selected = null;
     usedTokens.clear();
     replyTokens.clear();
     view = 'list';
-    page = replyPage = textPage = 0;
+    offset = 0;
+    parentPosition = null;
     count = '';
     focus = 0;
     if (!videoId) {
@@ -182,6 +173,7 @@ export function createCommentsPanel(
       if (token) tokens.add(token);
       const target = forReplies ? replies : comments,
         seen = new Set(target.map((item) => item.id));
+      const previousLength = target.length;
       const weight = (item) =>
         item.text.length +
         item.replies.reduce((sum, reply) => sum + reply.text.length, 0);
@@ -212,8 +204,12 @@ export function createCommentsPanel(
           ? ''
           : 'No comments returned. They may be disabled or unavailable for this video.');
       if (target.length >= limit || limited) status = 'Display limit reached.';
-      if (initial) focus = 0;
-      render();
+      const firstAdded = target[previousLength];
+      if (initial) offset = 0;
+      render(
+        firstAdded ? 'comment:' + firstAdded.id : null,
+        Boolean(firstAdded)
+      );
     } catch (error) {
       if (ticket !== generation || !panel) return;
       busy = false;
@@ -225,79 +221,147 @@ export function createCommentsPanel(
     }
   }
   function back() {
-    if (view === 'replyDetail') {
-      view = 'replies';
-      textPage = 0;
-    } else if (view === 'replies') {
-      cancel();
-      view = 'detail';
-      textPage = 0;
-    } else if (view === 'detail') {
-      view = 'list';
-      textPage = 0;
-    } else {
+    if (view !== 'replies') {
       close(true);
       return;
     }
-    focus = 0;
+    cancel();
+    view = 'list';
     status = '';
-    render();
+    offset = parentPosition?.offset || 0;
+    render(parentPosition?.key);
   }
-  function openReplies() {
-    if (!selected || busy) return;
+  function openReplies(item) {
+    if (busy) return;
+    parentPosition = { offset, key: buttons[focus]?.key };
+    selected = item;
     replyTokens.clear();
     view = 'replies';
-    replyPage = 0;
+    offset = 0;
     replies = selected.replies.slice(0, 100);
     replyNext = selected.replyToken;
     status = '';
     focus = 0;
-    render();
+    render(replies.length ? 'comment:' + replies[0].id : null, true);
     if (!replies.length && replyNext) request(replyNext, true);
   }
-  function button(label, action, parent = panel) {
-    const node = doc.createElement('button');
-    node.textContent = label;
-    node.tabIndex = 0;
+  function register(node, key, action = null, readable = false) {
     const index = buttons.length;
-    buttons.push({ node, action });
-    node.addEventListener('click', () => {
-      if (Date.now() < ignoreClickUntil) return;
-      focus = index;
-      action();
-    });
+    buttons.push({ node, key, action, readable });
+    node.tabIndex = 0;
     node.addEventListener('focus', () => {
       focus = index;
     });
+    node.addEventListener('click', () => {
+      if (Date.now() < ignoreClickUntil) return;
+      focus = index;
+      node.focus();
+      action?.();
+    });
+    return node;
+  }
+  function button(label, key, action, parent) {
+    const node = register(doc.createElement('button'), key, action);
+    node.textContent = label;
     parent.appendChild(node);
     return node;
   }
-  function focusSelected() {
-    focus = Math.max(0, Math.min(focus, buttons.length - 1));
-    buttons[focus]?.node.focus();
+  function height() {
+    return (
+      viewport?.clientHeight ||
+      viewport?.getBoundingClientRect?.().height ||
+      300
+    );
   }
-  function render() {
+  function bounds(node) {
+    const box = node.getBoundingClientRect?.(),
+      origin = content?.getBoundingClientRect?.();
+    if (!box || !origin) return { top: 0, bottom: 0 };
+    return { top: box.top - origin.top, bottom: box.bottom - origin.top };
+  }
+  function applyOffset() {
+    if (!viewport || !content) return;
+    const total =
+      content.scrollHeight ||
+      content.offsetHeight ||
+      content.getBoundingClientRect?.().height ||
+      0;
+    offset = Math.max(0, Math.min(offset, Math.max(0, total - height())));
+    // Cobalt can reset scrollTop on focus. Position the content explicitly,
+    // as the existing GREEN menu does, and keep the native scroller at zero.
+    content.style.top = `${-offset}px`;
+    viewport.scrollTop = 0;
+  }
+  function focusSelected(align = false, direction = 1) {
+    focus = Math.max(0, Math.min(focus, buttons.length - 1));
+    const entry = buttons[focus];
+    if (!entry) return;
+    if (align && content?.contains(entry.node)) {
+      const box = bounds(entry.node),
+        size = height();
+      if (entry.readable && box.bottom - box.top > size) {
+        offset = direction < 0 ? box.bottom - size : box.top;
+      } else if (box.top < offset) offset = box.top;
+      else if (box.bottom > offset + size) offset = box.bottom - size;
+    }
+    entry.node.focus();
+    applyOffset();
+  }
+  function move(direction, skipText = false) {
+    const entry = buttons[focus];
+    if (entry?.readable && !skipText) {
+      const box = bounds(entry.node);
+      const target = readingScrollStep(
+        offset,
+        height(),
+        box.top,
+        box.bottom,
+        direction
+      );
+      if (target !== null) {
+        offset = target;
+        applyOffset();
+        return;
+      }
+    }
+    const nextFocus = Math.max(
+      0,
+      Math.min(buttons.length - 1, focus + direction)
+    );
+    if (nextFocus === focus) return;
+    focus = nextFocus;
+    focusSelected(true, direction);
+  }
+  function render(preferredKey = null, align = false) {
     if (!panel) return;
+    const oldFocus = focus,
+      key = preferredKey || buttons[focus]?.key;
     buttons = [];
+    viewport = content = null;
     while (panel.firstChild) panel.removeChild(panel.firstChild);
     const heading = doc.createElement('div');
     heading.className = 'ytaf-comments-heading';
-    heading.textContent =
-      view === 'replies' || view === 'replyDetail' ? 'Replies' : 'Comments';
+    heading.textContent = view === 'replies' ? 'Replies' : 'Comments';
     panel.appendChild(heading);
     const help = doc.createElement('div');
     help.className = 'ytaf-comments-help';
     help.textContent =
-      '↑ / ↓: choose · OK: open · ← / →: page · BACK: return · GREEN: settings';
+      'Wheel / ↑ / ↓: scroll · ← / →: controls/comments · OK: replies/actions · BACK: return · GREEN: settings';
     panel.appendChild(help);
     const toolbar = doc.createElement('div');
     toolbar.className = 'ytaf-comments-toolbar';
     panel.appendChild(toolbar);
-    button(view === 'list' ? 'Back to settings' : 'Back', back, toolbar);
-    if (!videoId) button('Load current video', reset, toolbar);
+    button(
+      view === 'list' ? 'Back to settings' : 'Back to comments',
+      'back',
+      back,
+      toolbar
+    );
+    if (!videoId) button('Load current video', 'reload', reset, toolbar);
     if (view === 'list' && videoId)
       button(
         sort === 'top' ? 'Sort: Top comments' : 'Sort: Newest first',
+        'sort',
         () => {
           if (!busy) {
             sort = sort === 'top' ? 'newest' : 'top';
@@ -306,90 +370,65 @@ export function createCommentsPanel(
         },
         toolbar
       );
-    if (retry) button('Retry', () => retry?.(), toolbar);
+    if (retry) button('Retry', 'retry', () => retry?.(), toolbar);
+    const list = view === 'replies' ? replies : comments;
     const state = doc.createElement('div');
     state.className = 'ytaf-comments-status';
     state.setAttribute('aria-live', 'polite');
-    state.textContent = status || count;
+    state.textContent =
+      status ||
+      `${view === 'list' && count ? count + ' · ' : ''}${list.length} loaded`;
     panel.appendChild(state);
-    if (view === 'detail' || view === 'replyDetail') {
-      const item = view === 'detail' ? selected : replySelected;
-      if (item) {
-        const textPages = commentTextPages(item.text),
-          total = textPages.length;
-        textPage = Math.min(textPage, total - 1);
-        const body = doc.createElement('div');
-        body.className = 'ytaf-comment-detail';
-        body.textContent = `${item.author.slice(0, 80)} · ${item.published.slice(0, 60)}${item.likes ? ' · ♥ ' + item.likes : ''}\n\n${textPages[textPage]}`;
-        panel.appendChild(body);
-        const nav = doc.createElement('div');
-        nav.className = 'ytaf-comments-toolbar';
-        panel.appendChild(nav);
-        if (textPage > 0) button('Previous text', () => changePage(-1), nav);
-        if (textPage + 1 < total) button('More text', () => changePage(1), nav);
-        if (view === 'detail' && (item.replyToken || item.replies.length))
-          button('Read replies', openReplies, nav);
-        state.textContent = status || `Text ${textPage + 1} / ${total}`;
-      }
-    } else {
-      const list = view === 'replies' ? replies : comments,
-        index = view === 'replies' ? replyPage : page;
-      for (const item of list.slice(index * pageSize, (index + 1) * pageSize)) {
-        const row = button(
-          `${item.pinned ? '[Pinned] ' : ''}${item.author.slice(0, 80)} · ${item.published.slice(0, 60)}${item.likes ? ' · ♥ ' + item.likes : ''}\n${item.text.replace(/\s+/g, ' ').slice(0, 150)}${item.text.length > 150 ? '…' : ''}`,
-          () => {
-            if (busy) return;
-            if (view === 'replies') {
-              replySelected = item;
-              view = 'replyDetail';
-            } else {
-              selected = item;
-              view = 'detail';
-            }
-            textPage = 0;
-            focus = 0;
-            render();
-          }
-        );
-        row.className = 'ytaf-comment-row';
-      }
-      const nav = doc.createElement('div');
-      nav.className = 'ytaf-comments-toolbar';
-      panel.appendChild(nav);
-      if (index > 0) button('Previous page', () => changePage(-1), nav);
-      if ((index + 1) * pageSize < list.length)
-        button('Next page', () => changePage(1), nav);
-      else if ((view === 'replies' ? replyNext : next) && !busy)
-        button(
-          'Load more',
-          () =>
-            request(view === 'replies' ? replyNext : next, view === 'replies'),
-          nav
-        );
-      if (list.length)
-        state.textContent =
-          status ||
-          `${count ? count + ' · ' : ''}Page ${index + 1} / ${Math.ceil(list.length / pageSize)} · ${list.length} loaded`;
-    }
-    focusSelected();
-  }
-  function changePage(direction) {
-    if (busy) return;
-    if (view === 'detail' || view === 'replyDetail') {
-      const item = view === 'detail' ? selected : replySelected;
-      textPage = Math.max(
-        0,
-        Math.min(commentTextPages(item.text).length - 1, textPage + direction)
+    viewport = doc.createElement('div');
+    viewport.className = 'ytaf-comments-viewport';
+    content = doc.createElement('div');
+    content.className = 'ytaf-comments-content';
+    viewport.appendChild(content);
+    panel.appendChild(viewport);
+    // Derive the reading area from the real header, including wrapped status text.
+    const stateBox = state.getBoundingClientRect?.(),
+      panelBox = panel.getBoundingClientRect?.();
+    viewport.style.top = `${stateBox && panelBox ? stateBox.bottom - panelBox.top + 10 : 180}px`;
+    for (const item of list) {
+      const wrapper = doc.createElement('div');
+      wrapper.className = 'ytaf-comment-entry';
+      const card = register(
+        doc.createElement('div'),
+        'comment:' + item.id,
+        null,
+        true
       );
-    } else {
-      const list = view === 'replies' ? replies : comments,
-        max = Math.max(0, Math.ceil(list.length / pageSize) - 1);
-      if (view === 'replies')
-        replyPage = Math.max(0, Math.min(max, replyPage + direction));
-      else page = Math.max(0, Math.min(max, page + direction));
+      card.className = 'ytaf-comment-card';
+      const meta = doc.createElement('div');
+      meta.className = 'ytaf-comment-meta';
+      meta.textContent = `${item.pinned ? '[Pinned] ' : ''}${item.author} · ${item.published}${item.likes ? ' · ♥ ' + item.likes : ''}`;
+      const body = doc.createElement('div');
+      body.className = 'ytaf-comment-body';
+      body.textContent = item.text;
+      card.appendChild(meta);
+      card.appendChild(body);
+      wrapper.appendChild(card);
+      if (view === 'list' && (item.replyToken || item.replies.length))
+        button(
+          'Read replies',
+          'replies:' + item.id,
+          () => openReplies(item),
+          wrapper
+        );
+      content.appendChild(wrapper);
     }
-    focus = 0;
-    render();
+    if (view === 'replies' ? replyNext : next)
+      button(
+        busy ? 'Loading…' : 'Load more',
+        'more',
+        () => {
+          request(view === 'replies' ? replyNext : next, view === 'replies');
+        },
+        content
+      );
+    const found = buttons.findIndex((entry) => entry.key === key);
+    focus = found >= 0 ? found : Math.min(oldFocus, buttons.length - 1);
+    focusSelected(align);
   }
   function handleKey(event) {
     const code =
@@ -427,7 +466,12 @@ export function createCommentsPanel(
       ignoreClickUntil = Date.now() + 800;
       return true;
     }
-    if (event.type !== 'keydown' || held !== null || event.repeat) return true;
+    if (event.type !== 'keydown') return true;
+    const arrow = [37, 38, 39, 40].includes(code);
+    if (held !== null && (!arrow || held !== code || Date.now() - heldAt < 140))
+      return true;
+    if (event.repeat && !arrow) return true;
+    heldAt = Date.now();
     held = code || event.key;
     ignoreClickUntil = Date.now() + 800;
     if (!stillCurrent()) return true;
@@ -439,14 +483,36 @@ export function createCommentsPanel(
       back();
       return true;
     }
-    if (code === 38 || code === 40) {
-      focus =
-        (focus + (code === 38 ? -1 : 1) + buttons.length) % buttons.length;
-      focusSelected();
-    } else if (code === 37 || code === 39) changePage(code === 37 ? -1 : 1);
-    else if (code === 13) buttons[focus]?.action();
+    if (code === 38 || code === 40) move(code === 38 ? -1 : 1);
+    else if (code === 37 || code === 39) move(code === 37 ? -1 : 1, true);
+    else if (code === 13) buttons[focus]?.action?.();
     return true;
   }
+  doc.addEventListener(
+    'wheel',
+    (event) => {
+      if (!panel || event.ctrlKey) return;
+      const delta = wheelScrollDelta(event, height());
+      if (!delta) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (!stillCurrent()) return;
+      offset += delta;
+      applyOffset();
+      // Keep keyboard focus on the visible content when switching from the wheel.
+      const index = buttons.findIndex(
+        (entry) =>
+          content?.contains(entry.node) &&
+          bounds(entry.node).bottom > offset + 10 &&
+          bounds(entry.node).top < offset + height()
+      );
+      if (index >= 0) {
+        focus = index;
+        focusSelected();
+      }
+    },
+    { capture: true, passive: false }
+  );
   doc.addEventListener(
     'focus',
     (event) => {
