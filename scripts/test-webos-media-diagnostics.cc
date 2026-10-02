@@ -71,5 +71,11 @@ int main(int argc, char**) {
   assert(CopyMediaSnapshotReport() == summary);
   snapshot.session = 101; snapshot.generation = 1; snapshot.active = false; UpdateMediaSnapshot(snapshot);
   assert(CopyMediaSnapshotReport().find("inactive") != std::string::npos);
+  terminal.session = 101; terminal.generation = 1; terminal.event = MediaEventType::kNativeEos;
+  RecordMediaEvent(terminal);
+  snapshot.active = true; UpdateMediaSnapshot(snapshot); // Late same-generation rate/queue update.
+  assert(CopyMediaSnapshotReport().find("inactive") != std::string::npos);
+  snapshot.generation = 2; UpdateMediaSnapshot(snapshot); // A real reset can play again.
+  assert(CopyMediaSnapshotReport().find("inactive") == std::string::npos);
   std::cout << "Bounded typed media diagnostics and concurrent IDs passed\n";
 }

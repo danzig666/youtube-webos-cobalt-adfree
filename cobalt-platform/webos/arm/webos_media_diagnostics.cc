@@ -10,6 +10,7 @@ namespace {
 std::mutex mutex;
 MediaEventRing ring;
 MediaSnapshot snapshot;
+bool snapshot_terminal = false;
 uint64_t next_session = 0;
 unsigned routine_lines = 0, error_lines = 0;
 unsigned capability_lines = 0;
@@ -119,7 +120,8 @@ void RecordMediaEvent(MediaEvent event) {
   if (event.session > 0 && event.session == snapshot.session &&
       event.generation >= snapshot.generation &&
       (event.event == MediaEventType::kUnload || event.event == MediaEventType::kNativeEos))
-    snapshot.active = false;
+    snapshot_terminal = true;
+  if (snapshot_terminal) snapshot.active = false;
   ring.Record(event); // Keep recent evidence after stderr's process budget ends.
   if (event.event == MediaEventType::kVideoCapability ||
       event.event == MediaEventType::kAudioCapability) {
@@ -140,7 +142,9 @@ void UpdateMediaSnapshot(const MediaSnapshot& next) {
   std::lock_guard<std::mutex> guard(mutex);
   if (next.session < snapshot.session ||
       (next.session == snapshot.session && next.generation < snapshot.generation)) return;
+  if (next.session != snapshot.session || next.generation != snapshot.generation) snapshot_terminal = false;
   snapshot = next;
+  if (snapshot_terminal) snapshot.active = false;
 }
 std::string CopyMediaSnapshotReport() {
   std::lock_guard<std::mutex> guard(mutex);
