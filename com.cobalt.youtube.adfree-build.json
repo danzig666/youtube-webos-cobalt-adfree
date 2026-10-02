@@ -1,0 +1,32 @@
+{
+  "repository": "danzig666/youtube-webos-cobalt-adfree",
+  "source_sha": "fc1b9daa0e3cfadb56a55668812a2f5da6f29548",
+  "cobalt_sha": "007628df7bddd86e53d6d151ecd122614916223d",
+  "cobalt_version": "23.lts.6",
+  "starboard_api": 13,
+  "target": "webos-arm",
+  "build_type": "gold",
+  "sdl_sha": "263629dab0c89e75f9872eed66e197174952ce02",
+  "sdk_sha256": "04ad3311b48b4557a7002aef56ae2e167478e8e129f37daac04649bddf813616",
+  "host_generator_workaround": "local V8 tools/run.py invokes qemu-i386; kernel lacks i386 execution",
+  "github_workflow_dispatch": "HTTP 404; no remote run claimed",
+  "tv_available": false,
+  "binary_sha256": "c92cd77b68012d9a1bfacf3fe04706af1cf38677942802108a6ebed19a040f1d",
+  "ipk_sha256": "e3d6b64099f8443fe8f89b1b64a2a4763220bd3c3cc155d796d83e672cc2e8b4",
+  "ipk": "com.cobalt.youtube.adfree_2.4.0_arm.ipk",
+  "result": "Gold link and final IPK payload validation passed; TV runtime not tested",
+  "runtime_libraries": [
+    "libstdc++.so.6",
+    "libgcc_s.so.1",
+    "libatomic.so.1"
+  ],
+  "release_tag": "v2.4.0-beta.1",
+  "package_version": "2.4.0",
+  "webapp_tests_passed": 103,
+  "native_host_tests": "passed",
+  "prerelease": true,
+  "app_id": "com.cobalt.youtube.adfree",
+  "signin_and_pairing": "Normal YouTube UI retained; current release not TV verified",
+  "launcher_title": "YouTube Cobalt AdFree",
+  "package_tests_passed": 4
+}
