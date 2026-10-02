@@ -1,6 +1,6 @@
 {
   "repository": "danzig666/youtube-webos-cobalt-adfree",
-  "source_sha": "fd63d99eecf424d9c2ca7a9b743a40e6ffc6b7ff",
+  "source_sha": "efdb527a5f9b6f60dede38deb33ef02909dd0fdd",
   "cobalt_sha": "007628df7bddd86e53d6d151ecd122614916223d",
   "cobalt_version": "23.lts.6",
   "starboard_api": 13,
@@ -11,8 +11,8 @@
   "host_generator_workaround": "local V8 tools/run.py invokes qemu-i386; kernel lacks i386 execution",
   "github_workflow_dispatch": "HTTP 404; no remote run claimed",
   "tv_available": false,
-  "binary_sha256": "7b32077e919835402a6c685e89c9053e6206690ded2289d1bd3f812321578a04",
-  "ipk_sha256": "90ea402e3c37b500c3c1e147cf9ddce0eb7c1f769688515e3fd987e843ad2b8e",
+  "binary_sha256": "ff750d5a49d6e1bf2f20f04009ff5221e05563c9c07554dde802c42ed2191ea8",
+  "ipk_sha256": "afbc8eab5e562880993f8946f36a632fdef5e093cfe851ec0e4680e51d3e87e0",
   "ipk": "youtube.leanback.v4_2.2.0_arm.ipk",
   "result": "Gold link and final IPK payload validation passed; TV runtime not tested",
   "runtime_libraries": [
@@ -22,7 +22,7 @@
   ],
   "release_tag": "v2.2.0-beta.1",
   "package_version": "2.2.0",
-  "webapp_tests_passed": 70,
+  "webapp_tests_passed": 72,
   "native_host_tests": "passed",
   "prerelease": true,
   "app_id": "youtube.leanback.v4",
