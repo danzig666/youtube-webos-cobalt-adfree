@@ -33,6 +33,13 @@ Scheduled and manual Gold runs additionally package and validate an IPK using ru
 from the pinned SDK and the matching built web assets. Nightly packages remain
 Actions artifacts; there is no release publication or stable-channel update.
 
-Workflow definitions were statically validated locally. No full Gold build or
-scheduled GitHub run has yet been executed for these changes; packaging and
-on-device playback are release gates, not inferred successes.
+The full Gold ARM build and final IPK payload checks passed locally; see
+[validation details](full-gold-build-validation.md). Workflow definitions pass
+actionlint. GitHub workflow dispatch returned HTTP 404 with this connection, so
+no remote Actions run is claimed. Scheduled workflows activate on the default
+branch after merge. On-device playback remains a stable-release gate.
+
+Packaging includes libstdc++.so.6, libgcc_s.so.1 and, when the executable needs
+it, libatomic.so.1 from the same pinned SDK. Missing required runtime inputs
+fail packaging. Both package workflows extract the atomic runtime. Package
+verification checks ownership, non-root read access and executable permissions.

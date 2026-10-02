@@ -63,10 +63,10 @@ InputBuffer instantiation. SDK: buildroot-nc4 `webos-a38c582`; syntax-only SDL
 headers: pinned webosbrew `263629dab0c89e75f9872eed66e197174952ce02`
 with SDK-generated configuration and webOS/Wayland ABI flags.
 
-No full Cobalt link or TV playback test has been performed in this workspace.
-Syntax checks cannot establish firmware compatibility. Before shipping an IPK,
-the separate full Gold build and on-device playback/lifecycle checks remain
-required.
+At the baseline, no full Cobalt link or TV playback test had been performed.
+The full Gold build and package validation have since passed (see the final
+validation below). Syntax/build checks cannot establish firmware compatibility;
+on-device playback/lifecycle checks remain required before a stable release.
 
 ## Delivery order and evidence gates
 
@@ -85,7 +85,7 @@ Neither SDK declarations nor host tests prove native playback. Do not invent
 LG APIs, publish releases, replace Cobalt/UI, remove legacy/rollback paths,
 require root/SSH, or log authentication data or signed media URLs.
 
-## Host-testable delivery (2026-10-01)
+## Incremental delivery (2026-10-02)
 
 Branch: `playback/host-tested-v2`. Implementation is split into reviewable commits and pushed to the same branch.
 No stable release has been published or TV installation performed.
@@ -105,12 +105,12 @@ No stable release has been published or TV installation performed.
 | 10–11 | GREEN-button paged diagnostics, native snapshots and confirmed clipboard report copy implemented; compositor validation gated |
 | 12 | Required device-test form and labeled-report generator; no device reports imported or claimed verified |
 | 13 | Cheap SDK-free native host job added to ordinary CI |
-| 14 | Daily 03:17 UTC Gold ARM build/package validation configured; full workflow not executed here |
+| 14 | Daily Gold CI configured; local full Gold ARM link and IPK payload validation passed; remote Actions run unavailable |
 | 15 | Typed player error categories and shared/legacy diagnostic events added |
 
-Final local validation: webapp's 25 baseline tests and production webpack build
-passed; all native host suites passed with undefined-behavior checking;
-compatibility-generator tests (4) and package-tool test passed. Patches install
+Final local validation: webapp's 34 tests and production webpack build passed;
+all native host suites passed with undefined-behavior checking;
+compatibility-generator tests (4) and package-tool tests (2) passed. Patches install
 on a clean pinned Cobalt tree and on an existing baseline-patched checkout;
 repeated installation is harmless. ARM syntax checks cover the SDL platform,
 both player implementations, capability/rate/lifecycle/diagnostic components
@@ -124,27 +124,37 @@ launch and are process-latched: `YTAF_VIDEO_CAPS=uhd` or `uhd-hdr`, and
 Invalid overrides fail closed. `YTAF_SHARED_AV=0`, the marker and all legacy
 fallback paths remain. Normal operation requires no root/SSH.
 
-No host result establishes TV playback, live repair, AAC support, HDR/rate
-support or full Gold link success. Those gates remain open. The next meaningful
-validation is a full Gold runtime build followed by a known-device trace and
-the specified playback/lifecycle matrix in one process.
+Build/host results do not establish TV playback, live repair, AAC support or
+firmware HDR/rate/clipboard behavior. Those device gates remain open. The next
+meaningful validation is a known-device trace and the specified playback/
+lifecycle matrix in one process.
 
 ## Remaining implementation (2026-10-02)
 
 The user confirmed that no TV is available and requested implementation/build
 validation in this environment. GREEN-button diagnostics/report copying, native
 snapshots and numeric MediaSource tracing are implemented. Webapp tests now
-cover 33 cases; report/state/policy host tests and ARM syntax checks pass.
+cover 34 cases; report/state/policy host tests and ARM syntax checks pass.
 Manual Gold workflows also validate packages; SDK checksums are pinned. A
 restrictive-umask package regression now checks non-root readability/execution.
 AAC research found no framing/clock/reset specification in verified SDK headers,
 so AAC remains on the existing fallback, as required by the conditional plan.
 
-A full local Gold build is in progress with genuinely compiled patched SDL,
-VP9 and AV1 libraries. GitHub workflow dispatch returned HTTP 404 with this
+The full local Gold build and final IPK validation passed with genuinely
+compiled patched SDL, VP9 and AV1 libraries. The package includes the SDK atomic
+runtime required by the linked executable; missing runtime input is rejected. GitHub workflow dispatch returned HTTP 404 with this
 connection; no GitHub Actions run is claimed. This environment's kernel cannot
 execute i386 programs, so local V8 host-generation tools use qemu-i386 through
 a build-only wrapper. The ARM toolchain and target configuration are unchanged.
 Compositor clipboard behavior, device playback/lifecycle, live failure diagnosis
 and AAC feeding remain evidence-gated. No stable release or TV installation is
 performed.
+
+## Full Gold and IPK evidence
+
+Validated source commit: `374464b54f6824efd58d541621471756f5eeac92`.
+Cobalt source remains `007628df7bddd86e53d6d151ecd122614916223d`.
+See [full validation details](full-gold-build-validation.md) for commands,
+artifact checksums, environment workaround and remaining device gates.
+The native runtime archive, final IPK, checksums, source metadata and build logs
+are retained under local `output/`; binaries are not tracked in Git.
