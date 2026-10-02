@@ -20,11 +20,14 @@ const defaultConfig = {
 
 let localConfig = window.__ytafConfigState;
 
-if (!localConfig || typeof localConfig !== 'object') {
+if (!localConfig || typeof localConfig !== 'object' || Array.isArray(localConfig)) {
   try {
     localConfig = JSON.parse(
       window.localStorage[CONFIG_KEY] || JSON.stringify(defaultConfig)
     );
+    if (!localConfig || typeof localConfig !== 'object' || Array.isArray(localConfig)) {
+      localConfig = { ...defaultConfig };
+    }
   } catch (err) {
     console.warn('Config read failed:', err);
     localConfig = { ...defaultConfig };
@@ -66,7 +69,13 @@ export function configWrite(key, value) {
   console.info('Setting key', key, 'to', value);
   localConfig[key] = value;
   window.__ytafConfigState = localConfig;
-  window.localStorage[CONFIG_KEY] = JSON.stringify(localConfig);
+  try {
+    window.localStorage[CONFIG_KEY] = JSON.stringify(localConfig);
+  } catch (err) {
+    // A full or unavailable store must not prevent the selected setting from
+    // taking effect in the current session or notifying its live consumers.
+    console.warn('Config persistence failed; keeping settings for this session:', err);
+  }
 
   let applyResult = null;
 
