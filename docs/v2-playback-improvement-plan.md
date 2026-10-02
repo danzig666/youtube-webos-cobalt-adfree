@@ -87,9 +87,8 @@ require root/SSH, or log authentication data or signed media URLs.
 
 ## Host-testable delivery (2026-10-01)
 
-Branch: `playback/host-tested-v2`. Implementation is split into local,
-reviewable commits; nothing has been pushed, packaged as a release or installed
-on a TV.
+Branch: `playback/host-tested-v2`. Implementation is split into reviewable commits and pushed to the same branch.
+No stable release has been published or TV installation performed.
 
 | Phase | Delivered evidence / remaining gate |
 | --- | --- |
@@ -101,9 +100,9 @@ on a TV.
 | 5 | 100 resets, stale callbacks/EOS, queue boundaries, counter exhaustion and video transitions host-tested |
 | 6 | Rate policy, idempotence and confirmed 1x recovery; firmware validation outstanding |
 | 7 | Existing seek fix preserved; rapid/repeated/bidirectional/zero/paused/rate-context regressions expanded |
-| 8 | Native boundary tracing and live hypotheses documented; failing TV trace/MSE instrumentation/repair outstanding |
+| 8 | Native boundary tracing and live hypotheses documented; numeric MSE tracing added; failing TV trace/repair still gated |
 | 9 | SDL lifecycle policy and duplicate/skipped-event tests; actual suspend/relaunch/resource recovery outstanding |
-| 10–11 | Typed bounded event ring/report API prepared; GREEN-button diagnostics and copy/report UI bridge outstanding |
+| 10–11 | GREEN-button paged diagnostics, native snapshots and confirmed clipboard report copy implemented; compositor validation gated |
 | 12 | Required device-test form and labeled-report generator; no device reports imported or claimed verified |
 | 13 | Cheap SDK-free native host job added to ordinary CI |
 | 14 | Daily 03:17 UTC Gold ARM build/package validation configured; full workflow not executed here |
@@ -129,3 +128,23 @@ No host result establishes TV playback, live repair, AAC support, HDR/rate
 support or full Gold link success. Those gates remain open. The next meaningful
 validation is a full Gold runtime build followed by a known-device trace and
 the specified playback/lifecycle matrix in one process.
+
+## Remaining implementation (2026-10-02)
+
+The user confirmed that no TV is available and requested implementation/build
+validation in this environment. GREEN-button diagnostics/report copying, native
+snapshots and numeric MediaSource tracing are implemented. Webapp tests now
+cover 33 cases; report/state/policy host tests and ARM syntax checks pass.
+Manual Gold workflows also validate packages; SDK checksums are pinned. A
+restrictive-umask package regression now checks non-root readability/execution.
+AAC research found no framing/clock/reset specification in verified SDK headers,
+so AAC remains on the existing fallback, as required by the conditional plan.
+
+A full local Gold build is in progress with genuinely compiled patched SDL,
+VP9 and AV1 libraries. GitHub workflow dispatch returned HTTP 404 with this
+connection; no GitHub Actions run is claimed. This environment's kernel cannot
+execute i386 programs, so local V8 host-generation tools use qemu-i386 through
+a build-only wrapper. The ARM toolchain and target configuration are unchanged.
+Compositor clipboard behavior, device playback/lifecycle, live failure diagnosis
+and AAC feeding remain evidence-gated. No stable release or TV installation is
+performed.
