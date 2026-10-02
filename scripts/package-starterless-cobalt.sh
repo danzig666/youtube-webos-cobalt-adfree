@@ -49,6 +49,12 @@ if ! grep -aFq '/web/adblock/adblockPreload.js' "$build_dir/cobalt"; then
   exit 5
 fi
 
+# A package ID change also requires rebuilding the Starfish media identity.
+if ! grep -aFq "$package_id" "$build_dir/cobalt"; then
+  echo "Native runtime does not contain package identity: $package_id. Rebuild Cobalt first." >&2
+  exit 5
+fi
+
 for asset in adblockMain.js adblockMain.css adblockPreload.js; do
   if [[ ! -s "$webapp_output/$asset" ]]; then
     echo "Missing current web asset: $webapp_output/$asset" >&2

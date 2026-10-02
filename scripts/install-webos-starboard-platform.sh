@@ -199,11 +199,13 @@ python3 - "$repo_root" "$platform_target/arm/webos_build_metadata.h" <<'PYMETA'
 from pathlib import Path
 import json, re, subprocess, sys
 root, target = Path(sys.argv[1]), Path(sys.argv[2])
-version = json.loads((root / 'starterless-cobalt/appinfo.json').read_text())['version']
+appinfo = json.loads((root / 'starterless-cobalt/appinfo.json').read_text())
+version, app_id = appinfo['version'], appinfo['id']
+assert re.fullmatch(r'[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+', app_id)
 assert re.fullmatch(r'[0-9]+(?:\.[0-9]+)*', version)
 sha = subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip()
 assert re.fullmatch(r'[0-9a-f]{40}', sha)
-text = '#ifndef STARBOARD_WEBOS_ARM_WEBOS_BUILD_METADATA_H_\n#define STARBOARD_WEBOS_ARM_WEBOS_BUILD_METADATA_H_\n#define YTAF_APP_VERSION "' + version + '"\n#define YTAF_SOURCE_SHA "' + sha + '"\n#endif\n'
+text = '#ifndef STARBOARD_WEBOS_ARM_WEBOS_BUILD_METADATA_H_\n#define STARBOARD_WEBOS_ARM_WEBOS_BUILD_METADATA_H_\n#define YTAF_APP_ID "' + app_id + '"\n#define YTAF_APP_VERSION "' + version + '"\n#define YTAF_SOURCE_SHA "' + sha + '"\n#endif\n'
 if not target.exists() or target.read_text() != text:
     target.write_text(text)
 PYMETA

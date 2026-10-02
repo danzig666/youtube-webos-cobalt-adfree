@@ -1,10 +1,10 @@
 {
-  "id": "youtube.leanback.v4",
-  "version": "2.1.0",
+  "id": "com.cobalt.youtube.adfree",
+  "version": "2.1.1",
   "vendor": "RF1705",
   "type": "native",
   "main": "cobalt",
-  "title": "Youtube",
+  "title": "YouTube Cobalt AdFree",
   "icon": "icon.png",
   "largeIcon": "largeIcon.png",
   "iconColor": "#173f5f",

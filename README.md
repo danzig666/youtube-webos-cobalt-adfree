@@ -46,17 +46,30 @@ selection; the menu identifies when that override is active.
 
 Download the current `.ipk` from the GitHub releases page and install it using Homebrew Channel, webOS Device Manager, `ares-cli`, or the webOS app install service on rooted devices.
 
-The package uses the original `youtube.leanback.v4` application id to preserve YouTube sign-in and phone pairing compatibility. Installing it replaces the official YouTube application.
+The current fork uses app ID **`com.cobalt.youtube.adfree`** and launcher title
+**YouTube Cobalt AdFree**. It installs alongside the official YouTube app
+(`youtube.leanback.v4`) without replacing it. Versions through this fork's
+`v2.1.0-beta.1` used the official ID; install the new separate package instead.
+Installing the new package does not restore an official app already replaced
+by an older build; reinstall the official app from LG's store if needed.
 
-### Homebrew Channel repository
+### Sign-in and phone pairing
 
-Add the following custom repository in Homebrew Channel:
+The normal YouTube TV **Sign in** screen is retained. The separate app has its
+own application storage; accounts and settings from the official app or an
+older replacement build are not migrated. Sign in again inside this app.
 
-```text
-https://raw.githubusercontent.com/RF1705/youtube-webos-cobalt-adfree/main/repo.json
-```
+**Sign-in and phone pairing with the separate ID have not been verified on a
+TV.** Earlier upstream releases switched to the official ID specifically to
+restore phone pairing. A separate ID may therefore affect phone pairing or
+sign-in; this build does not claim to resolve that compatibility issue.
 
-Do not install this package alongside another Homebrew package using the same `youtube.leanback.v4` application id.
+### Downloads and Homebrew Channel
+
+Use this fork's [release page](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases)
+for the separate-install IPK. The upstream Homebrew catalog distributes the
+replacement app under the official ID; do not use that catalog when you want
+to keep the official YouTube app installed.
 
 ## Building
 

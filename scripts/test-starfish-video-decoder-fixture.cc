@@ -15,6 +15,7 @@
 #include <sstream>
 #include <string>
 #include "starfish_playback_rate.h"
+#include "webos_build_metadata.h"
 #include "webos_media_diagnostics.h"
 using namespace starboard::shared::webos;
 using SbTime = int64_t;
@@ -52,7 +53,10 @@ struct Api {
   int feeds = 0, rates = 0, plays = 0;
   bool loaded = false, reject_rate = false, flush_ok = true;
   void notifyForeground() {}
-  template<class F> bool Load(const char*, F, void*) { return true; }
+  template<class F> bool Load(const char* payload, F, void*) {
+    assert(std::string(payload).find(std::string("\"appId\":\"") + YTAF_APP_ID + "\"") != std::string::npos);
+    return true;
+  }
   std::string Feed(const char*) { ++feeds; return "Ok"; }
   bool Play() { ++plays; return true; }
   bool Pause() { return true; }

@@ -14,6 +14,7 @@
 #include "starboard/shared/starboard/media/mime_type.h"
 #include "starboard/webos/arm/application_sdl.h"
 #include "starboard/webos/arm/webos_media_capabilities.h"
+#include "starboard/webos/arm/webos_build_metadata.h"
 #include "starboard/webos/arm/webos_media_diagnostics_bridge.h"
 
 namespace starboard {
@@ -293,10 +294,7 @@ bool StarfishVideoDecoder::InitializePipeline(
   }
 
   const char* codec_name = CodecName(codec_);
-  const char* app_id = std::getenv("APPID");
-  if (!app_id || !*app_id) {
-    app_id = "youtube.leanback.v4";
-  }
+  const char* app_id = YTAF_APP_ID;
   const std::string& window_id = ApplicationSdl::Get()->GetExportedWindowId();
   if (window_id.empty()) {
     ReportError("SDL did not create a webOS exported video window.");
