@@ -81,6 +81,10 @@ def verify_data_metadata(contents: bytes) -> None:
                         f"{member.uid}:{member.gid}; expected "
                         f"{EXPECTED_UID}:{EXPECTED_GID}"
                     )
+                if member.isfile() and member.mode & 0o044 != 0o044:
+                    raise ValueError(f"Package file is not readable by the app: {member.name}")
+                if member.isfile() and member.name.rsplit('/', 1)[-1] == 'cobalt' and member.mode & 0o011 != 0o011:
+                    raise ValueError(f"Native cobalt is not executable by the app: {member.name}")
                 if member.isdir() and member.mode != EXPECTED_DIRECTORY_MODE:
                     raise ValueError(
                         f"Unexpected directory mode for {member.name}: "

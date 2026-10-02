@@ -88,7 +88,10 @@ cp "$runtime_dir/libstdc++.so.6" "$package_root/lib/libstdc++.so.6"
 cp "$runtime_dir/libgcc_s.so.1" "$package_root/lib/libgcc_s.so.1"
 cp "$repo_root/assets/icon.png" "$package_root/icon.png"
 cp "$repo_root/assets/largeIcon.png" "$package_root/largeIcon.png"
-chmod +x "$package_root/cobalt"
+# A developer's restrictive umask or SDK modes must not create root-only assets
+# after IPK ownership normalization. The app runs without root on the TV.
+find "$package_root" -type f -exec chmod 644 {} +
+chmod 755 "$package_root/cobalt"
 
 # Final guard on the exact package tree, not only the source/output directories.
 test -s "$adblock_target/adblockPreload.js"

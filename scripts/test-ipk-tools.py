@@ -84,6 +84,19 @@ def make_package(path: Path) -> None:
 
 
 class IpkOwnershipTest(unittest.TestCase):
+    def test_nonroot_app_can_read_files_and_execute_cobalt(self) -> None:
+        for mode, name, expected in ((0o600, "appinfo.json", "not readable"),
+                                     (0o644, "cobalt", "not executable"),
+                                     (0o755, "cobalt", None)):
+            member = tarfile.TarInfo("usr/palm/applications/test.app/" + name)
+            member.mode = mode; member.uid = 0; member.gid = 5000; member.size = 1
+            archive = make_tar([(member, b"x")])
+            if expected:
+                with self.assertRaisesRegex(ValueError, expected):
+                    verifier.verify_data_metadata(archive)
+            else:
+                verifier.verify_data_metadata(archive)
+
     def test_normalization_is_verified_and_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             package = Path(temp_dir) / "test.app_1.0.0_arm.ipk"
