@@ -1,0 +1,76 @@
+diff --git a/cobalt/h5vcc/h5vcc_system.h b/cobalt/h5vcc/h5vcc_system.h
+--- a/cobalt/h5vcc/h5vcc_system.h
++++ b/cobalt/h5vcc/h5vcc_system.h
+@@ -43,6 +43,11 @@
+   bool limit_ad_tracking() const;
+ 
+   bool TriggerHelp() const;
++  std::string GetYtafMediaReport() const;
++  void RequestYtafMediaReportCopy() const;
++  int32 GetYtafMediaReportCopyStatus() const;
++  void TraceYtafMediaSource(uint32 source, uint32 sequence, uint32 event,
++                           uint32 stream, uint32 bytes, double offset) const;
+ 
+   enum UserOnExitStrategy {
+     kUserOnExitStrategyClose,
+diff --git a/cobalt/h5vcc/h5vcc_system.cc b/cobalt/h5vcc/h5vcc_system.cc
+--- a/cobalt/h5vcc/h5vcc_system.cc
++++ b/cobalt/h5vcc/h5vcc_system.cc
+@@ -19,6 +19,9 @@
+ #include "cobalt/version.h"
+ #include "cobalt_build_id.h"  // NOLINT(build/include_subdir)
+ #include "starboard/system.h"
++#if defined(STARBOARD_WEBOS)
++#include "starboard/webos/arm/webos_media_report.h"
++#endif
+ 
+ #if SB_API_VERSION < 14
+ #include "cobalt/extension/ifa.h"
+@@ -125,6 +128,32 @@
+ // return false to indicate the client should launch their own dialog.
+ bool H5vccSystem::TriggerHelp() const { return false; }
+ 
++std::string H5vccSystem::GetYtafMediaReport() const {
++#if defined(STARBOARD_WEBOS)
++  return starboard::shared::webos::CopyWebOsMediaReport();
++#else
++  return "Native playback diagnostics unavailable on this platform.";
++#endif
++}
++void H5vccSystem::RequestYtafMediaReportCopy() const {
++#if defined(STARBOARD_WEBOS)
++  starboard::shared::webos::RequestMediaReportCopy();
++#endif
++}
++int32 H5vccSystem::GetYtafMediaReportCopyStatus() const {
++#if defined(STARBOARD_WEBOS)
++  return starboard::shared::webos::MediaReportCopyStatus();
++#else
++  return 3;
++#endif
++}
++void H5vccSystem::TraceYtafMediaSource(uint32 source, uint32 sequence, uint32 event,
++                                    uint32 stream, uint32 bytes, double offset) const {
++#if defined(STARBOARD_WEBOS)
++  starboard::shared::webos::TraceMediaSource(source, sequence, event, stream, bytes, offset);
++#endif
++}
++
+ uint32 H5vccSystem::user_on_exit_strategy() const {
+   // Convert from the Cobalt gyp setting variable's enum options to the H5VCC
+   // interface enum options.
+diff --git a/cobalt/h5vcc/h5vcc_system.idl b/cobalt/h5vcc/h5vcc_system.idl
+--- a/cobalt/h5vcc/h5vcc_system.idl
++++ b/cobalt/h5vcc/h5vcc_system.idl
+@@ -21,6 +21,11 @@
+   readonly attribute DOMString advertisingId;
+   readonly attribute boolean limitAdTracking;
+   boolean triggerHelp();
++  DOMString getYtafMediaReport();
++  void requestYtafMediaReportCopy();
++  long getYtafMediaReportCopyStatus();
++  void traceYtafMediaSource(unsigned long source, unsigned long packetSequence,
++      unsigned long event, unsigned long stream, unsigned long bytes, double offset);
+ 
+   // enum UserOnExitStrategy
+   //

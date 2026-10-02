@@ -282,6 +282,10 @@ void StarfishVideoDecoder::InitializePipeline(
     ApplicationSdl::Get()->SetVideoResolution(width, height);
     ApplicationSdl::Get()->ConfigureFullscreenVideo();
   }
+  diagnostic_bits_ = sample_info.color_metadata.bits_per_channel;
+  diagnostic_hdr_ = sample_info.color_metadata.transfer == kSbMediaTransferIdSmpteSt2084 ? 1 :
+      sample_info.color_metadata.transfer == kSbMediaTransferIdAribStdB67 ? 2 : 0;
+  PublishSnapshotOnDecoderThread();
   if (pipeline_loaded_) {
     ApplyHdrInfo(sample_info.color_metadata);
     return;
@@ -428,6 +432,7 @@ void StarfishVideoDecoder::FeedBuffer(
   if (result.find("BufferFull") != std::string::npos ||
       result.find("Pending") != std::string::npos) {
     pending_buffer_ = input_buffer;
+    PublishSnapshotOnDecoderThread();
     Schedule(std::bind(decoder_status_cb_, kBufferFull,
                        scoped_refptr<VideoFrame>()));
     decoder_thread_->Schedule(
@@ -481,6 +486,7 @@ void StarfishVideoDecoder::ApplyPlaybackStateOnDecoderThread() {
         "{\"playRate\":%.6g,\"audioOutput\":true}", value);
     return media_api_->SetPlayRate(payload.c_str());
   });
+  PublishSnapshotOnDecoderThread();
   if (result != StarfishPlaybackRate::ApplyResult::kUnchanged) {
     MediaEvent event;
     event.session = diagnostic_session_id_; event.generation = diagnostic_generation_.load();
@@ -579,6 +585,7 @@ void StarfishVideoDecoder::ResetOnDecoderThread() {
   first_input_logged_ = first_feed_logged_ = false;
   RecordDiagnostic(MediaEventType::kSeek, seek_to_time_.load());
   pending_buffer_ = nullptr;
+  PublishSnapshotOnDecoderThread();
   if (!pipeline_loaded_) {
     return;
   }
@@ -644,6 +651,19 @@ void StarfishVideoDecoder::ReportError(const std::string& message) {
   Schedule(std::bind(error_cb_, kSbPlayerErrorDecode, message));
 }
 
+void StarfishVideoDecoder::PublishSnapshotOnDecoderThread() const {
+  MediaSnapshot snapshot;
+  snapshot.session = diagnostic_session_id_; snapshot.generation = diagnostic_generation_.load();
+  snapshot.active = !shutting_down_.load(); snapshot.video = DiagnosticVideoCodec(codec_);
+  snapshot.width = video_width_; snapshot.height = video_height_;
+  snapshot.bits = diagnostic_bits_; snapshot.hdr = diagnostic_hdr_;
+  snapshot.requested_rate = playback_rate_millionths_.load() / 1000000.0;
+  snapshot.applied_rate = playback_rate_state_.applied_rate();
+  snapshot.video_packets = pending_buffer_ ? 1 : 0;
+  snapshot.video_bytes = pending_buffer_ ? pending_buffer_->size() : 0;
+  // Audio is owned by the independent legacy decoder; unavailable here.
+  UpdateMediaSnapshot(snapshot);
+}
 void StarfishVideoDecoder::RecordDiagnostic(MediaEventType type, SbTime pts,
                                            WebOsPlayerError error,
                                            bool accepted) const {

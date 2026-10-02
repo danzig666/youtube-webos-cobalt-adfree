@@ -45,7 +45,7 @@ fi
 mkdir -p "$platform_target"
 # Compare file contents so repeated installs do not touch every platform header
 # and force Ninja to rebuild almost the entire dependency graph.
-rsync -ac "$overlay/" "$platform_target/"
+rsync -ac --exclude=webos_build_metadata.h "$overlay/" "$platform_target/"
 
 if ! grep -q "'webos-arm': 'starboard/webos/arm'" "$platforms_file"; then
   git -C "$cobalt_root" apply --check "$registration_patch"
@@ -186,5 +186,22 @@ if ! grep -q 'Ignore that stale callback before dereferencing its stream' \
   git -C "$cobalt_root" apply --check "$demuxer_stop_race_patch"
   git -C "$cobalt_root" apply "$demuxer_stop_race_patch"
 fi
+
+if ! grep -q 'GetYtafMediaReport' "$cobalt_root/cobalt/h5vcc/h5vcc_system.h"; then
+  git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-diagnostics-ui.patch"
+  git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-diagnostics-ui.patch"
+fi
+python3 - "$repo_root" "$platform_target/arm/webos_build_metadata.h" <<'PYMETA'
+from pathlib import Path
+import json, re, subprocess, sys
+root, target = Path(sys.argv[1]), Path(sys.argv[2])
+version = json.loads((root / 'starterless-cobalt/appinfo.json').read_text())['version']
+assert re.fullmatch(r'[0-9]+(?:\.[0-9]+)*', version)
+sha = subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip()
+assert re.fullmatch(r'[0-9a-f]{40}', sha)
+text = '#ifndef STARBOARD_WEBOS_ARM_WEBOS_BUILD_METADATA_H_\n#define STARBOARD_WEBOS_ARM_WEBOS_BUILD_METADATA_H_\n#define YTAF_APP_VERSION "' + version + '"\n#define YTAF_SOURCE_SHA "' + sha + '"\n#endif\n'
+if not target.exists() or target.read_text() != text:
+    target.write_text(text)
+PYMETA
 
 echo "Installed webos-arm Starboard platform into: $platform_target"

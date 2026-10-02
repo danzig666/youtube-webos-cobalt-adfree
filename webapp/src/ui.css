@@ -113,3 +113,6 @@
   opacity: 0;
   transform: translateY(8px);
 }
+
+.ytaf-diagnostic-action { padding: 8px; border: 1px solid #777; margin: 4px 0; }
+.ytaf-diagnostic-action:focus { border-color: #37ff77; background: #163425; }

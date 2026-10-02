@@ -4,6 +4,7 @@
 import './navigation-checkbox.js';
 
 import './ui.css';
+import { createPlaybackDiagnostics } from './playback-diagnostics.mjs';
 
 import { configRead, configWrite } from './config.js';
 import { checkboxTools } from './checkboxTools.js';
@@ -392,6 +393,7 @@ export function userScriptStartUI() {
     )
   );
   uiContainer.appendChild(sponsorBlock);
+  uiContainer.appendChild(createPlaybackDiagnostics(document, window));
 
   menuContent = document.createElement('div');
   menuContent.classList.add('ytaf-ui-content');
@@ -676,7 +678,9 @@ export function userScriptStartUI() {
           if (wrapper) {
             wrapper.dataset.ytafIgnoreClickUntil = String(Date.now() + 1000);
           }
-          if (focusedElement.dataset.ytafControl === 'choice') {
+          if (focusedElement.dataset.ytafControl === 'action') {
+            focusedElement.__ytafActivate?.();
+          } else if (focusedElement.dataset.ytafControl === 'choice') {
             choiceTools.cycle(focusedElement.id);
           } else {
             checkboxTools.toggleCheck(focusedElement.id);

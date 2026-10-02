@@ -46,5 +46,30 @@ int main(int argc, char**) {
     assert(ids[i] > 0);
     for (size_t j = 0; j < i; ++j) assert(ids[i] != ids[j]);
   }
+  event.session = event.generation = event.source = event.sequence = event.input_bytes = UINT64_MAX;
+  event.monotonic_us = event.pts_us = INT64_MIN;
+  event.queued_packets = event.queued_bytes = UINT64_MAX;
+  event.width = event.height = INT32_MIN; event.bits = UINT32_MAX;
+  const auto extreme = FormatMediaEvent(event);
+  assert(extreme.size() < 512 && extreme.back() == '\n');
+  MediaSnapshot snapshot;
+  snapshot.session = 100; snapshot.generation = 7; snapshot.shared = true; snapshot.active = true;
+  snapshot.video = MediaCodec::kAv1; snapshot.audio = MediaCodec::kOpus;
+  snapshot.width = 3840; snapshot.height = 2160; snapshot.bits = 10; snapshot.hdr = 1;
+  snapshot.sample_rate = 48000; snapshot.channels = 2; snapshot.video_packets = 12;
+  snapshot.applied_rate = 1.25;
+  UpdateMediaSnapshot(snapshot);
+  auto summary = CopyMediaSnapshotReport();
+  assert(summary.find("AV1 3840x2160 10-bit HDR10") != std::string::npos);
+  assert(summary.find("applied 1.25x") != std::string::npos);
+  MediaEvent terminal; terminal.session = 99; terminal.generation = 100;
+  terminal.event = MediaEventType::kUnload; RecordMediaEvent(terminal);
+  assert(CopyMediaSnapshotReport() == summary);
+  snapshot.generation = 6; snapshot.width = 0; UpdateMediaSnapshot(snapshot);
+  assert(CopyMediaSnapshotReport() == summary);
+  snapshot.session = 99; snapshot.generation = 100; UpdateMediaSnapshot(snapshot);
+  assert(CopyMediaSnapshotReport() == summary);
+  snapshot.session = 101; snapshot.generation = 1; snapshot.active = false; UpdateMediaSnapshot(snapshot);
+  assert(CopyMediaSnapshotReport().find("inactive") != std::string::npos);
   std::cout << "Bounded typed media diagnostics and concurrent IDs passed\n";
 }

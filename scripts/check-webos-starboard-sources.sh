@@ -47,6 +47,8 @@ for source in \
   webos_media_capabilities.cc \
   starfish_playback_rate.cc \
   webos_media_diagnostics.cc \
+  webos_media_report.cc \
+  webos_media_clipboard.cc \
   webos_lifecycle.cc \
   starfish_video_decoder.cc \
   window_create.cc \

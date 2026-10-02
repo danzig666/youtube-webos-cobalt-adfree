@@ -15,3 +15,19 @@ trap 'rm -rf "$temporary"' EXIT
   "$cobalt_root/starboard/linux/shared/configuration_constants.cc" \
   -o "$temporary/capabilities"
 "$temporary/capabilities"
+
+"${CXX:-c++}" -std=c++14 -Wall -Wextra -Werror -Wno-expansion-to-defined \
+  -DSTARBOARD -DSB_API_VERSION=13 -DSB_IS_ARCH_X64=1 -DSB_IS_64_BIT=1 \
+  -DSB_IS_LITTLE_ENDIAN=1 -DSB_SIZE_OF_POINTER=8 -DSB_SIZE_OF_LONG=8 \
+  '-DSTARBOARD_CONFIGURATION_INCLUDE="starboard/linux/x64x11/configuration_public.h"' \
+  -I"$cobalt_root" -I"$repo_root/cobalt-platform/webos/arm" \
+  -pthread -fsanitize=undefined -fno-sanitize-recover=all \
+  "$repo_root/scripts/test-webos-media-report.cc" \
+  "$repo_root/cobalt-platform/webos/arm/webos_media_report.cc" \
+  "$repo_root/cobalt-platform/webos/arm/starfish_playback_rate.cc" \
+  "$repo_root/cobalt-platform/webos/arm/webos_media_diagnostics.cc" \
+  "$repo_root/cobalt-platform/webos/arm/webos_media_capabilities.cc" \
+  "$cobalt_root/starboard/linux/shared/configuration_constants.cc" \
+  -o "$temporary/report"
+"$temporary/report" >"$temporary/report-result" 2>"$temporary/report-log"
+cat "$temporary/report-result"

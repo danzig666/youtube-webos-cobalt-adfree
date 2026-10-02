@@ -109,3 +109,20 @@ test('Space follows the same press/release behavior', () => {
   menu.key('keyup', space);
   assert.deepEqual(menu.writes, [false]);
 });
+
+test('diagnostic actions activate once through the actual remote handler', () => {
+  let activated = 0;
+  const focused = {id:'__diagnostics_copy', dataset:{ytafControl:'action'}, parentElement:{dataset:{}}, __ytafActivate(){activated++;}};
+  const source = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
+  const start = source.indexOf('  const eventHandler = (evt) => {');
+  const end = source.indexOf('\n  // Red, Green, Yellow, Blue', start);
+  const context = vm.createContext({ document:{querySelector:()=>focused}, Date:{now:()=>1000},
+    isContainerOpen:()=>true, menuHasFocus:()=>true, getDirectionFromEvent:()=>null,
+    isGreenKey:()=>false, getPlaybackRateShortcut:()=>0 });
+  vm.runInContext('let heldActivationControl = null;\n'+source.slice(start,end),context);
+  for (const type of ['keydown','keydown','keypress','keyup']) {
+    context.input={type,key:'Enter',keyCode:13,repeat:false,preventDefault(){},stopPropagation(){}};
+    vm.runInContext('eventHandler(input)',context);
+  }
+  assert.equal(activated,1);
+});

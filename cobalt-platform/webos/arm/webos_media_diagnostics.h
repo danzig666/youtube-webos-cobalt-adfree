@@ -16,7 +16,8 @@ enum class MediaEventType {
   kVideoCapability, kAudioCapability, kFactory, kSelectedShared, kSelectedLegacy,
   kFirstPacket, kLoad, kLoadCompleted, kFirstFeed, kFirstFrame, kSeek,
   kResolutionChange, kInputEos, kPushEos, kNativeEos, kUnload, kRate, kError,
-  kLifecycle, kDiscontinuity,
+  kLifecycle, kDiscontinuity, kSourceOpen, kSourceClosed, kSourceEnded,
+  kAppend, kAppendComplete, kSourceAbort, kTimestampOffset, kSourceRemove,
 };
 enum class MediaStream { kNone, kAudio, kVideo };
 enum class MediaCodec { kUnknown, kH264, kVp9, kAv1, kOpus, kAac, kVorbis };
@@ -25,6 +26,7 @@ enum class MediaCodec { kUnknown, kH264, kVp9, kAv1, kOpus, kAac, kVorbis };
 struct MediaEvent {
   uint64_t session = 0, generation = 0;
   int64_t monotonic_us = 0;
+  uint64_t source = 0, sequence = 0, input_bytes = 0;
   MediaEventType event = MediaEventType::kError;
   MediaStream stream = MediaStream::kNone;
   MediaCodec codec = MediaCodec::kUnknown;
@@ -52,6 +54,19 @@ class MediaEventRing {
 uint64_t NextMediaSessionId();
 void RecordMediaEvent(MediaEvent event);
 std::string CopyMediaDiagnosticEvents();
+// A separate snapshot survives ring eviction; updates reject older generations.
+struct MediaSnapshot {
+  uint64_t session = 0, generation = 0;
+  bool shared = false, active = false;
+  MediaCodec video = MediaCodec::kUnknown, audio = MediaCodec::kUnknown;
+  int width = 0, height = 0, sample_rate = 0, channels = 0;
+  unsigned bits = 0;
+  int hdr = 0; // 0 SDR, 1 HDR10, 2 HLG, 3 unknown.
+  uint64_t audio_packets = 0, audio_bytes = 0, video_packets = 0, video_bytes = 0;
+  double requested_rate = 1, applied_rate = 1;
+};
+void UpdateMediaSnapshot(const MediaSnapshot& snapshot);
+std::string CopyMediaSnapshotReport();
 }  // namespace webos
 }  // namespace shared
 }  // namespace starboard

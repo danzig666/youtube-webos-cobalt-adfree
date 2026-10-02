@@ -57,6 +57,9 @@ class StarfishVideoDecoder
   void ResetOnDecoderThread();
   void SignalUnloadCompleted();
   void ReportError(const std::string& message);
+  void PublishSnapshotOnDecoderThread() const;
+  unsigned diagnostic_bits_ = 0;
+  int diagnostic_hdr_ = 0;
   void RecordDiagnostic(MediaEventType event, SbTime pts = 0,
                         WebOsPlayerError error = WebOsPlayerError::kNone,
                         bool accepted = true) const;

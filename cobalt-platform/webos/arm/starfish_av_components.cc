@@ -262,13 +262,15 @@ class Owner : public player::JobQueue::JobOwner {
         const StarfishOpusConfig& config, int mode, uint64_t session_id)
       : player_(parameters.player()), session_id_(session_id), config_(config),
         video_codec_(parameters.video_codec()), mode_(mode),
-        state_({256, 1024 * 1024}, {128, 8 * 1024 * 1024}) {
+        state_({256, 1024 * 1024}, {128, 8 * 1024 * 1024}),
+        diagnostic_channels_(parameters.audio_sample_info().number_of_channels) {
+    PublishSnapshotLocked();
     api_thread_ = std::thread([this] { Run(); });
     Schedule([this] { PollWorker(); }, kPoll);
   }
   ~Owner() {
     CancelPendingJobs();
-    { Guard guard(mutex_); stopping_ = true; }
+    { Guard guard(mutex_); stopping_ = true; PublishSnapshotLocked(); }
     wake_.notify_one();
     api_thread_.join();
     if (lease.load() != 2) lease.store(0);
@@ -389,6 +391,14 @@ class Owner : public player::JobQueue::JobOwner {
             static_cast<long long>(SbTimeGetMonotonicNow() - input_wait_started_),
             packets.size());
     }
+    if (stream == Stream::kVideo && !packets.empty()) {
+      const auto& info = packets.back().buffer->video_sample_info();
+      diagnostic_width_ = info.frame_width; diagnostic_height_ = info.frame_height;
+      diagnostic_bits_ = info.color_metadata.bits_per_channel;
+      diagnostic_hdr_ = info.color_metadata.transfer == kSbMediaTransferIdSmpteSt2084 ? 1 :
+          info.color_metadata.transfer == kSbMediaTransferIdAribStdB67 ? 2 : 0;
+    }
+    PublishSnapshotLocked();
     wake_.notify_one();
   }
   bool CanAccept(Stream stream) const {
@@ -427,6 +437,8 @@ class Owner : public player::JobQueue::JobOwner {
     ready_ = preroll_sent_ = end_sent_ = playing_ = have_frame_ = false;
     bounds_dirty_ = true;
     error_.clear(); error_sent_ = false;
+    diagnostic_applied_rate_ = 0; diagnostic_hdr_ = 0;
+    PublishSnapshotLocked();
     wake_.notify_one();
   }
   void Pause(bool paused) { Guard guard(mutex_); paused_ = paused; wake_.notify_one(); }
@@ -442,6 +454,7 @@ class Owner : public player::JobQueue::JobOwner {
     }
     if (normalized == rate_) return;
     rate_ = normalized;
+    PublishSnapshotLocked();
     wake_.notify_one();
   }
   void Volume(double volume) {
@@ -465,6 +478,20 @@ class Owner : public player::JobQueue::JobOwner {
   }
 
  private:
+  void PublishSnapshotLocked() const {
+    MediaSnapshot snapshot;
+    snapshot.session = session_id_; snapshot.generation = state_.generation();
+    snapshot.shared = true; snapshot.active = !stopping_ && error_.empty() && !state_.ended();
+    snapshot.video = DiagnosticVideoCodec(video_codec_); snapshot.audio = MediaCodec::kOpus;
+    snapshot.width = diagnostic_width_; snapshot.height = diagnostic_height_; snapshot.bits = diagnostic_bits_;
+    snapshot.hdr = diagnostic_hdr_; snapshot.sample_rate = 48000; snapshot.channels = diagnostic_channels_;
+    snapshot.audio_packets = state_.queued_packets(Stream::kAudio);
+    snapshot.audio_bytes = state_.queued_bytes(Stream::kAudio);
+    snapshot.video_packets = state_.queued_packets(Stream::kVideo);
+    snapshot.video_bytes = state_.queued_bytes(Stream::kVideo);
+    snapshot.requested_rate = rate_; snapshot.applied_rate = diagnostic_applied_rate_;
+    UpdateMediaSnapshot(snapshot);
+  }
   void Record(MediaEventType type, uint64_t generation,
               Stream stream = Stream::kVideo, int64_t pts = 0,
               WebOsPlayerError error = WebOsPlayerError::kNone,
@@ -685,6 +712,7 @@ class Owner : public player::JobQueue::JobOwner {
         if (result == State::FeedResult::kError) FailLocked("shared Starfish Feed rejected");
         queued_packets = state_.queued_packets(stream);
         queued_bytes = state_.queued_bytes(stream);
+        PublishSnapshotLocked();
       }
       NativeSession::Backpressure& pressure =
           stream == Stream::kAudio ? session.audio_backpressure
@@ -803,6 +831,13 @@ class Owner : public player::JobQueue::JobOwner {
         event.accepted = result == StarfishPlaybackRate::ApplyResult::kApplied;
         if (!event.accepted) event.error = WebOsPlayerError::kNativeRateFailed;
         RecordMediaEvent(event);
+      }
+      {
+        Guard guard(mutex_);
+        if (state_.generation() == session.generation) {
+          diagnostic_applied_rate_ = session.playback_rate.applied_rate();
+          PublishSnapshotLocked();
+        }
       }
       if (result == StarfishPlaybackRate::ApplyResult::kRecoveredOneX) {
         TraceEssential("error=NativeRateFailed event=rate_recovered generation=%llu requested=%.6g applied=1",
@@ -956,6 +991,10 @@ class Owner : public player::JobQueue::JobOwner {
   int width_ = 0, height_ = 0, z_ = 0, x_ = 0, y_ = 0, bounds_width_ = 0, bounds_height_ = 0;
   unsigned video_bits_ = 0;
   double rate_ = 1, volume_ = 1;
+  double diagnostic_applied_rate_ = 0;
+  const int diagnostic_channels_;
+  int diagnostic_hdr_ = 0, diagnostic_width_ = 0, diagnostic_height_ = 0;
+  unsigned diagnostic_bits_ = 0;
   std::string error_;
   std::string hdr_payload_;
   filter::ErrorCB error_cb_;
