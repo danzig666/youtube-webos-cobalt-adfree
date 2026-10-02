@@ -192,3 +192,11 @@ and thumbnails**, and use **Show original titles and thumbnails** to pause it.
 Enabling it sends visible video IDs to DeArrow's public services. Unsupported
 cards and missing submissions keep their originals. See the
 [integration details and TV validation limits](docs/caption-dearrow-integration.md).
+
+### Comments (2.5.0)
+
+While watching a video, open **GREEN → Comments for this video**. Browse Top or
+Newest comments, open long text and read replies. Use arrows and OK; BACK returns
+one level and GREEN returns to settings. Pages load on demand. This is a read-only
+viewer; no comments or account actions are submitted. See
+[controls, API evidence and validation limits](docs/comments-viewer.md).

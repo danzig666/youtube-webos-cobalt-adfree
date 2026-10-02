@@ -4,6 +4,7 @@
 import './navigation-checkbox.js';
 
 import './ui.css';
+import { createCommentsSetting } from './comments-panel.mjs';
 import { createCaptionSettings } from './caption-preferences.mjs';
 import { createDeArrowSettings } from './dearrow.mjs';
 import { createShortcutHandler, createShortcutSettings } from './remote-shortcuts.mjs';
@@ -47,6 +48,7 @@ export function userScriptStartUI() {
   let heldDirectionAt = 0;
   let directionMoveFrame = null;
   let heldActivationControl = null;
+  let commentsReturnFocus = null;
 
   function getDirectionFromEvent(evt) {
     const key = (evt.key || '').toLowerCase();
@@ -307,6 +309,11 @@ export function userScriptStartUI() {
   uiContainer.appendChild(createEndStopPanel(document, window, showNotification));
   uiContainer.appendChild(createCaptionSettings(document, window, choiceTools, configRead, configWrite));
   uiContainer.appendChild(createDeArrowSettings(document, window, choiceTools, configRead, configWrite));
+  uiContainer.appendChild(createCommentsSetting(document, window, {
+    beforeOpen: () => { commentsReturnFocus = latestFocus; heldActivationControl = null; closeContainer(); suspendSpatialNavigation(); },
+    returnToMenu: () => { restoreSpatialNavigation(); openContainer(); latestFocus = commentsReturnFocus; commentsReturnFocus = null; },
+    afterClose: () => { restoreSpatialNavigation(); if (commentsReturnFocus && document.documentElement.contains(commentsReturnFocus)) commentsReturnFocus.focus(); commentsReturnFocus = null; }
+  }));
   uiContainer.appendChild(createRemoteHelp(document));
   uiContainer.appendChild(
     checkboxTools.add(
@@ -556,6 +563,7 @@ export function userScriptStartUI() {
     latestFocus = null;
     const restoreFocus = () => {
       if (
+        !(typeof window !== 'undefined' && window.__ytafComments?.isOpen()) &&
         focusBeforeMenu && document.documentElement.contains(focusBeforeMenu) &&
         typeof focusBeforeMenu.focus === 'function' &&
         !uiContainer.contains(focusBeforeMenu)
@@ -580,6 +588,7 @@ export function userScriptStartUI() {
 
   window.addEventListener('blur', () => handleNumericShortcut.reset());
   const eventHandler = (evt) => {
+    if (typeof window !== 'undefined' && window.__ytafComments?.handleKey(evt)) return false;
     const menuOpen = isContainerOpen();
     if (typeof window !== 'undefined' && window.__ytafPromptRelease?.(evt)) return false;
     if (!menuOpen && typeof window !== 'undefined' && window.__ytafSponsorPrompt?.handleKey(evt)) return false;

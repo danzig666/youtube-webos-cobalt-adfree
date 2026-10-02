@@ -81,6 +81,14 @@ ordering. It must be tested on a TV; a client that navigates before emitting
 See [caption and DeArrow integration evidence](caption-dearrow-integration.md)
 for API sources, bounds, privacy behavior and outstanding TV checks.
 
+## Implemented for 2.5.0
+
+- **Read-only comments:** GREEN → Comments for this video. Top/Newest sorting,
+  paged previews, full-text pages and replies; remote arrows/OK/BACK/GREEN.
+  Requests are on demand with cancellation, bounded memory, Retry and explicit
+  handling of unavailable comments. Old results cannot populate a new video.
+  [Behavior, evidence and validation limits](comments-viewer.md).
+
 ## Follow-up ideas, not implemented in this batch
 
 1. **Guided device check:** a checklist for launch, VOD, live/DVR, seeking, HDR
