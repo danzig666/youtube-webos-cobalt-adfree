@@ -5,7 +5,7 @@ export function readPlaybackReport(win) {
   } catch (_) { /* unavailable on older runtimes */ }
   return 'Playback diagnostics require the updated native Cobalt runtime.';
 }
-export function reportPages(report, linesPerPage = 10) {
+export function reportPages(report, linesPerPage = 8) {
   const lines = report.slice(0, 65536).split('\n');
   const pages = [];
   // Split long structured events into readable lines without interpreting HTML.
@@ -44,12 +44,16 @@ export async function copyPlaybackReport(win, report) {
 export function createPlaybackDiagnostics(doc, win) {
   const panel = doc.createElement('div');
   panel.className = 'ytaf-playback-diagnostics';
-  const title = doc.createElement('h2'); title.textContent = 'Diagnostics'; panel.appendChild(title);
+  const title = doc.createElement('h2'); title.textContent = 'Diagnostics'; title.style.cssText = 'font-size:26px;margin:8px 0;'; panel.appendChild(title);
   const output = doc.createElement('pre');
-  output.style.cssText = 'white-space:pre-wrap;font-size:16px;line-height:1.3;word-wrap:break-word;';
+  output.style.cssText = 'display:none;white-space:pre-wrap;font-size:16px;line-height:1.3;word-wrap:break-word;margin:8px 0;';
   const status = doc.createElement('div'); status.setAttribute('aria-live', 'polite');
+  // The menu scrolls focused rows into view. Put report text before those rows
+  // so focusing the page controls also brings the report into the viewport.
+  panel.appendChild(output); panel.appendChild(status);
   let report = '', pages = [''], page = 0, opened = false;
   function render() {
+    output.style.display = opened ? 'block' : 'none';
     output.textContent = opened ? pages[page] : '';
     status.textContent = opened ? `Report page ${page + 1} of ${pages.length}` : '';
   }
@@ -76,9 +80,8 @@ export function createPlaybackDiagnostics(doc, win) {
     try {
       report = readPlaybackReport(win);
       status.textContent = await copyPlaybackReport(win, report)
-        ? 'Report copied.' : 'Clipboard unavailable. View the report pages above.';
-    } catch (_) { status.textContent = 'Clipboard unavailable. View the report pages above.'; }
+        ? 'Report copied.' : 'Clipboard unavailable. View the report.';
+    } catch (_) { status.textContent = 'Clipboard unavailable. View the report.'; }
   });
-  panel.appendChild(status); panel.appendChild(output);
   return panel;
 }

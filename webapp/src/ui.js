@@ -680,6 +680,7 @@ export function userScriptStartUI() {
           }
           if (focusedElement.dataset.ytafControl === 'action') {
             focusedElement.__ytafActivate?.();
+            queueMenuItemScroll(focusedElement);
           } else if (focusedElement.dataset.ytafControl === 'choice') {
             choiceTools.cycle(focusedElement.id);
           } else {

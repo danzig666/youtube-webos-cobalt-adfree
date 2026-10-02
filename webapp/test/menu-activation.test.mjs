@@ -36,6 +36,7 @@ function setup() {
     Date: { now: () => now },
     isContainerOpen: () => true,
     menuHasFocus: () => true,
+    queueMenuItemScroll: () => {},
     getDirectionFromEvent: () => null,
     isGreenKey: () => false,
     getPlaybackRateShortcut: () => 0,
@@ -117,7 +118,7 @@ test('diagnostic actions activate once through the actual remote handler', () =>
   const start = source.indexOf('  const eventHandler = (evt) => {');
   const end = source.indexOf('\n  // Red, Green, Yellow, Blue', start);
   const context = vm.createContext({ document:{querySelector:()=>focused}, Date:{now:()=>1000},
-    isContainerOpen:()=>true, menuHasFocus:()=>true, getDirectionFromEvent:()=>null,
+    isContainerOpen:()=>true, menuHasFocus:()=>true, queueMenuItemScroll:()=>{}, getDirectionFromEvent:()=>null,
     isGreenKey:()=>false, getPlaybackRateShortcut:()=>0 });
   vm.runInContext('let heldActivationControl = null;\n'+source.slice(start,end),context);
   for (const type of ['keydown','keydown','keypress','keyup']) {
@@ -125,4 +126,31 @@ test('diagnostic actions activate once through the actual remote handler', () =>
     vm.runInContext('eventHandler(input)',context);
   }
   assert.equal(activated,1);
+});
+
+test('opening report content keeps the focused action inside the Cobalt viewport', () => {
+  let expanded = false;
+  const frames = [];
+  const row = {dataset:{}, getBoundingClientRect:()=>({top:expanded?500:200,bottom:expanded?542:242})};
+  const focused = {id:'__diagnostics_refresh',dataset:{ytafControl:'action'},parentElement:row,__ytafActivate(){expanded=true;}};
+  const content = {style:{top:'0'},scrollHeight:700};
+  const viewport = {getBoundingClientRect:()=>({top:0,bottom:320})};
+  const container = {contains:()=>true,scrollTop:0};
+  const source = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
+  const scrollStart = source.indexOf('  function scrollMenuItemIntoView(item) {');
+  const scrollEnd = source.indexOf('  function moveFocus(dir) {',scrollStart);
+  const start = source.indexOf('  const eventHandler = (evt) => {');
+  const end = source.indexOf('\n  // Red, Green, Yellow, Blue', start);
+  const context = vm.createContext({document:{querySelector:()=>focused},Date:{now:()=>1000},
+    window:{requestAnimationFrame:fn=>{frames.push(fn);return frames.length;},cancelAnimationFrame(){}},
+    uiContainer:container,menuContent:content,menuViewport:viewport,
+    isContainerOpen:()=>true,menuHasFocus:()=>true,getDirectionFromEvent:()=>null,
+    isGreenKey:()=>false,getPlaybackRateShortcut:()=>0});
+  vm.runInContext('let heldActivationControl=null,menuScrollFrame=null,menuOffset=0;\n'+source.slice(scrollStart,scrollEnd)+source.slice(start,end),context);
+  context.input={type:'keydown',key:'Enter',keyCode:13,repeat:false,preventDefault(){},stopPropagation(){}};
+  vm.runInContext('eventHandler(input)',context);
+  assert.equal(expanded,true); assert.equal(frames.length,1);
+  frames[0]();
+  assert.equal(content.style.top,'-230px');
+  assert.ok(row.getBoundingClientRect().bottom-230 <= viewport.getBoundingClientRect().bottom-8);
 });
