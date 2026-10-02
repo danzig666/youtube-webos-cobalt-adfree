@@ -248,7 +248,7 @@ jobs:
           docker run --rm -v "$WEBOS_LINUX_SDK_VOLUME:/sdk:ro" -v "$runtime_dir:/output" ubuntu:24.04 bash -c '
             set -euo pipefail
             sysroot=/sdk/arm-webos-linux-gnueabi_sdk-buildroot/arm-webos-linux-gnueabi/sysroot
-            for library in libstdc++.so.6 libgcc_s.so.1; do
+            for library in libstdc++.so.6 libgcc_s.so.1 libatomic.so.1; do
               source="$(find "$sysroot" -name "$library" -print -quit)"
               test -n "$source"
               cp -L "$source" "/output/$library"

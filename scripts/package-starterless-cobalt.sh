@@ -21,10 +21,18 @@ if [[ ! -x "$build_dir/cobalt" || ! -d "$build_dir/content" ]]; then
   echo "Missing completed starterless Cobalt build in: $build_dir" >&2
   exit 3
 fi
-if [[ ! -f "$runtime_dir/libstdc++.so.6" || ! -f "$runtime_dir/libgcc_s.so.1" ]]; then
-  echo "Missing ARM C++ runtime libraries in: $runtime_dir" >&2
-  exit 4
+runtime_libraries=(libstdc++.so.6 libgcc_s.so.1)
+# Compiler-generated atomics must resolve without relying on firmware versions.
+# Older runtime artifacts that do not need libatomic keep their existing inputs.
+if readelf -d "$build_dir/cobalt" | grep -Fq '[libatomic.so.1]'; then
+  runtime_libraries+=(libatomic.so.1)
 fi
+for library in "${runtime_libraries[@]}"; do
+  if [[ ! -f "$runtime_dir/$library" ]]; then
+    echo "Missing ARM runtime library: $runtime_dir/$library" >&2
+    exit 4
+  fi
+done
 
 # Never package a starterless binary from before the early-preload integration.
 # Gold builds compile non-fatal LOG() strings out, so verify the runtime path
@@ -84,8 +92,9 @@ if [[ -f "$fonts_xml" ]]; then
   done < <(find "$package_root/content/fonts" -type f ! -name fonts.xml -print0)
 fi
 mkdir -p "$package_root/lib"
-cp "$runtime_dir/libstdc++.so.6" "$package_root/lib/libstdc++.so.6"
-cp "$runtime_dir/libgcc_s.so.1" "$package_root/lib/libgcc_s.so.1"
+for library in "${runtime_libraries[@]}"; do
+  cp "$runtime_dir/$library" "$package_root/lib/$library"
+done
 cp "$repo_root/assets/icon.png" "$package_root/icon.png"
 cp "$repo_root/assets/largeIcon.png" "$package_root/largeIcon.png"
 # A developer's restrictive umask or SDK modes must not create root-only assets
