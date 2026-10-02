@@ -69,7 +69,7 @@ docker run --rm --platform linux/amd64 \
   -e WEBOS_SDK_ROOT=/sdk/arm-webos-linux-gnueabi_sdk-buildroot \
   -e SDL2_BUNDLE_DIR=/sdl \
   cobalt-build-evergreen:latest \
-  sh -c "git config --global --add safe.directory /code && gn --script-executable=python3 gen '$out_dir' --args='target_platform=\"webos-arm\" build_type=\"$build_type\" target_cpu=\"arm\" sb_api_version=13 is_clang=false' && ninja -v -j '$parallel' -C '$out_dir' cobalt" \
+  sh -c "umask 022 && git config --global --add safe.directory /code && gn --script-executable=python3 gen '$out_dir' --args='target_platform=\"webos-arm\" build_type=\"$build_type\" target_cpu=\"arm\" sb_api_version=13 is_clang=false' && ninja -v -j '$parallel' -C '$out_dir' cobalt" \
   2>&1 | tee "$build_log"
 
 cobalt_binary="$cobalt_root/$out_dir/cobalt"

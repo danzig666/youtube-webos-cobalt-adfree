@@ -22,6 +22,7 @@ mkdir -p "$build_dir"
 
 if [[ ! -f "$build_dir/Makefile" ]]; then
   docker run --rm --platform linux/amd64 \
+    --user "$(id -u):$(id -g)" -e HOME=/tmp \
     -v "$cobalt_root:/code" \
     -v "$sdk_volume:/sdk" \
     -w /code/out/libvpx-webos \
@@ -45,6 +46,7 @@ if [[ ! -f "$build_dir/Makefile" ]]; then
 fi
 
 docker run --rm --platform linux/amd64 \
+  --user "$(id -u):$(id -g)" -e HOME=/tmp \
   -v "$cobalt_root:/code" \
   -v "$sdk_volume:/sdk" \
   -w /code/out/libvpx-webos \

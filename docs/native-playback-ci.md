@@ -23,13 +23,13 @@ still needs the ARM syntax scripts and full build.
 
 The separate starterless build workflow runs daily at **03:17 UTC**. Scheduled
 runs use Cobalt 23.lts.6, Starboard 13, ARM and Gold, with four compiler jobs.
-Manual runs retain the existing selectable Devel/Gold build. Each run checks
+Manual runs default to Gold and retain selectable Devel/Gold builds. Each run checks
 the exact repository commit associated with the workflow, runs host regressions,
 then builds the existing patched SDL/Cobalt runtime.
 
 Artifacts retain the runtime, archive and executable SHA-256 checksums, build
 log, repository SHA, Cobalt upstream SHA and build configuration for 14 days.
-Scheduled runs additionally package and validate an IPK using runtime libraries
+Scheduled and manual Gold runs additionally package and validate an IPK using runtime libraries
 from the pinned SDK and the matching built web assets. Nightly packages remain
 Actions artifacts; there is no release publication or stable-channel update.
 

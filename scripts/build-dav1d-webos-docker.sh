@@ -34,6 +34,7 @@ fi
 if [[ ! -x "$meson" ]]; then
   mkdir -p "$tools_dir"
   docker run --rm --platform linux/amd64 \
+    --user "$(id -u):$(id -g)" -e HOME=/tmp \
     -v "$cobalt_root:/code" \
     "$codec_image" \
     python3 -m pip install --disable-pip-version-check \
@@ -46,6 +47,7 @@ mkdir -p "$build_dir"
 
 if [[ ! -f "$build_dir/build.ninja" ]]; then
   docker run --rm --platform linux/amd64 \
+    --user "$(id -u):$(id -g)" -e HOME=/tmp \
     -v "$repo_root:/workspace:ro" \
     -v "$cobalt_root:/code" \
     -v "$sdk_volume:/sdk" \
@@ -63,6 +65,7 @@ if [[ ! -f "$build_dir/build.ninja" ]]; then
 fi
 
 docker run --rm --platform linux/amd64 \
+  --user "$(id -u):$(id -g)" -e HOME=/tmp \
   -v "$repo_root:/workspace:ro" \
   -v "$cobalt_root:/code" \
   -v "$sdk_volume:/sdk" \
