@@ -72,38 +72,58 @@ export function installMediaSourceDiagnostics(win) {
     try {
       const append = buffer.appendBuffer;
       let lastOffset = buffer.timestampOffset;
-      let sampled = false,
-        appendSequence = 0;
+      // updateend is queued asynchronously. Another operation may start from
+      // an update listener before the previous updateend is dispatched.
+      const completions = [];
+      function offsetOf(buffer) {
+        try { return Number(buffer.timestampOffset) || 0; } catch (_) { return 0; }
+      }
+      // Install listeners first: if a binding rejects listener registration,
+      // leave appendBuffer untouched rather than accumulating orphaned entries.
+      buffer.addEventListener('error', () => {
+        const pending = completions[0];
+        if (pending && !pending.failed) {
+          pending.failed = true;
+          trace(state, 8, stream, 0, offsetOf(buffer), pending.sequence);
+        }
+      });
+      buffer.addEventListener('updateend', () => {
+        const completed = completions.shift();
+        if (completed?.sampled && !completed.failed)
+          trace(state, 4, stream, 0, offsetOf(buffer), completed.sequence);
+      });
       buffer.appendBuffer = function (data) {
         // Cobalt may apply timestampOffset without calling a JS setter wrapper.
-        const offset = this.timestampOffset;
+        const offset = offsetOf(this);
         if (offset !== lastOffset) {
           trace(state, 6, stream, 0, offset);
           lastOffset = offset;
         }
         state.sequence += 1;
-        appendSequence = state.sequence;
-        sampled = state.sequence <= 8 || state.sequence % 64 === 0;
-        if (sampled)
-          trace(state, 3, stream, Number(data?.byteLength) || 0, offset);
+        const appendSequence = state.sequence;
+        const sampled = state.sequence <= 8 || state.sequence % 64 === 0;
+        let bytes = 0;
+        try { bytes = Number(data?.byteLength) || 0; } catch (_) { /* metadata only */ }
+        if (sampled) trace(state, 3, stream, bytes, offset);
         try {
-          return append.apply(this, arguments);
+          const result = append.apply(this, arguments);
+          completions.push({ sampled, sequence: appendSequence });
+          return result;
         } catch (error) {
           trace(state, 8, stream, 0, offset, appendSequence);
           throw error;
         }
       };
-      buffer.addEventListener('updateend', () => {
-        if (sampled)
-          trace(state, 4, stream, 0, buffer.timestampOffset, appendSequence);
-        sampled = false;
-      });
       ['abort', 'remove'].forEach((name, index) => {
         const operation = buffer[name];
         if (typeof operation !== 'function') return;
         buffer[name] = function () {
-          trace(state, index === 0 ? 5 : 7, stream, 0, this.timestampOffset);
-          return operation.apply(this, arguments);
+          trace(state, index === 0 ? 5 : 7, stream, 0, offsetOf(this));
+          const result = operation.apply(this, arguments);
+          // remove also generates updateend; abort completes the operation
+          // already queued. A rejected call generates neither.
+          if (name === 'remove') completions.push(null);
+          return result;
         };
       });
     } catch (_) {

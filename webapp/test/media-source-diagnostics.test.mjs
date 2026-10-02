@@ -45,6 +45,49 @@ test('audio completion keeps its append sequence while video appends', () => {
   a.dispatchEvent(new Event('updateend'));
   assert.equal(events.at(-1)[1], 1); assert.equal(events.at(-1)[3], 1);
 });
+test('a rejected overlapping append does not steal the pending completion', () => {
+  const {events, win} = environment(); installMediaSourceDiagnostics(win);
+  const sb = new win.MediaSource().addSourceBuffer('video/webm');
+  sb.appendBuffer(new Uint8Array(1));
+  sb.reject = true;
+  assert.throws(() => sb.appendBuffer(new Uint8Array(2)), /secret URL/);
+  sb.dispatchEvent(new Event('updateend'));
+  assert.deepEqual(events.filter(e => e[2] === 4).map(e => e[1]), [1]);
+});
+test('a rejected append cannot turn a later remove completion into append completion', () => {
+  const {events, win} = environment(); installMediaSourceDiagnostics(win);
+  const sb = new win.MediaSource().addSourceBuffer('video/webm');
+  sb.reject = true;
+  assert.throws(() => sb.appendBuffer(new Uint8Array(2)), /secret URL/);
+  sb.remove(0, 1); sb.dispatchEvent(new Event('updateend'));
+  assert.equal(events.filter(e => e[2] === 4).length, 0);
+});
+test('diagnostic metadata getters cannot replace the native append outcome', () => {
+  const {events, win} = environment(); installMediaSourceDiagnostics(win);
+  const sb = new win.MediaSource().addSourceBuffer('video/webm');
+  const data = {get byteLength() { throw new Error('diagnostic getter'); }};
+  assert.equal(sb.appendBuffer(data), data);
+  sb.reject = true;
+  assert.throws(() => sb.appendBuffer(data), /secret URL/);
+  assert.ok(events.every(args => args.every(value => typeof value === 'number')));
+});
+test('queued updateend events keep append and remove operations in order', () => {
+  const {events, win} = environment(); installMediaSourceDiagnostics(win);
+  const sb = new win.MediaSource().addSourceBuffer('video/webm');
+  sb.appendBuffer(new Uint8Array(1));
+  sb.remove(0, 1);
+  sb.appendBuffer(new Uint8Array(1));
+  for (let i = 0; i < 3; ++i) sb.dispatchEvent(new Event('updateend'));
+  assert.deepEqual(events.filter(e => e[2] === 4).map(e => e[1]), [1, 2]);
+});
+test('asynchronous append errors are traced without claiming successful completion', () => {
+  const {events, win} = environment(); installMediaSourceDiagnostics(win);
+  const sb = new win.MediaSource().addSourceBuffer('video/webm');
+  sb.appendBuffer(new Uint8Array(1));
+  sb.dispatchEvent(new Event('error')); sb.dispatchEvent(new Event('updateend'));
+  assert.deepEqual(events.filter(e => e[2] === 8).map(e => e[1]), [1]);
+  assert.equal(events.filter(e => e[2] === 4).length, 0);
+});
 test('unsupported source buffers are traced without exposing the exception', () => {
   const {events, win} = environment();
   const failure = new Error('signed URL and credentials');
