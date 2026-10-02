@@ -51,6 +51,10 @@ std::string CopyWebOsMediaReport() {
         cap.max_fps, cap.max_bit_depth, cap.hdr10, cap.hlg);
     report += line;
   }
+  report += std::string("Saved video setting (next launch): ") +
+      VideoCapabilityTierName(GetSavedVideoCapabilityTier()) + "\n";
+  report += std::string("Video developer override: ") +
+      (VideoCapabilityOverrideActive() ? "active" : "none") + "\n";
   report += "Shared A/V policy: " + std::to_string(SharedAvBackendMode()) + "\n";
   const auto rate = GetPlaybackRateSupport();
   report += std::string("Rate policy: ") + (rate == PlaybackRateSupport::kOneXOnly ? "1x only" :

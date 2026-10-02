@@ -45,6 +45,7 @@ for source in \
   main.cc \
   player_set_bounds.cc \
   webos_media_capabilities.cc \
+  webos_video_preference.cc \
   starfish_playback_rate.cc \
   webos_media_diagnostics.cc \
   webos_media_report.cc \

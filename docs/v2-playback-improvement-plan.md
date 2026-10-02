@@ -167,3 +167,12 @@ packaging. The updated source passes 42 webapp tests, native host regressions,
 ARM Gold incremental linking and exact IPK payload validation. Its artifact
 checksums supersede the earlier local package at the same filename. The review
 also checks each plan area and preserves the outstanding TV/AAC/live evidence gates.
+
+## User-facing capability selection
+
+Video quality is now selectable in the GREEN-button menu: Safe (1080p SDR),
+4K SDR or 4K HDR. The native setting persists in app storage and takes effect
+after a full restart. Safe remains the default. YTAF_VIDEO_CAPS still overrides
+the saved preference for developer testing; the menu reports that condition.
+The UI and diagnostics show saved versus active policy. See the README's
+Video quality instructions and the persistence details in playback-diagnostics.md.

@@ -2,6 +2,7 @@
 #define STARBOARD_WEBOS_ARM_WEBOS_MEDIA_CAPABILITIES_H_
 
 #include <cstdint>
+#include <string>
 #include "starboard/media.h"
 
 namespace starboard {
@@ -33,6 +34,11 @@ WebOsMediaCapabilities MediaCapabilitiesForTier(CapabilityTier tier);
 const WebOsVideoCapability& VideoCapabilityForCodec(
     const WebOsMediaCapabilities& caps, SbMediaVideoCodec codec);
 const WebOsMediaCapabilities& GetWebOsMediaCapabilities();
+// Saved preference is applied only when a new process first queries capabilities.
+CapabilityTier GetSavedVideoCapabilityTier();
+bool SaveVideoCapabilityTier(unsigned value);
+bool VideoCapabilityOverrideActive();
+std::string GetVideoCapabilitySetting();
 bool WebOsIsVideoSupported(const WebOsMediaCapabilities& caps,
                           SbMediaVideoCodec codec, int width, int height,
                           int64_t bitrate, int fps,

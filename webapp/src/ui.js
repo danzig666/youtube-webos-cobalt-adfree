@@ -4,6 +4,7 @@
 import './navigation-checkbox.js';
 
 import './ui.css';
+import { createVideoCapabilitySetting } from './video-capability-setting.mjs';
 import { createPlaybackDiagnostics } from './playback-diagnostics.mjs';
 
 import { configRead, configWrite } from './config.js';
@@ -276,6 +277,7 @@ export function userScriptStartUI() {
       callbackConfig('startupPage')
     )
   );
+  uiContainer.appendChild(createVideoCapabilitySetting(document, window, choiceTools));
   uiContainer.appendChild(
     checkboxTools.add(
       '__auto_login',

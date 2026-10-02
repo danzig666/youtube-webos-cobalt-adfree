@@ -17,11 +17,30 @@ Unofficial Cobalt-based YouTube modification for LG webOS TVs with ad blocking a
 - Automatic account selection on startup
 - Playback speed support
 - Optional Shorts visibility
+- Video quality setting: Safe (1080p SDR), 4K SDR, or 4K HDR
 - Optional autostart integration
 - Installable `.ipk` package
 
 The configuration screen can be opened with the **GREEN** button on the LG remote.
 While a video is playing, press **1** to decrease playback speed or **3** to increase it. Press **0** to toggle subtitles.
+
+### Video quality
+
+Press **GREEN**, select **Video quality**, and press **OK** to cycle through:
+
+- **Safe · 1080p SDR (default)** — H.264 up to 1080p60.
+- **4K · SDR** — also enables VP9 and AV1 up to 2160p60.
+- **4K · HDR** — also enables HDR10/HLG for those UHD codecs.
+
+The selection is saved on the TV. **Fully close and reopen the app** to apply a
+change; going to Home may leave the app running. Choose a mode supported by your
+TV. If playback fails, switch back to Safe and restart. The menu shows the active
+mode and whether a restart is pending. This requires the updated native runtime;
+updating only the injected web assets cannot enable the setting on older builds.
+No root access, SSH or environment-variable configuration is needed.
+
+For developer testing, `YTAF_VIDEO_CAPS` still takes precedence over the saved
+selection; the menu identifies when that override is active.
 
 ## Installation
 

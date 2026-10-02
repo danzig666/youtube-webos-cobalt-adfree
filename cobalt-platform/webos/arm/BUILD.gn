@@ -19,6 +19,7 @@ static_library("starboard_platform") {
     "starfish_video_decoder.cc",
     "starfish_video_decoder.h",
     "webos_media_capabilities.cc",
+    "webos_video_preference.cc",
     "webos_media_capabilities.h",
     "webos_media_diagnostics.cc",
     "webos_media_diagnostics.h",

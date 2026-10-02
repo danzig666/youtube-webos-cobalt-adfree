@@ -191,6 +191,10 @@ if ! grep -q 'GetYtafMediaReport' "$cobalt_root/cobalt/h5vcc/h5vcc_system.h"; th
   git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-diagnostics-ui.patch"
   git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-diagnostics-ui.patch"
 fi
+if ! grep -q 'GetYtafVideoCapabilitySetting' "$cobalt_root/cobalt/h5vcc/h5vcc_system.h"; then
+  git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-video-setting.patch"
+  git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-video-setting.patch"
+fi
 python3 - "$repo_root" "$platform_target/arm/webos_build_metadata.h" <<'PYMETA'
 from pathlib import Path
 import json, re, subprocess, sys

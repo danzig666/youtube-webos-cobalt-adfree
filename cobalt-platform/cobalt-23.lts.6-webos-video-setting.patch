@@ -1,0 +1,53 @@
+--- a/cobalt/h5vcc/h5vcc_system.h
++++ b/cobalt/h5vcc/h5vcc_system.h
+@@ -43,6 +43,8 @@
+   bool limit_ad_tracking() const;
+ 
+   bool TriggerHelp() const;
++  std::string GetYtafVideoCapabilitySetting() const;
++  bool SetYtafVideoCapabilitySetting(uint32 value) const;
+   std::string GetYtafMediaReport() const;
+   void RequestYtafMediaReportCopy() const;
+   int32 GetYtafMediaReportCopyStatus() const;
+--- a/cobalt/h5vcc/h5vcc_system.idl
++++ b/cobalt/h5vcc/h5vcc_system.idl
+@@ -21,6 +21,8 @@
+   readonly attribute DOMString advertisingId;
+   readonly attribute boolean limitAdTracking;
+   boolean triggerHelp();
++  DOMString getYtafVideoCapabilitySetting();
++  boolean setYtafVideoCapabilitySetting(unsigned long value);
+   DOMString getYtafMediaReport();
+   void requestYtafMediaReportCopy();
+   long getYtafMediaReportCopyStatus();
+--- a/cobalt/h5vcc/h5vcc_system.cc
++++ b/cobalt/h5vcc/h5vcc_system.cc
+@@ -21,6 +21,7 @@
+ #include "starboard/system.h"
+ #if defined(STARBOARD_WEBOS)
+ #include "starboard/webos/arm/webos_media_report.h"
++#include "starboard/webos/arm/webos_media_capabilities.h"
+ #endif
+ 
+ #if SB_API_VERSION < 14
+@@ -128,6 +129,20 @@
+ // return false to indicate the client should launch their own dialog.
+ bool H5vccSystem::TriggerHelp() const { return false; }
+ 
++std::string H5vccSystem::GetYtafVideoCapabilitySetting() const {
++#if defined(STARBOARD_WEBOS)
++  return starboard::shared::webos::GetVideoCapabilitySetting();
++#else
++  return "{}";
++#endif
++}
++bool H5vccSystem::SetYtafVideoCapabilitySetting(uint32 value) const {
++#if defined(STARBOARD_WEBOS)
++  return starboard::shared::webos::SaveVideoCapabilityTier(value);
++#else
++  return false;
++#endif
++}
+ std::string H5vccSystem::GetYtafMediaReport() const {
+ #if defined(STARBOARD_WEBOS)
+   return starboard::shared::webos::CopyWebOsMediaReport();

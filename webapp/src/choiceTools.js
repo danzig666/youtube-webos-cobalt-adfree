@@ -20,9 +20,13 @@ function cycle(name) {
     (option) => option.value === entry.value
   );
   const nextIndex = (currentIndex + 1) % entry.options.length;
+  const previousValue = entry.value;
   entry.value = entry.options[nextIndex].value;
   render(control);
-  if (entry.callback) entry.callback(entry.value);
+  if (entry.callback && entry.callback(entry.value) === false) {
+    entry.value = previousValue;
+    render(control);
+  }
 }
 
 function add(name, label, value, options, callback = null) {
@@ -48,7 +52,6 @@ function add(name, label, value, options, callback = null) {
     'click',
     (event) => {
       if (Number(wrapper.dataset.ytafIgnoreClickUntil || 0) > Date.now()) {
-        delete wrapper.dataset.ytafIgnoreClickUntil;
         event.preventDefault();
         event.stopPropagation();
         return;

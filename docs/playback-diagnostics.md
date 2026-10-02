@@ -6,7 +6,8 @@ new snapshot; there is no continuous polling while the menu is closed.
 
 The report contains the packaged application version, repository source SHA,
 Cobalt/Starboard versions, ARMv7 build architecture and allowlisted kernel architecture (from uname), numeric webOS release if
-available, selected capability limits, shared-backend/rate policy, the latest
+available, active capability limits, saved video preference for the next launch,
+whether a developer override is active, shared-backend/rate policy, the latest
 native player's latest accepted input configuration/generation/rates/queue occupancy, and at most
 100 structured playback events. Unknown fields stay unknown. The legacy
 player's independent audio decoder is not observed by the video backend;
@@ -36,3 +37,23 @@ stale-generation snapshots, ring/log budgets, remote activation once per press,
 clipboard confirmation/failure, and sampled MediaSource traces. ARM checks and
 the full Gold build validate native/IDL integration. Host tests cannot establish
 on-device playback or clipboard availability.
+
+## Video quality preference
+
+The GREEN menu's Video quality choice is native-backed. The H5VCC bridge exposes
+`getYtafVideoCapabilitySetting()` (saved/active tier and override status) and
+`setYtafVideoCapabilitySetting(value)` (0 Safe, 1 UHD SDR, 2 UHD HDR). Invalid
+values are rejected; failed writes restore the previous visible selection.
+The webapp does not keep a competing localStorage copy.
+
+The native preference is the bounded, canonical tier name in
+`ytaf-video-capabilities` under Starboard's app storage directory. Writes use a
+mode-0600 temporary file, fsync and same-directory rename. The previous file
+remains intact on failed writes. Missing, unreadable or malformed data selects
+Safe. This uses the app's ordinary storage permissions, not root or SSH.
+
+Capabilities are latched at first query before playback. Saving a preference
+does not alter existing or later players in that process; a full app restart
+applies it. An explicit YTAF_VIDEO_CAPS environment override wins, including
+invalid overrides that fail closed to Safe. Diagnostics and the menu distinguish
+the active tier from the saved next-launch preference.

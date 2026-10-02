@@ -36,11 +36,24 @@ WebOsMediaCapabilities MediaCapabilitiesForTier(CapabilityTier tier) {
       {uhd, uhd ? 3840 : 0, uhd ? 2160 : 0, uhd ? 60 : 0, hdr, hdr, hdr ? 12u : 8u}};
 }
 
-const WebOsMediaCapabilities& GetWebOsMediaCapabilities() {
-  static const auto caps = MediaCapabilitiesForTier(
-      ParseVideoCapabilityTier(std::getenv("YTAF_VIDEO_CAPS")));
-  return caps;
+namespace {
+struct CapabilitySelection {
+  WebOsMediaCapabilities caps;
+  bool overridden;
+};
+const CapabilitySelection& Selection() {
+  static const CapabilitySelection selection = [] {
+    const char* value = std::getenv("YTAF_VIDEO_CAPS");
+    return CapabilitySelection{MediaCapabilitiesForTier(value ?
+        ParseVideoCapabilityTier(value) : GetSavedVideoCapabilityTier()), value != nullptr};
+  }();
+  return selection;
 }
+}
+const WebOsMediaCapabilities& GetWebOsMediaCapabilities() {
+  return Selection().caps;
+}
+bool VideoCapabilityOverrideActive() { return Selection().overridden; }
 
 const WebOsVideoCapability& VideoCapabilityForCodec(
     const WebOsMediaCapabilities& caps, SbMediaVideoCodec codec) {
