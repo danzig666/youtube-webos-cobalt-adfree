@@ -1,3 +1,5 @@
+import { sponsorBlockAction, segmentKey, automaticSkipTarget } from './sponsorblock-actions.mjs';
+import { showSegmentPrompt } from './sponsorblock-prompt.mjs';
 import { configRead } from './config';
 import { showNotification } from './ui';
 import { text } from './languages/index.js';
@@ -28,7 +30,7 @@ function categoryLabel(category) {
 }
 
 function enabledCategories() {
-  return categories.filter((category) => configRead(categoryConfig[category]));
+  return categories.filter((category) => sponsorBlockAction(category, categoryConfig[category], configRead) !== 'off');
 }
 
 function getCurrentVideoId() {
@@ -257,6 +259,8 @@ class SponsorBlockController {
   configChangeHandler = null;
   requestToken = 0;
   skipped = {};
+  prompted = {};
+  pendingPrompt = null;
 
   start() {
     this.syncVideoState();
@@ -265,7 +269,7 @@ class SponsorBlockController {
     document.addEventListener('yt-navigate-finish', () => this.syncVideoState(), true);
     this.configChangeHandler = (event) => {
       const key = event?.detail?.key;
-      if (key !== 'enableSponsorBlock' && key !== channelExclusionsKey &&
+      if (key !== 'enableSponsorBlock' && key !== 'sponsorBlockActions' && key !== channelExclusionsKey &&
           !Object.values(categoryConfig).includes(key)) return;
 
       // Invalidate pending work before reevaluating policy. A single reload
@@ -277,6 +281,7 @@ class SponsorBlockController {
   }
 
   destroy() {
+    this.clearPrompt();
     this.active = false;
     this.requestToken += 1;
 
@@ -347,6 +352,7 @@ class SponsorBlockController {
   }
 
   reset() {
+    this.clearPrompt();
     this.requestToken += 1;
     this.videoID = null;
     this.segments = [];
@@ -363,6 +369,7 @@ class SponsorBlockController {
     this.progressBar = null;
     this.progressSegment = null;
     this.skipped = {};
+    this.prompted = {};
 
     if (this.domObserver) {
       this.domObserver.disconnect();
@@ -587,10 +594,12 @@ class SponsorBlockController {
   }
 
   loadVideo(videoId) {
+    this.clearPrompt();
     const requestToken = ++this.requestToken;
     this.videoID = videoId;
     this.segments = [];
     this.skipped = {};
+    this.prompted = {};
     this.fetchStatus = 'fetching';
     this.fetchError = '';
     this.responseCount = 'n/a';
@@ -608,6 +617,10 @@ class SponsorBlockController {
       return;
     }
 
+    if (enabledCategories().length === 0) {
+      this.fetchStatus = 'disabled';
+      return;
+    }
     const categoryParams = enabledCategories()
       .map((category) => `category=${encodeURIComponent(category)}`)
       .join('&');
@@ -761,92 +774,86 @@ class SponsorBlockController {
     this.checkForProgressBar();
   }
 
-  skipCurrentSegment() {
-    if (!this.playbackAllowed()) return;
-    if (!this.video || !this.segments.length) return;
+  actionFor(category) {
+    return sponsorBlockAction(category, categoryConfig[category], configRead);
+  }
 
+  clearPrompt() {
+    this.pendingPrompt?.close();
+    this.pendingPrompt = null;
+  }
+
+  performSkip(segments, end) {
     const currentTime = this.video.currentTime;
-    const activeSegment = this.segments.find((segment) => {
-      const start = segment.segment[0];
-      const end = segment.segment[1];
-      return currentTime >= start - 0.25 && currentTime < end - 0.15;
+    const target = getSponsorBlockSkipTarget(end, this.video.duration, currentTime);
+    if (target === null) return false;
+    this.video.currentTime = target;
+    segments.forEach(segment => {
+      if (target >= segment.segment[1] - 0.3) this.skipped[segmentKey(segment)] = true;
     });
+    this.lastSkipText = `${segments[0].category} ${currentTime.toFixed(1)}-${end.toFixed(1)}`;
+    showNotification(`${text('sponsorBlock', 'skipping')} ${categoryLabel(segments[0].category)}`, 1600, 'yellow');
+    return true;
+  }
 
-    if (!activeSegment) return;
-
-    const key = `${activeSegment.category}:${activeSegment.segment[0]}:${activeSegment.segment[1]}`;
-    if (this.skipped[key]) return;
-    this.skipped[key] = true;
-
-    const skipTo = getSponsorBlockSkipTarget(
-      activeSegment.segment[1] + 0.01,
-      this.video.duration,
-      currentTime
-    );
-    if (skipTo !== null) this.video.currentTime = skipTo;
-    this.lastSkipText = `${activeSegment.category} ${activeSegment.segment[0].toFixed(
-      1
-    )}-${activeSegment.segment[1].toFixed(1)}`;
-
-    showNotification(`${text('sponsorBlock', 'skipping')} ${categoryLabel(activeSegment.category)}`, 1600, 'yellow');
+  skipCurrentSegment() {
+    if (!this.playbackAllowed() || !this.video) return false;
+    const segment = this.getActiveSkippableSegments()[0];
+    if (!segment) return false;
+    this.clearPrompt();
+    return this.performSkip([segment], segment.segment[1]);
   }
 
   scheduleSkip() {
-    if (this.nextSkipTimeout) {
-      window.clearTimeout(this.nextSkipTimeout);
-      this.nextSkipTimeout = null;
-    }
-
-    if (!this.playbackAllowed()) {
-      this.removeOverlay();
-      return;
+    if (this.nextSkipTimeout) window.clearTimeout(this.nextSkipTimeout);
+    this.nextSkipTimeout = null;
+    if (!this.playbackAllowed() || !this.video) {
+      this.clearPrompt(); this.removeOverlay(); return;
     }
     if (['channel-excluded', 'waiting-for-channel'].includes(this.fetchStatus)) {
-      this.loadVideo(this.videoID);
+      this.loadVideo(this.videoID); return;
+    }
+    const time = this.video.currentTime;
+    if (this.pendingPrompt && (this.pendingPrompt.token !== this.requestToken ||
+        time < this.pendingPrompt.start || time >= this.pendingPrompt.end - 0.15)) this.clearPrompt();
+    if (this.video.paused || this.pendingPrompt) return;
+    const active = this.getActiveSkippableSegments();
+    const ask = active.find(segment => this.actionFor(segment.category) === 'ask' && !this.prompted[segmentKey(segment)]);
+    const menu = document.querySelector('.ytaf-ui-container');
+    const menuOpen = menu && menu.style.display !== 'none' && menu.style.visibility !== 'hidden';
+    if (ask && !menuOpen) {
+      const token = this.requestToken;
+      this.prompted[segmentKey(ask)] = true;
+      const close = showSegmentPrompt(document, window, categoryLabel(ask.category), () => {
+        this.pendingPrompt = null;
+        if (token === this.requestToken && this.playbackAllowed() &&
+            this.actionFor(ask.category) === 'ask' && this.video &&
+            this.video.currentTime >= ask.segment[0] && this.video.currentTime < ask.segment[1] - 0.15) {
+          this.skipped[segmentKey(ask)] = true;
+          this.performSkip([ask], ask.segment[1]);
+        }
+      }, () => { this.pendingPrompt = null; });
+      this.pendingPrompt = {close, token, start: ask.segment[0], end: ask.segment[1]};
       return;
     }
-    if (!this.video || this.video.paused) return;
-
-    const nextSegments = this.getNextSkippableSegments();
-    if (!nextSegments.length) return;
-
-    const [segment] = nextSegments;
-    const [start, end] = segment.segment;
-    const delay = Math.max(0, (start - this.video.currentTime) * 1000);
-
+    const next = this.getNextSkippableSegments().find(segment => this.actionFor(segment.category) === 'auto');
+    if (!next) return;
+    const token = this.requestToken;
+    const rate = Number(this.video.playbackRate) || 1;
+    const delay = Math.max(0, (next.segment[0] - time) * 1000 / Math.max(0.1, rate));
     this.nextSkipTimeout = window.setTimeout(() => {
-      if (!this.playbackAllowed() || !this.video || this.video.paused) return;
-
-      const activeSegments = this.getActiveSkippableSegments();
-      if (!activeSegments.length) {
-        this.scheduleSkip();
-        return;
-      }
-
-      const skipEnd = activeSegments.reduce(
-        (latestEnd, activeSegment) => Math.max(latestEnd, activeSegment.segment[1]),
-        end
-      );
-      this.lastSkipText = `${activeSegments[0].category} ${start.toFixed(
-        1
-      )}-${skipEnd.toFixed(1)}`;
-      activeSegments.forEach((activeSegment) => {
-        const key = `${activeSegment.category}:${activeSegment.segment[0]}:${activeSegment.segment[1]}`;
-        this.skipped[key] = true;
-      });
-      const skipTo = getSponsorBlockSkipTarget(
-        skipEnd,
-        this.video.duration,
-        this.video.currentTime
-      );
-      if (skipTo !== null) this.video.currentTime = skipTo;
-      showNotification(`${text('sponsorBlock', 'skipping')} ${categoryLabel(activeSegments[0].category)}`, 1600, 'yellow');
-      this.scheduleSkip();
+      if (token !== this.requestToken || !this.playbackAllowed() || !this.video || this.video.paused) return;
+      const current = this.getActiveSkippableSegments().filter(segment => this.actionFor(segment.category) === 'auto');
+      if (!current.length) return;
+      const end = automaticSkipTarget(this.segments, this.video.currentTime,
+        Math.max(...current.map(segment => segment.segment[1])), category => this.actionFor(category), this.skipped);
+      if (end !== null) this.performSkip(current, end);
     }, delay);
   }
 
   isSegmentSkippable(segment) {
-    if (!this.skippableCategories.includes(segment.category)) return false;
+    if (!this.skippableCategories.includes(segment.category) ||
+        !['auto', 'ask'].includes(this.actionFor(segment.category))) return false;
     if (segment.actionType && segment.actionType !== 'skip') return false;
     return true;
   }
@@ -859,8 +866,7 @@ class SponsorBlockController {
         (segment) =>
           this.isSegmentSkippable(segment) &&
           !this.skipped[`${segment.category}:${segment.segment[0]}:${segment.segment[1]}`] &&
-          segment.segment[0] > currentTime - 0.3 &&
-          segment.segment[1] > currentTime - 0.3
+          segment.segment[1] > currentTime + 0.15
       )
       .sort((a, b) => a.segment[0] - b.segment[0]);
   }
@@ -873,8 +879,8 @@ class SponsorBlockController {
         (segment) =>
           this.isSegmentSkippable(segment) &&
           !this.skipped[`${segment.category}:${segment.segment[0]}:${segment.segment[1]}`] &&
-          segment.segment[0] <= currentTime + 0.3 &&
-          segment.segment[1] > currentTime - 0.3
+          segment.segment[0] <= currentTime &&
+          segment.segment[1] > currentTime + 0.15
       )
       .sort((a, b) => a.segment[0] - b.segment[0]);
   }

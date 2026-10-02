@@ -1,3 +1,4 @@
+import { sponsorBlockAction, segmentKey, automaticSkipTarget } from '../src/sponsorblock-actions.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -62,7 +63,7 @@ test('a video change while the menu is open requires reviewing the new channel b
   assert.match(panel.children[1].textContent,/Now watching New creator/);
   f.press('__sponsorblock_channel_toggle');assert.equal(stored[0].id,b);
 });
-function controllerFixture(exclusions=[],known=true) {
+function controllerFixture(exclusions=[],known=true, mode=null) {
   const win=windowFor(),requests=[],timers=new Map(),intervals=[];let next=1;
   if(known)rememberPlayerChannel(win,response(v1,a));
   Object.assign(win,{addEventListener(){},setTimeout(fn){const id=next++;timers.set(id,fn);return id;},clearTimeout:id=>timers.delete(id),
@@ -70,15 +71,19 @@ function controllerFixture(exclusions=[],known=true) {
   const video={paused:false,currentTime:5,duration:100,addEventListener(){},removeEventListener(){}};
   const doc={body:{},querySelector:selector=>selector==='video'?video:null,querySelectorAll:()=>[],addEventListener(){}};
   const config={enableSponsorBlock:true,sponsorBlockExcludedChannels:exclusions,enableSponsorBlockSponsor:true};
+  if(mode) config.sponsorBlockActions={sponsor:mode};
+  const prompts=[];
   class XHR {open(){} send(){requests.push(this);} respond(){this.status=200;this.responseText=JSON.stringify([{segment:[5,20],category:'sponsor',actionType:'skip'}]);this.onload();}}
   const context=vm.createContext({window:win,document:doc,XMLHttpRequest:XHR,MutationObserver:class{observe(){}disconnect(){}},
+    sponsorBlockAction, segmentKey, automaticSkipTarget,
+    showSegmentPrompt:(_doc,_win,_label,confirm,decline)=>{prompts.push({confirm,decline});return ()=>{};},
     configRead:key=>config[key],channelExclusionsKey,channelSkipPolicy,readCurrentVideoId:getCurrentVideoId,
     categories:['sponsor'],categoryConfig:{sponsor:'enableSponsorBlockSponsor'},categoryColors:{},
     getSponsorBlockSkipTarget,showNotification(){},text:(_section,key)=>key,console:{warn(){},info(){}}});
   const source=fs.readFileSync(new URL('../src/sponsorblock.js',import.meta.url),'utf8').replace(/^import[\s\S]*?;\n/gm,'').replaceAll('export function ','function ');
   vm.runInContext(source+'\nglobalThis.controllerInstance=new SponsorBlockController();',context);
   const controller=context.controllerInstance;controller.start();
-  return {win,video,requests,timers,intervals,controller,config,
+  return {win,doc,video,requests,timers,intervals,controller,config,prompts,
     change(list){config.sponsorBlockExcludedChannels=list;controller.configChangeHandler({detail:{key:channelExclusionsKey}});}};
 }
 test('excluded channels make no segment request; removing the exception restores skipping',()=>{
@@ -113,4 +118,29 @@ test('unconfirmed navigation cannot use a stale initial response for channel exc
 test('Shorts paths and current hash navigation take precedence over stale outer query IDs',()=>{
   assert.equal(getCurrentVideoId({location:{href:`https://youtube.com/shorts/${v2}`}}),v2);
   assert.equal(getCurrentVideoId({location:{href:`https://youtube.com/tv?v=${v1}`,hash:`#/watch?v=${v2}`}}),v2);
+});
+
+test('markers fetch segments without scheduling or manual skipping; off makes no request',()=>{
+  const s=controllerFixture([],true,'markers');s.requests[0].respond();s.controller.scheduleSkip();
+  assert.equal(s.controller.nextSkipTimeout,null);assert.equal(s.controller.skipCurrentSegment(),false);assert.equal(s.video.currentTime,5);
+  assert.equal(controllerFixture([],true,'off').requests.length,0);
+});
+test('ask requires confirmation, decline is remembered, and stale confirmation cannot seek',()=>{
+  const s=controllerFixture([],true,'ask');s.requests[0].respond();s.controller.scheduleSkip();
+  assert.equal(s.prompts.length,1);assert.equal(s.video.currentTime,5);
+  s.prompts[0].decline();s.controller.scheduleSkip();assert.equal(s.prompts.length,1);
+  const t=controllerFixture([],true,'ask');t.requests[0].respond();t.controller.scheduleSkip();
+  t.prompts[0].confirm();assert.equal(t.video.currentTime,20);
+  const u=controllerFixture([],true,'ask');u.requests[0].respond();u.controller.scheduleSkip();
+  u.change([{id:a}]);u.prompts[0].confirm();assert.equal(u.video.currentTime,5);
+});
+
+test('ask waits for the GREEN menu to close and expires without seeking',()=>{
+  const s=controllerFixture([],true,'ask');const query=s.doc.querySelector;
+  const menu={style:{display:'block',visibility:'visible'}};
+  s.doc.querySelector=selector=>selector==='.ytaf-ui-container'?menu:query(selector);
+  s.requests[0].respond();s.controller.scheduleSkip();assert.equal(s.prompts.length,0);
+  menu.style.display='none';s.controller.scheduleSkip();assert.equal(s.prompts.length,1);
+  s.video.currentTime=21;s.controller.scheduleSkip();assert.equal(s.controller.pendingPrompt,null);
+  s.prompts[0].confirm();assert.equal(s.video.currentTime,21);
 });

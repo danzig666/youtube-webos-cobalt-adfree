@@ -124,3 +124,7 @@
   color: #dce7df;
   white-space: normal;
 }
+
+.ytaf-segment-prompt { position: fixed; left: 12%; right: 12%; bottom: 8%; padding: 24px; background: #08110e; color: white; border: 3px solid #37ff77; z-index: 2147483646; font-size: 24px; }
+.ytaf-segment-prompt button { font-size: 24px; margin: 16px 16px 0 0; padding: 12px; background: #163425; color: white; border: 3px solid #777; }
+.ytaf-segment-prompt button:focus { border-color: #37ff77; }

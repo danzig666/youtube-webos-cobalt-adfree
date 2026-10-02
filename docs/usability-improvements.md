@@ -31,22 +31,46 @@ It expires once, pauses the current video if available, and reports a pause
 failure rather than claiming success. It is session-only and cannot power off
 the television. Native resume timing and the live YouTube DOM remain TV tests.
 
+## Implemented for 2.3.0
+
+- **SponsorBlock actions per category:** Auto skip / Ask first / Markers only /
+  Off. Existing enabled categories become Auto skip; disabled ones remain Off.
+  Ask first defaults to Keep watching, with Left/Right and OK to choose. BACK
+  declines; GREEN dismisses the prompt and opens settings. A declined prompt
+  does not reappear for that segment during the current video. An automatic
+  skip stops before overlapping segments that require approval. Channel
+  exceptions take precedence over every mode, including manual skips.
+- **Custom number-key actions:** GREEN → Remote number key → Action for selected
+  key. Map 0–9 to captions, slower/faster playback, stop-after-video/continue,
+  cancel sleep timer, skip the current SponsorBlock segment, or no action.
+  Defaults remain 0 captions, 1 slower and 3 faster; other keys have no action.
+  The master switch and text-entry protection remain. Preferences persist in
+  this app's local storage. GREEN, BACK and navigation remain available.
+- **Stop after this video:** session-only, requires a current video with a known
+  duration and video ID. Natural `ended` holds subsequent autoplay paused.
+  GREEN → Continue playback releases the hold. Cancel before the ending to
+  disarm it; navigating to another video before the ending cancels it too.
+  The next video can load while held. This does not power off the TV or change
+  account autoplay settings. Live playback without a known ending is refused.
+
+Backup/restore is not included, as requested. No settings are uploaded.
+
+The stop control depends on the TV client's natural-ended and navigation event
+ordering. It must be tested on a TV; a client that navigates before emitting
+`ended` can cancel the pending stop. Host tests cannot confirm that ordering.
+
 ## Follow-up ideas, not implemented in this batch
 
-1. **Settings backup and restore:** a versioned, allowlisted report containing
-   preferences only, with a preview before import. Keep accounts, tokens,
-   cookies, video URLs and viewing history out of it. First choose a usable
-   on-TV transfer method; clipboard support varies by firmware.
-2. **Caption preferences:** preferred language and readable caption presets.
+1. **Caption preferences:** preferred language and readable caption presets.
    First verify how the current YouTube TV client exposes these choices and
    retains them; avoid repeatedly overriding the user's in-player selection.
-3. **Guided device check:** a checklist for launch, VOD, live/DVR, seeking, HDR
+2. **Guided device check:** a checklist for launch, VOD, live/DVR, seeking, HDR
    and lifecycle behavior, with an exportable result. Report observed results
    rather than automatically enabling codecs from a TV model name.
-4. **Undo the last SponsorBlock skip:** bounded per-video seek history and an
+3. **Undo the last SponsorBlock skip:** bounded per-video seek history and an
    explicit remote action. Validate interaction with live/DVR windows and
    prevent the same segment from immediately skipping again.
-5. **Compact and larger-text settings layouts:** preview sizing before saving,
+4. **Compact and larger-text settings layouts:** preview sizing before saving,
    then verify focus and scrolling at actual TV output resolutions.
 
 ## Validation

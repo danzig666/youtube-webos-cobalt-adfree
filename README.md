@@ -172,3 +172,13 @@ embeds its selected ID for both Starfish backends; packaging checks that the
 runtime contains that identity. Renaming an existing IPK or changing only its
 manifest is not sufficient. Release both IPKs with per-variant build metadata
 and checksums until separate-ID sign-in/pairing has device evidence.
+
+### Additional playback controls (2.3.0)
+
+Open the **GREEN** menu for SponsorBlock per-category **Auto skip / Ask first /
+Markers only / Off**, configurable **0–9 remote shortcuts**, and **Stop after this
+video**. Stop-after-video pauses subsequent autoplay until **Continue playback**;
+use Cancel to disarm it before the ending. Existing SponsorBlock choices and
+0/1/3 shortcut defaults are preserved. Channel exceptions override segment modes.
+See [usability behavior and validation limits](docs/usability-improvements.md).
+Backup/restore is not included. On-TV behavior still needs device validation.

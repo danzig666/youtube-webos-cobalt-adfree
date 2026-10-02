@@ -4,21 +4,21 @@
 import './navigation-checkbox.js';
 
 import './ui.css';
+import { createShortcutHandler, createShortcutSettings } from './remote-shortcuts.mjs';
+import { createEndStopPanel } from './stop-after-video.mjs';
 import { createVideoCapabilitySetting } from './video-capability-setting.mjs';
 import { createPlaybackDiagnostics } from './playback-diagnostics.mjs';
 import { createSleepTimerPanel } from './sleep-timer.mjs';
-import { canUseNumericShortcuts, createRemoteHelp } from './remote-help.mjs';
+import { createRemoteHelp } from './remote-help.mjs';
 import { createChannelExclusionsPanel } from './sponsorblock-channels.mjs';
 
 import { configRead, configWrite, configPersistenceStatus } from './config.js';
 import { checkboxTools } from './checkboxTools.js';
 import { choiceTools } from './choiceTools.js';
 import { text as languageText } from './languages/index.js';
-import { sponsorBlockCategoryColors } from './sponsorblock-categories.js';
-import {
-  isSubtitleShortcut,
-  toggleSubtitles
-} from './subtitle-shortcut.js';
+import { sponsorBlockCategories, sponsorBlockCategoryConfig, sponsorBlockCategoryColors } from './sponsorblock-categories.js';
+import { sponsorBlockAction, sponsorBlockActionOptions } from './sponsorblock-actions.mjs';
+import { toggleSubtitles } from './subtitle-shortcut.js';
 
 let lastTabIndex = 0;
 
@@ -74,15 +74,6 @@ export function userScriptStartUI() {
   function isGreenKey(evt) {
     const keyCode = getRemoteKeyCode(evt);
     return keyCode === 404 || keyCode === 172;
-  }
-
-  function getPlaybackRateShortcut(evt) {
-    const keyCode = getRemoteKeyCode(evt);
-    const key = evt.key || '';
-
-    if (key === '1' || evt.code === 'Digit1' || keyCode === 49) return -1;
-    if (key === '3' || evt.code === 'Digit3' || keyCode === 51) return 1;
-    return 0;
   }
 
   function adjustPlaybackRate(direction) {
@@ -307,9 +298,11 @@ export function userScriptStartUI() {
   uiContainer.appendChild(createVideoCapabilitySetting(document, window, choiceTools));
   uiContainer.appendChild(createSleepTimerPanel(document, window, choiceTools, showNotification));
   uiContainer.appendChild(checkboxTools.add(
-    '__numeric_shortcuts', 'Numeric playback shortcuts (0 / 1 / 3)',
+    '__numeric_shortcuts', 'Numeric playback shortcuts',
     configRead('enableNumericShortcuts'), callbackConfig('enableNumericShortcuts')
   ));
+  uiContainer.appendChild(createShortcutSettings(document, choiceTools, configRead, configWrite));
+  uiContainer.appendChild(createEndStopPanel(document, window, showNotification));
   uiContainer.appendChild(createRemoteHelp(document));
   uiContainer.appendChild(
     checkboxTools.add(
@@ -346,87 +339,17 @@ export function userScriptStartUI() {
 
   const sponsorBlock = document.createElement('div');
   sponsorBlock.classList.add('blockquote');
-  sponsorBlock.appendChild(
-    checkboxTools.add(
-      '__sponsorblock_sponsor',
-      text('sponsor'),
-      configRead('enableSponsorBlockSponsor'),
-      callbackConfig('enableSponsorBlockSponsor'),
-      { color: sponsorBlockCategoryColors.sponsor }
-    )
-  );
-  sponsorBlock.appendChild(
-    checkboxTools.add(
-      '__sponsorblock_intro',
-      text('intro'),
-      configRead('enableSponsorBlockIntro'),
-      callbackConfig('enableSponsorBlockIntro'),
-      { color: sponsorBlockCategoryColors.intro }
-    )
-  );
-  sponsorBlock.appendChild(
-    checkboxTools.add(
-      '__sponsorblock_outro',
-      text('outro'),
-      configRead('enableSponsorBlockOutro'),
-      callbackConfig('enableSponsorBlockOutro'),
-      { color: sponsorBlockCategoryColors.outro }
-    )
-  );
-  sponsorBlock.appendChild(
-    checkboxTools.add(
-      '__sponsorblock_interaction',
-      text('interaction'),
-      configRead('enableSponsorBlockInteraction'),
-      callbackConfig('enableSponsorBlockInteraction'),
-      { color: sponsorBlockCategoryColors.interaction }
-    )
-  );
-  sponsorBlock.appendChild(
-    checkboxTools.add(
-      '__sponsorblock_selfpromo',
-      text('selfpromo'),
-      configRead('enableSponsorBlockSelfPromo'),
-      callbackConfig('enableSponsorBlockSelfPromo'),
-      { color: sponsorBlockCategoryColors.selfpromo }
-    )
-  );
-  sponsorBlock.appendChild(
-    checkboxTools.add(
-      '__sponsorblock_music_offtopic',
-      text('musicOfftopic'),
-      configRead('enableSponsorBlockMusicOfftopic'),
-      callbackConfig('enableSponsorBlockMusicOfftopic'),
-      { color: sponsorBlockCategoryColors.music_offtopic }
-    )
-  );
-  sponsorBlock.appendChild(
-    checkboxTools.add(
-      '__sponsorblock_preview',
-      text('preview'),
-      configRead('enableSponsorBlockPreview'),
-      callbackConfig('enableSponsorBlockPreview'),
-      { color: sponsorBlockCategoryColors.preview }
-    )
-  );
-  sponsorBlock.appendChild(
-    checkboxTools.add(
-      '__sponsorblock_filler',
-      text('filler'),
-      configRead('enableSponsorBlockFiller'),
-      callbackConfig('enableSponsorBlockFiller'),
-      { color: sponsorBlockCategoryColors.filler }
-    )
-  );
-  sponsorBlock.appendChild(
-    checkboxTools.add(
-      '__sponsorblock_hook',
-      text('hook'),
-      configRead('enableSponsorBlockHook'),
-      callbackConfig('enableSponsorBlockHook'),
-      { color: sponsorBlockCategoryColors.hook }
-    )
-  );
+  sponsorBlockCategories.forEach(category => {
+    const labelKey = category === 'music_offtopic' ? 'musicOfftopic' : category;
+    const row = choiceTools.add(`__sponsorblock_${category}`, text(labelKey),
+      sponsorBlockAction(category, sponsorBlockCategoryConfig[category], configRead),
+      sponsorBlockActionOptions, value => {
+        const stored = configRead('sponsorBlockActions');
+        configWrite('sponsorBlockActions', {...(stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {}), [category]: value});
+      });
+    row.style.borderLeft = `3px solid ${sponsorBlockCategoryColors[category]}`;
+    sponsorBlock.appendChild(row);
+  });
   uiContainer.appendChild(sponsorBlock);
   uiContainer.appendChild(createChannelExclusionsPanel(
     document, window, configRead, configWrite, configPersistenceStatus
@@ -549,6 +472,7 @@ export function userScriptStartUI() {
   }
 
   function openContainer() {
+    if (typeof window !== 'undefined') window.__ytafSponsorPrompt?.dismiss();
     console.info('Container: Showing & Focusing!');
     latestFocus =
       document.activeElement && document.activeElement !== document.body
@@ -640,8 +564,22 @@ export function userScriptStartUI() {
     setTimeout(restoreFocus, 0);
   }
 
+  const handleNumericShortcut = createShortcutHandler(document, configRead, action => {
+    if (action === 'captions') toggleSubtitles((state, name) => {
+      showNotification(text({on:'subtitleOn',off:'subtitleOff',unavailable:'subtitleUnavailable'}[state] || 'subtitleUnavailable') + (state === 'on' && name ? ` (${name})` : ''), 1800, 'green');
+    });
+    if (action === 'slower' || action === 'faster') adjustPlaybackRate(action === 'slower' ? -1 : 1);
+    if (action === 'end_stop') window.__ytafEndStop?.activate();
+    if (action === 'cancel_timer') { window.__ytafSleepTimer?.timer.setMinutes(0); showNotification('Sleep timer cancelled.',2000,'green'); }
+    if (action === 'skip' && !window.sponsorblock?.skipCurrentSegment()) showNotification('No skippable segment here.',2000,'green');
+  });
+
+  window.addEventListener('blur', () => handleNumericShortcut.reset());
   const eventHandler = (evt) => {
     const menuOpen = isContainerOpen();
+    if (typeof window !== 'undefined' && window.__ytafPromptRelease?.(evt)) return false;
+    if (!menuOpen && typeof window !== 'undefined' && window.__ytafSponsorPrompt?.handleKey(evt)) return false;
+    if (typeof handleNumericShortcut !== 'undefined' && handleNumericShortcut(evt, !menuOpen)) return false;
     const focusInsideMenu = menuOpen && menuHasFocus();
     const eventDirection = menuOpen ? getDirectionFromEvent(evt) : null;
     const isActivationKey =
@@ -753,41 +691,7 @@ export function userScriptStartUI() {
       return false;
     }
 
-    const numericShortcutsAllowed = !menuOpen &&
-      canUseNumericShortcuts(evt, document, configRead('enableNumericShortcuts'));
     if (
-      numericShortcutsAllowed &&
-      isSubtitleShortcut(evt) &&
-      toggleSubtitles((state, trackName) => {
-        const messageKey = {
-          on: 'subtitleOn',
-          off: 'subtitleOff',
-          unavailable: 'subtitleUnavailable'
-        }[state];
-        let message = text(messageKey || 'subtitleUnavailable');
-        if (state === 'on' && trackName) {
-          message += ` (${trackName})`;
-        }
-        showNotification(message, 1800, 'green');
-      })
-    ) {
-      evt.preventDefault();
-      evt.stopPropagation();
-      return false;
-    }
-
-    const playbackRateShortcut = getPlaybackRateShortcut(evt);
-    if (
-      evt.type === 'keydown' &&
-      !evt.repeat &&
-      numericShortcutsAllowed &&
-      playbackRateShortcut !== 0 &&
-      adjustPlaybackRate(playbackRateShortcut)
-    ) {
-      evt.preventDefault();
-      evt.stopPropagation();
-      return false;
-    } else if (
       evt.type === 'keydown' &&
       evt.charCode == 0 &&
       evt.keyCode == 187

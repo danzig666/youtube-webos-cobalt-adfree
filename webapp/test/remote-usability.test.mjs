@@ -1,3 +1,4 @@
+import { createShortcutHandler } from '../src/remote-shortcuts.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -27,6 +28,7 @@ test('the real remote handler respects numeric shortcut and typing preferences',
   const calls=[]; let enabled=true;
   const doc={body:watch};
   const context=vm.createContext({document:doc, canUseNumericShortcuts,
+    handleNumericShortcut:createShortcutHandler(doc,key=>key==='enableNumericShortcuts'?enabled:{},action=>calls.push(action==='slower'?-1:1)),
     isContainerOpen:()=>false, menuHasFocus:()=>false, isGreenKey:()=>false,
     configRead:()=>enabled, isSubtitleShortcut:()=>false,
     adjustPlaybackRate:value=>{calls.push(value);return true;}});
