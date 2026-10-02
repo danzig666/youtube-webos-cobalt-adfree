@@ -120,6 +120,12 @@ jobs:
           echo "Package version: $version ($source)"
 
       - name: Validate packaging source
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+          RUNTIME_SOURCE_REF: ${{ steps.cobalt.outputs.source_ref }}
+          RUNTIME_SOURCE_SHA: ${{ steps.cobalt.outputs.source_sha }}
+          COBALT_REF: ${{ steps.cobalt.outputs.cobalt_ref }}
+          BUILD_TYPE: ${{ steps.cobalt.outputs.build_type }}
         shell: bash
         run: |
           set -euo pipefail
@@ -129,13 +135,13 @@ jobs:
           test -f starterless-cobalt/appinfo.json
           test -f assets/icon.png
           test -f assets/largeIcon.png
-          test "$(jq -r '.version' starterless-cobalt/appinfo.json)" = "${{ steps.version.outputs.version }}"
+          test "$(jq -r '.version' starterless-cobalt/appinfo.json)" = "$PACKAGE_VERSION"
           echo "Packaging SHA: $(git rev-parse HEAD)"
-          echo "Package version: ${{ steps.version.outputs.version }}"
-          echo "Runtime source ref: ${{ steps.cobalt.outputs.source_ref }}"
-          echo "Runtime source SHA: ${{ steps.cobalt.outputs.source_sha }}"
-          echo "Cobalt ref: ${{ steps.cobalt.outputs.cobalt_ref }}"
-          echo "Build type: ${{ steps.cobalt.outputs.build_type }}"
+          echo "Package version: $PACKAGE_VERSION"
+          echo "Runtime source ref: $RUNTIME_SOURCE_REF"
+          echo "Runtime source SHA: $RUNTIME_SOURCE_SHA"
+          echo "Cobalt ref: $COBALT_REF"
+          echo "Build type: $BUILD_TYPE"
 
       - name: Build current webapp
         shell: bash
@@ -150,13 +156,15 @@ jobs:
 
       - name: Extract Cobalt runtime
         id: runtime
+        env:
+          RUNTIME_ARCHIVE: ${{ steps.cobalt.outputs.archive }}
         shell: bash
         run: |
           set -euo pipefail
           runtime_dir="$GITHUB_WORKSPACE/workdir/artifact-runtime"
           rm -rf "$runtime_dir"
           mkdir -p "$runtime_dir"
-          tar -xJf "${{ steps.cobalt.outputs.archive }}" -C "$runtime_dir"
+          tar -xJf "$RUNTIME_ARCHIVE" -C "$runtime_dir"
           test -x "$runtime_dir/cobalt"
           test -d "$runtime_dir/content"
           grep -aFq '/web/adblock/adblockPreload.js' "$runtime_dir/cobalt"
@@ -166,7 +174,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           ./node_modules/.bin/ares-package --version
 
       - name: Download ARM runtime libraries
@@ -181,6 +189,7 @@ jobs:
           mkdir -p "$sdk_download" "$sdk_extract" "$runtime_libs"
           rm -f "$runtime_libs/libstdc++.so.6" "$runtime_libs/libgcc_s.so.1" "$runtime_libs/libatomic.so.1"
           gh release download "$SDK_TAG" --repo openlgtv/buildroot-nc4 --pattern 'arm-webos-linux-gnueabi_sdk-buildroot-x86_64.tar.gz' --dir "$sdk_download" --clobber
+          echo "04ad3311b48b4557a7002aef56ae2e167478e8e129f37daac04649bddf813616  $sdk_download/arm-webos-linux-gnueabi_sdk-buildroot-x86_64.tar.gz" | sha256sum --check
           tar -xzf "$sdk_download/arm-webos-linux-gnueabi_sdk-buildroot-x86_64.tar.gz" -C "$sdk_extract"
           sysroot="$sdk_extract/arm-webos-linux-gnueabi_sdk-buildroot/arm-webos-linux-gnueabi/sysroot"
           libstdcpp_link="$(find "$sysroot" -name 'libstdc++.so.6' -print -quit)"
@@ -213,31 +222,40 @@ jobs:
           echo "package_name=$(basename "$package_path")" >> "$GITHUB_OUTPUT"
 
       - name: Write package metadata
+        env:
+          COBALT_ARTIFACT: ${{ steps.cobalt.outputs.artifact_name }}
+          RUNTIME_SOURCE_REF: ${{ steps.cobalt.outputs.source_ref }}
+          RUNTIME_SOURCE_SHA: ${{ steps.cobalt.outputs.source_sha }}
+          COBALT_REF: ${{ steps.cobalt.outputs.cobalt_ref }}
+          BUILD_TYPE: ${{ steps.cobalt.outputs.build_type }}
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+          VERSION_SOURCE: ${{ steps.version.outputs.source }}
+          PACKAGE_NAME: ${{ steps.package.outputs.package_name }}
         shell: bash
         run: |
           set -euo pipefail
           cat > output/ipk-build.txt <<EOF
           repository=$GITHUB_REPOSITORY
           cobalt_run_id=$COBALT_RUN_ID
-          cobalt_artifact=${{ steps.cobalt.outputs.artifact_name }}
-          cobalt_source_ref=${{ steps.cobalt.outputs.source_ref }}
-          cobalt_source_sha=${{ steps.cobalt.outputs.source_sha }}
-          cobalt_ref=${{ steps.cobalt.outputs.cobalt_ref }}
-          cobalt_build_type=${{ steps.cobalt.outputs.build_type }}
+          cobalt_artifact=$COBALT_ARTIFACT
+          cobalt_source_ref=$RUNTIME_SOURCE_REF
+          cobalt_source_sha=$RUNTIME_SOURCE_SHA
+          cobalt_ref=$COBALT_REF
+          cobalt_build_type=$BUILD_TYPE
           package_ref=main
           package_sha=$(git rev-parse HEAD)
-          package_version=${{ steps.version.outputs.version }}
-          package_version_source=${{ steps.version.outputs.source }}
-          package=${{ steps.package.outputs.package_name }}
+          package_version=$PACKAGE_VERSION
+          package_version_source=$VERSION_SOURCE
+          package=$PACKAGE_NAME
           EOF
 
           {
             echo '## Cobalt IPK'
             echo
-            echo "- Version: \`${{ steps.version.outputs.version }}\` (${{ steps.version.outputs.source }})"
+            echo "- Version: \`$PACKAGE_VERSION\` ($VERSION_SOURCE)"
             echo "- Cobalt workflow run: \`$COBALT_RUN_ID\`"
-            echo "- Cobalt: \`${{ steps.cobalt.outputs.cobalt_ref }}\` / \`${{ steps.cobalt.outputs.build_type }}\`"
-            echo "- IPK: \`${{ steps.package.outputs.package_name }}\`"
+            echo "- Cobalt: \`$COBALT_REF\` / \`$BUILD_TYPE\`"
+            echo "- IPK: \`$PACKAGE_NAME\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload IPK

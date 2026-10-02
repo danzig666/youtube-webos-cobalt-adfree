@@ -24,7 +24,13 @@ fi
 runtime_libraries=(libstdc++.so.6 libgcc_s.so.1)
 # Compiler-generated atomics must resolve without relying on firmware versions.
 # Older runtime artifacts that do not need libatomic keep their existing inputs.
-if readelf -d "$build_dir/cobalt" | grep -Fq '[libatomic.so.1]'; then
+if ! dynamic_section="$(readelf -d "$build_dir/cobalt")"; then
+  echo "Cannot inspect native runtime dependencies: $build_dir/cobalt" >&2
+  exit 4
+fi
+# Consume readelf fully: grep -q can close the pipe early and turn a successful
+# match into a failed pipeline under pipefail, silently omitting libatomic.
+if [[ "$dynamic_section" == *'[libatomic.so.1]'* ]]; then
   runtime_libraries+=(libatomic.so.1)
 fi
 for library in "${runtime_libraries[@]}"; do

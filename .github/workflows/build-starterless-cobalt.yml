@@ -56,6 +56,8 @@ jobs:
           fetch-depth: 1
 
       - name: Validate source
+        env:
+          COBALT_REF: ${{ inputs.cobalt_ref || '23.lts.6' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -64,7 +66,7 @@ jobs:
           test -f scripts/install-webos-starboard-platform.sh
           test -d cobalt-platform/webos/arm
           echo "Repository SHA: $(git rev-parse HEAD)"
-          echo "Cobalt ref:     ${{ inputs.cobalt_ref || '23.lts.6' }}"
+          echo "Cobalt ref:     $COBALT_REF"
           echo "Build type:     ${{ inputs.build_type || 'gold' }}"
 
       - name: Resolve artifact metadata

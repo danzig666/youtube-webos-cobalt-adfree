@@ -74,6 +74,7 @@ jobs:
           python3 scripts/normalize-ipk-ownership.py --help
           python3 scripts/verify-ipk-container.py --help
           python3 scripts/test-ipk-tools.py
+          python3 scripts/test-starterless-package.py
           python3 scripts/test-device-compatibility.py
 
       - name: Build injected web app
