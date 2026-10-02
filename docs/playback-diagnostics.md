@@ -5,7 +5,7 @@ under Diagnostics, and use Previous/Next to read the report. Refresh takes a
 new snapshot; there is no continuous polling while the menu is closed.
 
 The report contains the packaged application version, repository source SHA,
-Cobalt/Starboard versions, ARMv7 build architecture, numeric webOS release if
+Cobalt/Starboard versions, ARMv7 build architecture and allowlisted kernel architecture (from uname), numeric webOS release if
 available, selected capability limits, shared-backend/rate policy, the latest
 native player's latest accepted input configuration/generation/rates/queue occupancy, and at most
 100 structured playback events. Unknown fields stay unknown. The legacy

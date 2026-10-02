@@ -7,9 +7,18 @@
 #include <cmath>
 #include <cstdio>
 #include <fstream>
+#include <cstring>
+#include <sys/utsname.h>
 namespace starboard { namespace shared { namespace webos {
 namespace {
 // Do not report arbitrary release file contents, device IDs or environment values.
+std::string KernelArchitecture() {
+  struct utsname info;
+  if (uname(&info) != 0) return "unknown";
+  for (const char* known : {"aarch64", "armv8l", "armv7l", "armv6l", "x86_64", "i686"})
+    if (std::strcmp(info.machine, known) == 0) return known;
+  return "unknown"; // Do not copy arbitrary firmware strings or uname node name.
+}
 std::string WebOsVersion() {
   std::ifstream input("/etc/webos-release");
   std::string line;
@@ -30,7 +39,8 @@ std::string WebOsVersion() {
 std::string CopyWebOsMediaReport() {
   const auto& caps = GetWebOsMediaCapabilities();
   std::string report = "YouTube Cobalt AdFree " YTAF_APP_VERSION "\nSource SHA: " YTAF_SOURCE_SHA
-      "\nCobalt: 23.lts.6\nStarboard API: 13\nArchitecture: ARMv7 softfp (kernel may be aarch64)\nwebOS: " + WebOsVersion() +
+      "\nCobalt: 23.lts.6\nStarboard API: 13\nBuild architecture: ARMv7 softfp\nKernel architecture: " +
+      KernelArchitecture() + "\nwebOS: " + WebOsVersion() +
       "\nVideo capability policy: " + VideoCapabilityTierName(caps.tier) + "\n";
   const WebOsVideoCapability* codecs[] = {&caps.h264, &caps.vp9, &caps.av1};
   const char* names[] = {"H264", "VP9", "AV1"};
