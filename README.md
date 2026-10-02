@@ -28,7 +28,7 @@ While a video is playing, press **1** to decrease playback speed or **3** to inc
 
 ### Video quality
 
-Press **GREEN**, select **Video quality**, and press **OK** to cycle through:
+Press **GREEN**, open **Playback → Video quality**, and press **OK** to cycle through:
 
 - **Safe · 1080p SDR (default)** — H.264 up to 1080p60.
 - **4K · SDR** — also enables VP9 and AV1 up to 2160p60.
@@ -195,10 +195,21 @@ cards and missing submissions keep their originals. See the
 
 ### Comments and wheel scrolling (2.5.1)
 
-While watching a video, open **GREEN → Comments for this video**. Browse Top or
+While watching a video, open **GREEN → General → Comments for this video**. Browse Top or
 Newest comments and replies with full text visible by default. Scroll with the
 Magic Remote wheel or Up/Down; Left/Right skips between controls/comments. BACK
 returns one level and GREEN returns to settings. Load more fetches another page.
 The wheel also scrolls the GREEN settings menu, including help and diagnostics. This is a read-only
 viewer; no comments or account actions are submitted. See
 [controls, API evidence and validation limits](docs/comments-viewer.md).
+
+### Blue settings interface (2.6.0)
+
+The GREEN menu has a calm navy/blue design with larger labels and six categories:
+General, Playback, Captions & titles, Remote, SponsorBlock and Diagnostics.
+Use Up/Down to choose a category, Right to enter it, Left to return to categories,
+and OK to select or change a setting. BACK or the close button dismisses settings.
+The Magic Remote wheel scrolls the current category. Comments and replies use
+matching rounded reading cards with full text shown by default.
+
+See [interface design and validation](docs/blue-interface.md).

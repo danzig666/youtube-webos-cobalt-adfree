@@ -1,6 +1,6 @@
-# On-TV comment reader (2.5.1)
+# On-TV comment reader (2.6.0)
 
-Open a video, press GREEN and choose **Comments for this video**.
+Open a video, press GREEN and choose **General → Comments for this video**.
 
 - Comments and replies show their full received text immediately, including
   line breaks. No text expansion or text-page buttons are needed.

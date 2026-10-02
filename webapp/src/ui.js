@@ -4,6 +4,7 @@
 import './navigation-checkbox.js';
 
 import './ui.css';
+import { createSettingsSections } from './settings-sections.mjs';
 import { wheelScrollDelta } from './wheel-scroll.mjs';
 import { createCommentsSetting } from './comments-panel.mjs';
 import { createCaptionSettings } from './caption-preferences.mjs';
@@ -119,6 +120,7 @@ export function userScriptStartUI() {
 
   function scrollMenuItemIntoView(item) {
     if (!item || !menuContent || !menuViewport || !uiContainer.contains(item)) return;
+    if (menuContent.contains && !menuContent.contains(item)) return;
 
     // Cobalt resets an overflow container's scrollTop after programmatic focus.
     // Keep the viewport fixed and move its inner panel instead.
@@ -156,21 +158,34 @@ export function userScriptStartUI() {
   }
 
   function moveFocus(dir) {
+    const active = document.activeElement;
+    if (sections.nav.contains(active)) {
+      const tabs = Array.from(sections.nav.querySelectorAll('[tabindex]'));
+      if (dir === 'right') {
+        sections.select(active.dataset.ytafSection);
+        const first = Array.from(menuContent.querySelectorAll('[tabindex]'))
+          .find(item => item.tabIndex > 0 && item.getClientRects().length);
+        if (first) { first.focus(); queueMenuItemScroll(first); }
+      } else if (dir === 'up' || dir === 'down') {
+        const index = tabs.indexOf(active);
+        tabs[Math.max(0, Math.min(tabs.length - 1, index + (dir === 'down' ? 1 : -1)))].focus();
+      }
+      currentFocusIndex = -1;
+      return;
+    }
+    if (dir === 'left') {
+      sections.currentButton().focus(); currentFocusIndex = -1; return;
+    }
     const focusableItems = Array.from(
-      uiContainer.querySelectorAll('[tabindex]')
-    ).filter((item) => item.tabIndex > 0);
+      menuContent.querySelectorAll('[tabindex]')
+    ).filter((item) => item.tabIndex > 0 && item.getClientRects?.().length !== 0);
 
     if (focusableItems.length === 0) {
       return;
     }
 
-    if (currentFocusIndex < 0 || currentFocusIndex >= focusableItems.length) {
-      const activeIndex = focusableItems.findIndex(
-        (item) => item === document.activeElement
-      );
-      currentFocusIndex = activeIndex === -1 ? 0 : activeIndex;
-    }
-
+    const activeIndex = focusableItems.indexOf(document.activeElement);
+    currentFocusIndex = activeIndex < 0 ? 0 : activeIndex;
     if (document.activeElement === uiContainer) {
       // Continue from a text-only section reached with the wheel.
       const rect = menuViewport.getBoundingClientRect();
@@ -182,10 +197,10 @@ export function userScriptStartUI() {
       }) || ordered[ordered.length - 1];
       currentFocusIndex = focusableItems.indexOf(target);
     } else if (dir === 'down' || dir === 'right') {
-      currentFocusIndex = (currentFocusIndex + 1) % focusableItems.length;
+      currentFocusIndex = Math.min(currentFocusIndex + 1, focusableItems.length - 1);
     } else if (dir === 'up' || dir === 'left') {
-      currentFocusIndex =
-        (currentFocusIndex - 1 + focusableItems.length) % focusableItems.length;
+      if (currentFocusIndex === 0) { sections.currentButton().focus(); return; }
+      currentFocusIndex -= 1;
     }
 
     const nextItem = focusableItems[currentFocusIndex];
@@ -214,7 +229,7 @@ export function userScriptStartUI() {
       ) {
         const focusableItems = Array.from(
           uiContainer.querySelectorAll('[tabindex]')
-        ).filter((item) => item.tabIndex > 0);
+        ).filter((item) => item.tabIndex > 0 && item.getClientRects?.().length !== 0);
         currentFocusIndex = focusableItems.indexOf(focusAfterEvent);
         lastTabIndex = focusAfterEvent.tabIndex;
         queueMenuItemScroll(focusAfterEvent);
@@ -266,20 +281,32 @@ export function userScriptStartUI() {
   const divTitle = document.createElement('div');
   divTitle.classList.add('center');
   const title = document.createElement('h1');
-  title.textContent = text('title');
+  const brand = document.createElement('div');
+  brand.className = 'ytaf-brand'; brand.textContent = 'YouTube AdFree';
+  divTitle.appendChild(brand);
+  title.textContent = 'Settings';
   divTitle.appendChild(title);
+  const closeButton = document.createElement('button');
+  closeButton.id = '__settings_close'; closeButton.className = 'ytaf-settings-close';
+  closeButton.type = 'button'; closeButton.textContent = '×'; closeButton.tabIndex = 1999;
+  closeButton.setAttribute('aria-label', 'Close settings');
+  closeButton.dataset.ytafControl = 'action'; closeButton.__ytafActivate = closeContainer;
+  closeButton.addEventListener('click', () => {
+    if (Number(divTitle.dataset.ytafIgnoreClickUntil || 0) <= Date.now()) closeContainer();
+  });
+  divTitle.appendChild(closeButton);
   const menuHint = document.createElement('div');
-  menuHint.className = 'ytaf-setting-help';
-  menuHint.textContent = 'Wheel: scroll · Arrows: move · OK: change · BACK: close';
+  menuHint.className = 'ytaf-menu-hint';
+  menuHint.textContent = '↑ ↓ Navigate   ·   → Open category   ·   ← Categories   ·   OK Select   ·   BACK Close   ·   Wheel Scroll';
   divTitle.appendChild(menuHint);
   const saveStatus = document.createElement('div');
-  saveStatus.className = 'ytaf-setting-help';
+  saveStatus.className = 'ytaf-save-status';
   saveStatus.setAttribute('aria-live', 'polite');
   function refreshSaveStatus() {
     const persisted = configPersistenceStatus();
     saveStatus.textContent = persisted === false
       ? 'Could not save menu preferences. Changes apply only for this session; try changing a setting again.'
-      : persisted === true ? 'Menu preferences saved.' : 'Menu preferences save automatically.';
+      : persisted === true ? 'Changes saved' : 'Changes save automatically';
     if (menuViewport && isContainerOpen()) {
       applyVisibleContainerStyles();
       queueMenuItemScroll(document.activeElement);
@@ -312,7 +339,9 @@ export function userScriptStartUI() {
       callbackConfig('startupPage')
     )
   );
-  uiContainer.appendChild(createVideoCapabilitySetting(document, window, choiceTools));
+  const videoQuality = createVideoCapabilitySetting(document, window, choiceTools);
+  videoQuality.dataset.ytafSection = 'playback';
+  uiContainer.appendChild(videoQuality);
   uiContainer.appendChild(createSleepTimerPanel(document, window, choiceTools, showNotification));
   uiContainer.appendChild(checkboxTools.add(
     '__numeric_shortcuts', 'Numeric playback shortcuts',
@@ -380,13 +409,18 @@ export function userScriptStartUI() {
   ));
   uiContainer.appendChild(createPlaybackDiagnostics(document, window));
 
-  menuContent = document.createElement('div');
-  menuContent.classList.add('ytaf-ui-content');
+  const sections = createSettingsSections(document, Array.from(uiContainer.children).slice(1), () => {
+    if (menuScrollFrame !== null) window.cancelAnimationFrame(menuScrollFrame);
+    menuScrollFrame = null;
+    menuOffset = 0; menuContent.style.top = '0';
+    currentFocusIndex = -1;
+    // A category can be changed by pointer while a hidden setting had focus.
+    sections.currentButton().focus();
+  });
+  menuContent = sections.content;
   menuContent.style.position = 'relative';
   menuContent.style.top = '0';
-  while (uiContainer.children.length > 1) {
-    menuContent.appendChild(uiContainer.children[1]);
-  }
+  uiContainer.appendChild(sections.nav);
   menuViewport = document.createElement('div');
   menuViewport.classList.add('ytaf-ui-viewport');
   menuViewport.style.position = 'relative';
@@ -432,53 +466,36 @@ export function userScriptStartUI() {
 
   function applyVisibleContainerStyles() {
     Object.assign(uiContainer.style, {
-      position: 'fixed',
-      display: 'block',
-      visibility: 'visible',
-      opacity: '1',
-      left: '64px',
-      top: '64px',
-      right: 'auto',
-      bottom: 'auto',
-      width: '720px',
-      maxWidth: '80vw',
-      height: '80vh',
-      maxHeight: '80vh',
-      boxSizing: 'border-box',
-      overflow: 'hidden',
-      zIndex: '2147483647',
-      pointerEvents: 'auto',
-      background: '#05080c',
-      color: '#ffffff',
-      border: '6px solid #37ff77',
-      borderRadius: '12px',
-      padding: '24px',
-      fontSize: '22px',
-      lineHeight: '1.25',
-      transform: 'none',
-      animation: 'none',
-      boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)'
+      position: 'fixed', display: 'block', visibility: 'visible', opacity: '1',
+      left: '5vw', top: '5vh', width: '90vw', maxWidth: '1160px',
+      height: '90vh', maxHeight: '90vh', boxSizing: 'border-box',
+      overflow: 'hidden', zIndex: '2147483647', pointerEvents: 'auto',
+      background: '#101e30', color: '#eef4ff', border: '1px solid #31465f',
+      borderRadius: '24px', padding: '28px', fontSize: '22px',
+      lineHeight: '1.4', fontFamily: 'Arial, sans-serif',
+      transform: 'none', animation: 'none',
+      boxShadow: '0 20px 64px rgba(0,0,0,0.35), 0 0 0 9999px rgba(3,9,18,0.55)'
     });
-
     const viewportHeight = Math.max(
-      0,
-      uiContainer.clientHeight - 48 - divTitle.offsetHeight - 12
+      0, uiContainer.clientHeight - 56 - divTitle.offsetHeight - 18
     );
+    sections.nav.style.top = `${28 + divTitle.offsetHeight + 18}px`;
+    sections.nav.style.height = `${viewportHeight}px`;
     menuViewport.style.height = `${viewportHeight}px`;
   }
 
   function focusMenuItem(preferredTabIndex = lastTabIndex) {
     const focusableItems = Array.from(
       uiContainer.querySelectorAll('[tabindex]')
-    ).filter((item) => item.tabIndex > 0);
+    ).filter((item) => item.tabIndex > 0 && item.getClientRects?.().length !== 0);
 
     let target = null;
     if (preferredTabIndex > 0) {
       target =
         focusableItems.find((item) => item.tabIndex === preferredTabIndex) ||
-        focusableItems[0];
+        sections.currentButton();
     } else {
-      target = focusableItems[0];
+      target = sections.currentButton();
     }
 
     if (target) {
@@ -770,7 +787,7 @@ export function userScriptStartUI() {
     // Keep OK and subsequent arrows attached to a visible control, without
     // activating it or snapping back to the previously focused setting.
     const items = Array.from(menuContent.querySelectorAll('[tabindex]'))
-      .filter(item => item.tabIndex > 0);
+      .filter(item => item.tabIndex > 0 && item.getClientRects?.().length !== 0);
     const visible = item => {
       const box = item.getBoundingClientRect();
       return box.top >= rect.top && box.bottom <= rect.bottom;
@@ -780,7 +797,7 @@ export function userScriptStartUI() {
     if (target) {
       wheelFocusing = true;
       try { target.focus(); } finally { wheelFocusing = false; }
-      currentFocusIndex = items.indexOf(target);
+      currentFocusIndex = -1;
       lastTabIndex = target.tabIndex;
     } else {
       // A tall text-only section (help/report) may fill the entire viewport.

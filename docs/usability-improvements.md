@@ -101,6 +101,18 @@ for API sources, bounds, privacy behavior and outstanding TV checks.
   units, boundaries and full text. Chromium checks cover wheel/arrow switching,
   reply return position and settings focus. Physical TV validation is pending.
 
+## Implemented for 2.6.0
+
+- **Blue interface:** navy surfaces, rounded controls, larger setting labels,
+  soft blue focus outlines, consistent notifications and comment cards.
+- **Settings categories:** General, Playback, Captions & titles, Remote,
+  SponsorBlock and Diagnostics. Right enters a category, Left returns to the
+  category rail. Hidden settings are excluded from navigation; the wheel scrolls
+  only the current category. A visible close button supports pointer use.
+- Source UI checked in Chromium at 720p and 1080p for category selection,
+  navigation, focus visibility, wheel behavior and comments return position.
+  See [design and validation](blue-interface.md).
+
 ## Follow-up ideas, not implemented in this batch
 
 1. **Guided device check:** a checklist for launch, VOD, live/DVR, seeking, HDR
