@@ -102,3 +102,15 @@ test('navigation and the global disable setting prevent stale manual or queued s
   s.win.location.href=`?v=${v2}`;queued();s.controller.skipCurrentSegment();assert.equal(s.video.currentTime,5);
   s.win.location.href=`?v=${v1}`;s.config.enableSponsorBlock=false;queued();s.controller.skipCurrentSegment();assert.equal(s.video.currentTime,5);
 });
+
+test('unconfirmed navigation cannot use a stale initial response for channel exclusions',()=>{
+  const win={location:{href:'https://www.youtube.com/tv'},ytInitialPlayerResponse:response(v1,a)};
+  assert.equal(getCurrentVideoId(win),v1); // Preserve legacy fallback without exceptions.
+  assert.equal(channelSkipPolicy(win,{},v1,[{id:b}]),'waiting-for-channel');
+  const doc={getElementById:()=>({getVideoData:()=>({video_id:v1})})};
+  assert.equal(channelSkipPolicy(win,doc,v1,[{id:b}]),'enabled');
+});
+test('Shorts paths and current hash navigation take precedence over stale outer query IDs',()=>{
+  assert.equal(getCurrentVideoId({location:{href:`https://youtube.com/shorts/${v2}`}}),v2);
+  assert.equal(getCurrentVideoId({location:{href:`https://youtube.com/tv?v=${v1}`,hash:`#/watch?v=${v2}`}}),v2);
+});

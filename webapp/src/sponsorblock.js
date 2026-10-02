@@ -32,7 +32,7 @@ function enabledCategories() {
 }
 
 function getCurrentVideoId() {
-  return readCurrentVideoId(window);
+  return readCurrentVideoId(window, document);
 }
 
 function getVideoDuration(video, segments) {

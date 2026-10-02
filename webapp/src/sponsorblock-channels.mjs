@@ -29,8 +29,10 @@ export function rememberPlayerChannel(win, response) {
   win.__ytafPlayerChannels = [channel, ...cache.filter(item => item.videoId !== channel.videoId)].slice(0, 8);
 }
 
-export function getCurrentVideoId(win) {
-  for (const candidate of [win.location?.href, win.location?.hash, win.location?.search]) {
+export function getCurrentVideoId(win, doc, allowResponseFallback = true) {
+  for (const candidate of [win.location?.hash, win.location?.href, win.location?.search]) {
+    const pathMatch = String(candidate || '').match(/\/shorts\/([A-Za-z0-9_-]{11})(?:[?&#/]|$)/);
+    if (pathMatch) return pathMatch[1];
     const match = String(candidate || '').match(/[?&#]v=([^&#]+)/);
     if (match) {
       try {
@@ -39,6 +41,13 @@ export function getCurrentVideoId(win) {
       } catch (_) { return null; }
     }
   }
+  try {
+    const player = doc?.getElementById?.('ytlr-player__player-container-player') ||
+      doc?.querySelector?.('.html5-video-player');
+    const liveId = player?.getVideoData?.()?.video_id;
+    if (videoPattern.test(liveId)) return liveId;
+  } catch (_) { /* A temporarily unavailable player does not confirm an ID. */ }
+  if (!allowResponseFallback) return null;
   const id = win.ytInitialPlayerResponse?.videoDetails?.videoId;
   if (videoPattern.test(id)) return id;
   try {
@@ -71,6 +80,9 @@ export function readVideoChannel(win, doc, videoId) {
 export function channelSkipPolicy(win, doc, videoId, exclusions) {
   const saved = normalizeChannelExclusions(exclusions);
   if (!saved.length) return 'enabled';
+  // Initial responses may outlive navigation. With exclusions, require a URL
+  // or current-player identity rather than treating an old response as current.
+  if (getCurrentVideoId(win, doc, false) !== videoId) return 'waiting-for-channel';
   const channel = readVideoChannel(win, doc, videoId);
   // With exceptions configured, wait for matching metadata before any seek.
   if (!channel) return 'waiting-for-channel';
@@ -90,7 +102,7 @@ export function createChannelExclusionsPanel(doc, win, read, write, persisted) {
   function current() {
     if (!doc.body?.classList.contains('WEB_PAGE_TYPE_WATCH') &&
         !doc.body?.classList.contains('WEB_PAGE_TYPE_SHORTS')) return null;
-    return readVideoChannel(win, doc, getCurrentVideoId(win));
+    return readVideoChannel(win, doc, getCurrentVideoId(win, doc, false));
   }
   function action(id, label, tab, handler) {
     const row = doc.createElement('div'), button = doc.createElement('div');
