@@ -6,8 +6,11 @@ import './navigation-checkbox.js';
 import './ui.css';
 import { createVideoCapabilitySetting } from './video-capability-setting.mjs';
 import { createPlaybackDiagnostics } from './playback-diagnostics.mjs';
+import { createSleepTimerPanel } from './sleep-timer.mjs';
+import { canUseNumericShortcuts, createRemoteHelp } from './remote-help.mjs';
+import { createChannelExclusionsPanel } from './sponsorblock-channels.mjs';
 
-import { configRead, configWrite } from './config.js';
+import { configRead, configWrite, configPersistenceStatus } from './config.js';
 import { checkboxTools } from './checkboxTools.js';
 import { choiceTools } from './choiceTools.js';
 import { text as languageText } from './languages/index.js';
@@ -108,8 +111,12 @@ export function userScriptStartUI() {
 
     if (nextRate === currentRate) return true;
 
-    video.playbackRate = nextRate;
-    showNotification(`Playback speed: ${nextRate}x`, 1800, 'green');
+    try {
+      video.playbackRate = nextRate;
+      showNotification(`Requested playback speed: ${nextRate}x`, 1800, 'green');
+    } catch (_) {
+      showNotification('Playback speed could not be changed.', 3000, 'yellow');
+    }
     return true;
   }
 
@@ -253,6 +260,26 @@ export function userScriptStartUI() {
   const title = document.createElement('h1');
   title.textContent = text('title');
   divTitle.appendChild(title);
+  const menuHint = document.createElement('div');
+  menuHint.className = 'ytaf-setting-help';
+  menuHint.textContent = 'Arrows: move · OK: change · BACK: close';
+  divTitle.appendChild(menuHint);
+  const saveStatus = document.createElement('div');
+  saveStatus.className = 'ytaf-setting-help';
+  saveStatus.setAttribute('aria-live', 'polite');
+  function refreshSaveStatus() {
+    const persisted = configPersistenceStatus();
+    saveStatus.textContent = persisted === false
+      ? 'Could not save menu preferences. Changes apply only for this session; try changing a setting again.'
+      : persisted === true ? 'Menu preferences saved.' : 'Menu preferences save automatically.';
+    if (menuViewport && isContainerOpen()) {
+      applyVisibleContainerStyles();
+      queueMenuItemScroll(document.activeElement);
+    }
+  }
+  refreshSaveStatus();
+  document.addEventListener('ytaf-config-changed', refreshSaveStatus);
+  divTitle.appendChild(saveStatus);
   uiContainer.appendChild(divTitle);
 
   uiContainer.appendChild(
@@ -278,6 +305,12 @@ export function userScriptStartUI() {
     )
   );
   uiContainer.appendChild(createVideoCapabilitySetting(document, window, choiceTools));
+  uiContainer.appendChild(createSleepTimerPanel(document, window, choiceTools, showNotification));
+  uiContainer.appendChild(checkboxTools.add(
+    '__numeric_shortcuts', 'Numeric playback shortcuts (0 / 1 / 3)',
+    configRead('enableNumericShortcuts'), callbackConfig('enableNumericShortcuts')
+  ));
+  uiContainer.appendChild(createRemoteHelp(document));
   uiContainer.appendChild(
     checkboxTools.add(
       '__auto_login',
@@ -395,6 +428,9 @@ export function userScriptStartUI() {
     )
   );
   uiContainer.appendChild(sponsorBlock);
+  uiContainer.appendChild(createChannelExclusionsPanel(
+    document, window, configRead, configWrite, configPersistenceStatus
+  ));
   uiContainer.appendChild(createPlaybackDiagnostics(document, window));
 
   menuContent = document.createElement('div');
@@ -520,12 +556,13 @@ export function userScriptStartUI() {
         : null;
     suspendSpatialNavigation();
     applyVisibleContainerStyles();
+    document.dispatchEvent(new CustomEvent('ytaf-menu-opened'));
     menuOffset = 0;
     menuContent.style.top = '0';
     uiContainer.scrollTop = 0;
 
     setTimeout(() => {
-      focusMenuItem(1);
+      if (isContainerOpen()) focusMenuItem();
     }, 0);
   }
 
@@ -716,8 +753,10 @@ export function userScriptStartUI() {
       return false;
     }
 
+    const numericShortcutsAllowed = !menuOpen &&
+      canUseNumericShortcuts(evt, document, configRead('enableNumericShortcuts'));
     if (
-      !menuOpen &&
+      numericShortcutsAllowed &&
       isSubtitleShortcut(evt) &&
       toggleSubtitles((state, trackName) => {
         const messageKey = {
@@ -741,7 +780,7 @@ export function userScriptStartUI() {
     if (
       evt.type === 'keydown' &&
       !evt.repeat &&
-      !menuOpen &&
+      numericShortcutsAllowed &&
       playbackRateShortcut !== 0 &&
       adjustPlaybackRate(playbackRateShortcut)
     ) {

@@ -7,6 +7,7 @@ import {
   sponsorBlockCategoryColors as categoryColors
 } from './sponsorblock-categories.js';
 import { getSponsorBlockSkipTarget } from './sponsorblock-skip-target.mjs';
+import { channelExclusionsKey, channelSkipPolicy, getCurrentVideoId as readCurrentVideoId } from './sponsorblock-channels.mjs';
 
 const sponsorblockAPI = 'https://sponsor.ajay.app/api';
 const markerAttribute = 'data-ytaf-sponsorblock-marker';
@@ -31,29 +32,7 @@ function enabledCategories() {
 }
 
 function getCurrentVideoId() {
-  const candidates = [window.location.href, window.location.hash, window.location.search];
-
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    const match = String(candidate).match(/[?&#]v=([^&#]+)/);
-    if (match && match[1]) {
-      return decodeURIComponent(match[1]).replace(/^v=/, '');
-    }
-  }
-
-  const responseId = window.ytInitialPlayerResponse?.videoDetails?.videoId;
-  if (responseId) return responseId;
-
-  try {
-    const playerResponse = window.ytplayer?.config?.args?.player_response;
-    if (playerResponse) {
-      return JSON.parse(playerResponse)?.videoDetails?.videoId || null;
-    }
-  } catch (err) {
-    console.warn('[SponsorBlock] player_response parse failed:', err);
-  }
-
-  return null;
+  return readCurrentVideoId(window);
 }
 
 function getVideoDuration(video, segments) {
@@ -286,14 +265,13 @@ class SponsorBlockController {
     document.addEventListener('yt-navigate-finish', () => this.syncVideoState(), true);
     this.configChangeHandler = (event) => {
       const key = event?.detail?.key;
-      if (key !== 'enableSponsorBlock' && !Object.values(categoryConfig).includes(key)) return;
+      if (key !== 'enableSponsorBlock' && key !== channelExclusionsKey &&
+          !Object.values(categoryConfig).includes(key)) return;
 
-      // Reload the current video so enabled categories, markers and skipping agree.
+      // Invalidate pending work before reevaluating policy. A single reload
+      // keeps exception removal from fetching twice via attachVideo/scheduleSkip.
+      this.reset();
       this.syncVideoState();
-      const currentVideoId = getCurrentVideoId();
-      if (configRead('enableSponsorBlock') && currentVideoId) {
-        this.loadVideo(currentVideoId);
-      }
     };
     document.addEventListener('ytaf-config-changed', this.configChangeHandler, true);
   }
@@ -341,6 +319,15 @@ class SponsorBlockController {
       document.removeEventListener('ytaf-config-changed', this.configChangeHandler, true);
       this.configChangeHandler = null;
     }
+  }
+
+  channelPolicy() {
+    return channelSkipPolicy(window, document, this.videoID, configRead(channelExclusionsKey));
+  }
+
+  playbackAllowed() {
+    return this.active && configRead('enableSponsorBlock') &&
+      this.videoID === getCurrentVideoId() && this.channelPolicy() === 'enabled';
   }
 
   syncVideoState() {
@@ -518,6 +505,7 @@ class SponsorBlockController {
   }
 
   checkForProgressBar() {
+    if (!this.playbackAllowed()) { this.removeOverlay(); return; }
     // Der TV-Client hält während Overlay-Animationen mehrere kurzlebige
     // Fortschrittsleisten im DOM. Solange unser v1-Host noch verbunden ist,
     // darf die Suche nicht auf einen davon umspringen.
@@ -614,6 +602,12 @@ class SponsorBlockController {
     this.progressBar = null;
     this.progressSegment = null;
 
+    this.requestUrl = '';
+    if (!configRead('enableSponsorBlock') || this.channelPolicy() !== 'enabled') {
+      this.fetchStatus = configRead('enableSponsorBlock') ? this.channelPolicy() : 'disabled';
+      return;
+    }
+
     const categoryParams = enabledCategories()
       .map((category) => `category=${encodeURIComponent(category)}`)
       .join('&');
@@ -630,7 +624,7 @@ class SponsorBlockController {
   }
 
   handleSegments(results, status, body, requestToken) {
-    if (requestToken !== this.requestToken || this.videoID !== getCurrentVideoId()) return;
+    if (requestToken !== this.requestToken || !this.playbackAllowed()) return;
 
     this.lastStatus = status;
     this.lastBody = String(body || '').substring(0, 180);
@@ -645,7 +639,7 @@ class SponsorBlockController {
   }
 
   handleError(err, status, body, requestToken) {
-    if (requestToken !== this.requestToken || this.videoID !== getCurrentVideoId()) return;
+    if (requestToken !== this.requestToken || !this.playbackAllowed()) return;
 
     this.lastStatus = status;
     this.lastBody = String(body || '').substring(0, 180);
@@ -768,6 +762,7 @@ class SponsorBlockController {
   }
 
   skipCurrentSegment() {
+    if (!this.playbackAllowed()) return;
     if (!this.video || !this.segments.length) return;
 
     const currentTime = this.video.currentTime;
@@ -802,7 +797,15 @@ class SponsorBlockController {
       this.nextSkipTimeout = null;
     }
 
-    if (!this.active || !this.video || this.video.paused) return;
+    if (!this.playbackAllowed()) {
+      this.removeOverlay();
+      return;
+    }
+    if (['channel-excluded', 'waiting-for-channel'].includes(this.fetchStatus)) {
+      this.loadVideo(this.videoID);
+      return;
+    }
+    if (!this.video || this.video.paused) return;
 
     const nextSegments = this.getNextSkippableSegments();
     if (!nextSegments.length) return;
@@ -812,7 +815,7 @@ class SponsorBlockController {
     const delay = Math.max(0, (start - this.video.currentTime) * 1000);
 
     this.nextSkipTimeout = window.setTimeout(() => {
-      if (!this.active || !this.video || this.video.paused) return;
+      if (!this.playbackAllowed() || !this.video || this.video.paused) return;
 
       const activeSegments = this.getActiveSkippableSegments();
       if (!activeSegments.length) {
@@ -881,6 +884,7 @@ class SponsorBlockController {
 
     this.skipPollInterval = window.setInterval(() => {
       try {
+        this.syncVideoState();
         this.scheduleSkip();
       } catch (err) {
         console.warn('[SponsorBlock] skip poll failed:', err);

@@ -1,6 +1,8 @@
 const CONFIG_KEY = 'ytaf-configuration-cobalt-adfree-v2';
 const defaultConfig = {
   enableAdBlock: true,
+  enableNumericShortcuts: true,
+  sponsorBlockExcludedChannels: [],
   startupPage: 'home',
   enableSponsoredQrCodeBlock: true,
   enableSponsorBlock: true,
@@ -50,28 +52,34 @@ export function configRead(key) {
   return localConfig[key];
 }
 
+export function configPersistenceStatus() {
+  return window.__ytafConfigPersisted;
+}
+
 function dispatchConfigChanged(target, key, value) {
   try {
     target.dispatchEvent(
       new CustomEvent('ytaf-config-changed', {
-        detail: { key, value }
+        detail: { key, value, persisted: configPersistenceStatus() }
       })
     );
   } catch (err) {
     const event = document.createEvent('Event');
     event.initEvent('ytaf-config-changed', true, true);
-    event.detail = { key, value };
+    event.detail = { key, value, persisted: configPersistenceStatus() };
     target.dispatchEvent(event);
   }
 }
 
 export function configWrite(key, value) {
-  console.info('Setting key', key, 'to', value);
+  console.info('Setting key', key, 'to', key === 'sponsorBlockExcludedChannels' ? '(channel preferences)' : value);
   localConfig[key] = value;
   window.__ytafConfigState = localConfig;
   try {
     window.localStorage[CONFIG_KEY] = JSON.stringify(localConfig);
+    window.__ytafConfigPersisted = true;
   } catch (err) {
+    window.__ytafConfigPersisted = false;
     // A full or unavailable store must not prevent the selected setting from
     // taking effect in the current session or notifying its live consumers.
     console.warn('Config persistence failed; keeping settings for this session:', err);

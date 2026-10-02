@@ -12,11 +12,13 @@ Unofficial Cobalt-based YouTube modification for LG webOS TVs with ad blocking a
 
 - YouTube for LG webOS TVs
 - Advertisement blocking
-- SponsorBlock support
+- SponsorBlock support with permanent per-channel exceptions
 - Return YouTube Dislike support
 - Automatic account selection on startup
 - Playback speed support
 - Optional Shorts visibility
+- Sleep timer (15 / 30 / 60 / 90 minutes)
+- Remote help, optional numeric shortcuts and remembered settings position
 - Video quality setting: Safe (1080p SDR), 4K SDR, or 4K HDR
 - Optional autostart integration
 - Installable `.ipk` package
@@ -41,6 +43,45 @@ No root access, SSH or environment-variable configuration is needed.
 
 For developer testing, `YTAF_VIDEO_CAPS` still takes precedence over the saved
 selection; the menu identifies when that override is active.
+
+### SponsorBlock channel exceptions
+
+While watching a channel, press **GREEN**, scroll to **SponsorBlock channel
+exceptions**, and choose **Never skip SponsorBlock on this channel**. The
+exception saves automatically by channel ID and applies immediately to every
+SponsorBlock category, including future videos from that channel. It does not
+change ad blocking. Choose **Enable SponsorBlock on this channel** to undo it.
+
+Use **Next saved channel exception** and **Remove selected channel exception**
+to manage exceptions even when that channel is not playing. The list is bounded
+to 200 channels. If the menu reports that saving failed, the exception applies
+only for the current app session. Preferences are separate for the two app IDs
+and can be lost if app data is cleared or the app is uninstalled.
+
+A channel must be identified from player metadata matching the current video.
+When exceptions exist, SponsorBlock waits for that metadata before skipping;
+an unknown channel is never guessed from an old video or display name. Channel
+detection against the live YouTube TV UI still needs TV validation.
+
+### Sleep timer and remote controls
+
+In **GREEN → Sleep timer**, press **OK** to choose 15, 30, 60 or 90 minutes.
+The menu shows time remaining; **Cancel sleep timer** turns it off immediately.
+The timer pauses the current video, including after resume if its deadline
+passed while the app was suspended. It does not turn off the TV and does not
+persist across a full app restart.
+
+**Show remote help** explains the controls. **Numeric playback shortcuts**
+lets you turn the `0 / 1 / 3` shortcuts off. These shortcuts leave text-entry
+fields alone and are active only on a playback page. Playback-speed requests
+still depend on the native runtime's rate policy and TV support.
+
+Settings reopen at your last focused item during the same app session. The
+header reports saved preferences or warns when changes only apply for this
+session because storage is unavailable.
+
+The implemented batch and follow-up ideas are documented in
+[the usability roadmap](docs/usability-improvements.md).
 
 ## Installation
 

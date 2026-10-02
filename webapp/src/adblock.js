@@ -1,6 +1,7 @@
 /* eslint no-redeclare: 0 */
 /* global fetch:writable */
 import { configRead } from './config';
+import { rememberPlayerChannel } from './sponsorblock-channels.mjs';
 import { stripSponsoredQrCodePopups } from './sponsored-qr-code-block.mjs';
 import './adblock.css';
 
@@ -229,6 +230,7 @@ function stripAdditionalYouTubeAds(value, depth = 0) {
 const origParse = JSON.parse;
 JSON.parse = function () {
   const r = origParse.apply(this, arguments);
+  rememberPlayerChannel(window, r);
 
   if (configRead('enableAdBlock')) {
     if (stripYouTubeAds(r)) {

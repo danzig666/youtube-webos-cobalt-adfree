@@ -67,4 +67,13 @@ function add(name, label, value, options, callback = null) {
   return wrapper;
 }
 
-export const choiceTools = { add, cycle };
+function setValue(name, value) {
+  const control = document.querySelector('#' + name);
+  const entry = choices[name];
+  if (!control || !entry || !entry.options.some(option => option.value === value)) return false;
+  entry.value = value;
+  render(control);
+  return true;
+}
+
+export const choiceTools = { add, cycle, setValue };

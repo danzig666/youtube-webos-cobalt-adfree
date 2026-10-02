@@ -19,7 +19,7 @@ function load(saved, failWrite = false) {
     console: {info() {}, warn() {}, error() {}}
   });
   vm.runInContext(source, context);
-  return {context, events, saved: () => saved};
+  return {context, events, saved: () => saved, allowWrites: () => {failWrite = false;}};
 }
 test('invalid stored configuration values recover to usable defaults', () => {
   for (const saved of ['null', 'false', '42', '"bad"', '[]', '{']) {
@@ -45,4 +45,22 @@ test('existing settings survive default population and persist writes', () => {
   assert.equal(persisted.startupPage, 'subscriptions');
   assert.equal(persisted.enableAdBlock, false);
   assert.equal(persisted.enableShorts, false);
+});
+
+test('save status distinguishes session-only changes and recovers on a later successful write', () => {
+  const s=load('{}', true);
+  assert.equal(s.context.configPersistenceStatus(), undefined);
+  s.context.configWrite('enableNumericShortcuts', false);
+  assert.equal(s.context.configPersistenceStatus(), false);
+  assert.equal(s.events[0].detail.persisted, false);
+  s.allowWrites(); s.context.configWrite('enableShorts', false);
+  assert.equal(s.context.configPersistenceStatus(), true);
+  assert.equal(s.events.at(-1).detail.persisted, true);
+  assert.equal(JSON.parse(s.saved()).enableNumericShortcuts, false);
+});
+test('channel exceptions persist through a fresh configuration load without account storage access', () => {
+  const s=load('{}');
+  s.context.configWrite('sponsorBlockExcludedChannels', [{id:'UCaaaaaaaaaaaaaaaaaaaaaa',name:'Creator'}]);
+  const reloaded=load(s.saved());
+  assert.equal(reloaded.context.configRead('sponsorBlockExcludedChannels')[0].id, 'UCaaaaaaaaaaaaaaaaaaaaaa');
 });
