@@ -46,12 +46,18 @@ selection; the menu identifies when that override is active.
 
 Download the current `.ipk` from the GitHub releases page and install it using Homebrew Channel, webOS Device Manager, `ares-cli`, or the webOS app install service on rooted devices.
 
-The current fork uses app ID **`com.cobalt.youtube.adfree`** and launcher title
-**YouTube Cobalt AdFree**. It installs alongside the official YouTube app
-(`youtube.leanback.v4`) without replacing it. Versions through this fork's
-`v2.1.0-beta.1` used the official ID; install the new separate package instead.
-Installing the new package does not restore an official app already replaced
-by an older build; reinstall the official app from LG's store if needed.
+Releases provide **both package variants until sign-in with the separate ID is
+confirmed on TVs**. Both contain the same features and use the same version:
+
+| Variant | App ID | Installation behavior |
+| --- | --- | --- |
+| Original ID | `youtube.leanback.v4` | **Replaces official YouTube**; retains the identity used by earlier builds for sign-in/phone pairing compatibility |
+| Separate ID | `com.cobalt.youtube.adfree` | Installs alongside official YouTube as **YouTube Cobalt AdFree** |
+
+Choose by the app ID in the IPK filename. The original-ID launcher title is
+**YouTube AdFree (Original ID)** so the two variants are distinguishable.
+Installing the separate package does not restore an official app already
+replaced by an older build; reinstall the official app from LG's store if needed.
 
 ### Sign-in and phone pairing
 
@@ -67,7 +73,7 @@ sign-in; this build does not claim to resolve that compatibility issue.
 ### Downloads and Homebrew Channel
 
 Use this fork's [release page](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases)
-for the separate-install IPK. The upstream Homebrew catalog distributes the
+for both IPK variants. The upstream Homebrew catalog distributes the
 replacement app under the official ID; do not use that catalog when you want
 to keep the official YouTube app installed.
 
@@ -107,3 +113,21 @@ Compatibility depends on the webOS version, TV platform, firmware and Cobalt/Sta
 ## License
 
 See the repository license files for the licensing terms of the project and its components.
+
+## Building both release variants
+
+Use the same `YTAF_PACKAGE_ID` for the native build and its package step:
+
+```sh
+for app_id in youtube.leanback.v4 com.cobalt.youtube.adfree; do
+  YTAF_PACKAGE_ID="$app_id" scripts/build-starterless-cobalt-docker.sh
+  YTAF_PACKAGE_ID="$app_id" scripts/package-starterless-cobalt.sh
+done
+```
+
+Keep your normal SDK, build-directory and runtime-library configuration for both
+commands. The default ID remains `com.cobalt.youtube.adfree`. Each native build
+embeds its selected ID for both Starfish backends; packaging checks that the
+runtime contains that identity. Renaming an existing IPK or changing only its
+manifest is not sufficient. Release both IPKs with per-variant build metadata
+and checksums until separate-ID sign-in/pairing has device evidence.

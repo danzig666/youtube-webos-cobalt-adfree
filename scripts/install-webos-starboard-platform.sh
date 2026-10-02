@@ -199,7 +199,8 @@ python3 - "$repo_root" "$platform_target/arm/webos_build_metadata.h" <<'PYMETA'
 from pathlib import Path
 import json, re, subprocess, sys
 root, target = Path(sys.argv[1]), Path(sys.argv[2])
-appinfo = json.loads((root / 'starterless-cobalt/appinfo.json').read_text())
+appinfo = json.loads(subprocess.check_output(
+    [sys.executable, str(root / 'scripts/starterless-appinfo.py')], text=True))
 version, app_id = appinfo['version'], appinfo['id']
 assert re.fullmatch(r'[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+', app_id)
 assert re.fullmatch(r'[0-9]+(?:\.[0-9]+)*', version)

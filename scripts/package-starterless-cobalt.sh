@@ -6,8 +6,9 @@ build_dir="${COBALT_BUILD_DIR:-$repo_root/workdir/cobalt-23.lts.6/out/webos-arm-
 output_dir="${COBALT_PACKAGE_OUTPUT_DIR:-$repo_root/output}"
 runtime_dir="${COBALT_RUNTIME_DIR:-$repo_root/starterless-cobalt/lib}"
 webapp_output="${WEBAPP_OUTPUT_DIR:-$repo_root/webapp/output}"
-package_id="$(jq -r '.id' "$repo_root/starterless-cobalt/appinfo.json")"
-package_version="$(jq -r '.version' "$repo_root/starterless-cobalt/appinfo.json")"
+appinfo_json="$(python3 "$repo_root/scripts/starterless-appinfo.py")"
+package_id="$(jq -r '.id' <<<"$appinfo_json")"
+package_version="$(jq -r '.version' <<<"$appinfo_json")"
 ares_package="$(command -v ares-package || true)"
 
 if [[ -z "$ares_package" && -x "$repo_root/node_modules/.bin/ares-package" ]]; then
@@ -74,7 +75,7 @@ fi
 package_root="$(mktemp -d "${TMPDIR:-/tmp}/cobalt-starterless-package.XXXXXX")"
 trap 'rm -rf "$package_root"' EXIT
 
-cp "$repo_root/starterless-cobalt/appinfo.json" "$package_root/appinfo.json"
+printf '%s\n' "$appinfo_json" > "$package_root/appinfo.json"
 cp "$build_dir/cobalt" "$package_root/cobalt"
 cp -R "$build_dir/content" "$package_root/content"
 
