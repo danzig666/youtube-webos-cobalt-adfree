@@ -14,7 +14,7 @@ import { createMenuBackGuard } from './menu-back-guard.mjs';
 import { createCaptionSettings } from './caption-preferences.mjs';
 import { createDeArrowSettings } from './dearrow.mjs';
 import { createShortcutHandler, createShortcutSettings } from './remote-shortcuts.mjs';
-import { createHomeRefresh, createHomeRefreshButton } from './home-refresh.mjs';
+import { createHomeRefresh, createHomeRefreshButton, createHomeReloadButton } from './home-refresh.mjs';
 import { createEndStopPanel } from './stop-after-video.mjs';
 import { createVideoCapabilitySetting } from './video-capability-setting.mjs';
 import { createPlaybackDiagnostics } from './playback-diagnostics.mjs';
@@ -324,6 +324,7 @@ export function userScriptStartUI() {
     if (isContainerOpen()) closeContainer();
   });
   uiContainer.appendChild(createHomeRefreshButton(document, refreshHome));
+  uiContainer.appendChild(createHomeReloadButton(document, refreshHome.reload));
   const videoQuality = createVideoCapabilitySetting(document, window, choiceTools);
   videoQuality.dataset.ytafSection = 'playback';
   uiContainer.appendChild(videoQuality);
@@ -637,6 +638,7 @@ export function userScriptStartUI() {
 
   const handleNumericShortcut = createShortcutHandler(document, configRead, action => {
     if (action === 'refresh_home') refreshHome();
+    if (action === 'reload_home') refreshHome.reload();
     if (action === 'captions') toggleSubtitles((state, name) => {
       showNotification(text({on:'subtitleOn',off:'subtitleOff',unavailable:'subtitleUnavailable'}[state] || 'subtitleUnavailable') + (state === 'on' && name ? ` (${name})` : ''), 1800, 'green');
     });

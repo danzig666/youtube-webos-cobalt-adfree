@@ -1,3 +1,4 @@
+import { homeRefreshReport } from './home-refresh.mjs';
 export function readPlaybackReport(win) {
   try {
     const report = win.h5vcc?.system?.getYtafMediaReport?.();
@@ -31,7 +32,7 @@ export function createPlaybackDiagnostics(doc, win) {
   output.className = 'ytaf-diagnostics-report'; output.dataset.ytafControl = 'reader';
   output.setAttribute('role', 'textbox'); output.setAttribute('aria-readonly', 'true');
   output.setAttribute('aria-multiline', 'true'); output.setAttribute('aria-label', 'Playback diagnostics');
-  function refresh() { output.textContent = (frontendPlaybackReport(doc,win)+'\n\n'+readPlaybackReport(win)).slice(0,65536); }
+  function refresh() { output.textContent = (frontendPlaybackReport(doc,win)+'\n\n'+homeRefreshReport(doc,win)+'\n\n'+readPlaybackReport(win)).slice(0,65536); }
   doc.addEventListener('ytaf-diagnostics-opened', refresh);
   panel.appendChild(hint); panel.appendChild(output); refresh();
   return panel;

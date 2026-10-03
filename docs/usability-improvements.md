@@ -206,3 +206,36 @@ YouTube refresh request or undocumented LG API is added.
 
 Host and browser checks use sample sidebar/card behavior; they cannot prove the
 C3’s current guide shape or callback ordering. The lighter path needs TV testing.
+
+### Explicit refresh modes (2.6.10)
+
+The C3 user reports 2.6.9 still goes straight to the YouTube logo, without a
+visible Library/Subscriptions round trip. The automatic fallback obscured which
+light prerequisite or transition failed. The device's guide shape and callback
+behavior remain unknown; browser fixtures do not establish them.
+
+There are now two General actions, also available individually under Remote:
+
+- **Refresh Home — no automatic reload** invokes existing sidebar callbacks.
+  Missing Home/away controls, callback errors, departure timeouts and failed
+  returns show a short reason instead of requesting Location.replace/reload.
+  Opening YouTube's own sidebar before trying may make its controls available;
+  this is a troubleshooting suggestion, not a confirmed C3 fix.
+- **Reload YouTube Home — shows startup logo** retains the confirmed full reload
+  and one-shot startup routing bypass. It never runs automatically after a light
+  failure. Existing saved `refresh_home` mappings now select light only; choose
+  `reload_home` to retain the old full-reload behavior. Default keys are unchanged.
+
+A recognized card is no longer mandatory when URL routing can demonstrate the
+round trip. Missing cards plus a constant URL cannot be treated as a successful
+transition. Requests cancel on user navigation, and cancelled timers cannot
+mutate a later request. A failed return can leave the temporary browse page
+visible; select Home manually in YouTube's sidebar rather than restarting.
+
+Diagnostics includes the last mode/status, guide count, availability of the
+three known callbacks and a visible-card flag. No URLs, arbitrary guide props,
+account information, titles or exception strings are recorded. Successful
+return observation does not prove YouTube fetched different recommendations.
+Light refresh is still unconfirmed on the C3; YouTube's own callback behavior
+cannot be guaranteed to avoid navigation. Tests prove the app itself never
+requests a reload from any light failure path.
