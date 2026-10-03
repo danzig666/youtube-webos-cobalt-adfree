@@ -1,0 +1,39 @@
+{
+  "app_version": "2.6.6",
+  "source_commit": "764dc6f1711387818cc1b2a0577e777f4853344a",
+  "capture": "Chromium browser preview of actual app settings code",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "tv_capture": false,
+  "native_apis": "Synthetic quality, preference and diagnostics responses; labelled on every screenshot",
+  "backdrop": "Neutral preview fixture; not YouTube content",
+  "ui_bundle_sha256": "681150b06ada67b044a00e45f84d6b8e1f3acfd861392f2334604d97ebd07224",
+  "screenshots": [
+    {
+      "file": "captions.png",
+      "sha256": "df8cb6f4c817743af879575fe96b1b7135eb84322076d3fb57842faabd39d3e0"
+    },
+    {
+      "file": "diagnostics.png",
+      "sha256": "22cf80b5ab37eebdfc74d04d4332412d1f5e49404e3fea1447b209ada5374689"
+    },
+    {
+      "file": "general.png",
+      "sha256": "3de6efa7635b89c6f11087867efb170d42b5268706e98783952a4638d79c6f27"
+    },
+    {
+      "file": "playback.png",
+      "sha256": "2d70309de8e47c3f19d60e1f7092b707c30a3adc7b656392ee56013431163ea5"
+    },
+    {
+      "file": "remote.png",
+      "sha256": "84d171d6f6fa3a5d40fc68699f9fd7aaa42a1620a69a7d19b1bcd06647c2caa8"
+    },
+    {
+      "file": "sponsorblock.png",
+      "sha256": "0d4bdbab83587024422dc699f648a35f2491d64ba3ae25256d80054ad2f38a35"
+    }
+  ]
+}
