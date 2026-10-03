@@ -1,22 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readPlaybackReport, reportPages, copyPlaybackReport } from '../src/playback-diagnostics.mjs';
-test('reports have bounded pages and preserve literal text', () => {
+import { readPlaybackReport, createPlaybackDiagnostics } from '../src/playback-diagnostics.mjs';
+import {menuFixture} from './helpers/menu-fixture.mjs';
+test('report remains bounded, complete, and literal in a single scrolling textbox', () => {
   assert.match(readPlaybackReport({}), /updated native/);
   assert.equal(readPlaybackReport({h5vcc:{system:{getYtafMediaReport:()=> 'x'.repeat(70000)}}}).length, 65536);
-  const pages = reportPages('<script>not executed</script>\n' + 'word '.repeat(1000));
-  assert.ok(pages.length > 1);
-  assert.ok(pages.every(p => p.split('\n').length <= 10));
-  assert.ok(pages.join('\n').includes('<script>not executed</script>'));
-});
-test('copy waits for native confirmation and reports unavailable', async () => {
-  let requested = 0, polls = 0;
-  const win = {setTimeout: fn => fn(), h5vcc: {system: {
-    requestYtafMediaReportCopy: () => requested++,
-    getYtafMediaReportCopyStatus: () => ++polls < 2 ? 1 : 2
-  }}};
-  assert.equal(await copyPlaybackReport(win, 'report'), true); assert.equal(requested, 1);
-  win.h5vcc.system.getYtafMediaReportCopyStatus = () => 3;
-  assert.equal(await copyPlaybackReport(win, 'report'), false);
-  assert.equal(await copyPlaybackReport({}, 'report'), false);
+  const f=menuFixture(); let report='<script>not executed</script>\n' + 'event\n'.repeat(100);
+  const panel=createPlaybackDiagnostics(f.doc,{h5vcc:{system:{getYtafMediaReport:()=>report}}});
+  const output=f.nodes.get('__diagnostics_report');
+  assert.equal(output.textContent,report);
+  assert.equal(output.getAttribute('role'),'textbox');
+  assert.equal(output.dataset.ytafControl,'reader');
+  assert.equal(panel.children.length,2);
+  assert.equal([...f.nodes.keys()].some(key=>/copy|next|previous|refresh/.test(key)),false);
+  report='latest session'; f.doc.dispatchEvent({type:'ytaf-diagnostics-opened'});
+  assert.equal(output.textContent,report);
 });

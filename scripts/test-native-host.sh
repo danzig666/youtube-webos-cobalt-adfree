@@ -23,6 +23,7 @@ platform="$repo_root/cobalt-platform/webos/arm"
 run_test starfish-av-session-state
 run_test starfish-audio-session
 run_test starfish-playback-rate "$platform/starfish_playback_rate.cc"
+run_test webos-ui-preferences
 run_test webos-scroll-input
 run_test webos-lifecycle "$platform/webos_lifecycle.cc"
 run_test webos-media-diagnostics "$platform/webos_media_diagnostics.cc"

@@ -821,7 +821,7 @@ class SponsorBlockController {
     const ask = active.find(segment => this.actionFor(segment.category) === 'ask' && !this.prompted[segmentKey(segment)]);
     const menu = document.querySelector('.ytaf-ui-container');
     const menuOpen = menu && menu.style.display !== 'none' && menu.style.visibility !== 'hidden';
-    if (ask && !menuOpen && !window.__ytafComments?.isOpen()) {
+    if (ask && !menuOpen) {
       const token = this.requestToken;
       this.prompted[segmentKey(ask)] = true;
       const close = showSegmentPrompt(document, window, categoryLabel(ask.category), () => {

@@ -8,10 +8,8 @@ const key = 'ytaf-configuration-cobalt-adfree-v2';
 function load(saved, failWrite = false) {
   const events = [];
   const storage = {};
-  Object.defineProperty(storage, key, {
-    get: () => saved,
-    set: value => { if (failWrite) throw Error('Quota exceeded'); saved = value; }
-  });
+  storage.getItem = name => name === key ? saved : null;
+  storage.setItem = (name, value) => { assert.equal(name, key); if (failWrite) throw Error('Quota exceeded'); saved = value; };
   const context = vm.createContext({
     window: {localStorage: storage, dispatchEvent: event => events.push(event)},
     document: {dispatchEvent: event => events.push(event)},
@@ -71,4 +69,30 @@ test('caption and DeArrow defaults are opt-in and their preferences survive relo
   assert.equal(s.context.configRead('dearrowMode'),'off');
   for(const [key,value] of Object.entries({captionMode:'on',captionLanguage:'hu',captionSize:'large',dearrowMode:'both'}))s.context.configWrite(key,value);
   const restored=load(s.saved());assert.equal(restored.context.configRead('captionLanguage'),'hu');assert.equal(restored.context.configRead('dearrowMode'),'both');
+});
+
+test('adblocking defaults on and both deliberate on/off choices survive fresh loads',()=>{
+  for(const invalid of [undefined,'{}','{"enableAdBlock":"false"}','{"enableAdBlock":null}']) assert.equal(load(invalid).context.configRead('enableAdBlock'),true);
+  const f=load('{}');
+  for(const value of [false,true,false,true]) {
+    f.context.configWrite('enableAdBlock',value);
+    assert.equal(f.context.configPersistenceStatus(),true);
+    assert.equal(load(f.saved()).context.configRead('enableAdBlock'),value);
+  }
+});
+test('native preferences survive lost browser storage, migrate old preferences, and verify saves',()=>{
+  let native='';
+  const system={getYtafUiPreferences:()=>native,setYtafUiPreferences:value=>{native=value;return true;}};
+  function fresh(browser='{}') {
+    const context=vm.createContext({window:{h5vcc:{system},localStorage:{getItem:()=>browser,setItem(){throw Error('quota');}},dispatchEvent(){}}, document:{dispatchEvent(){}},CustomEvent:class{constructor(type,o){this.type=type;this.detail=o.detail;}},console:{info(){}}});
+    vm.runInContext(source,context);return context;
+  }
+  const first=fresh('{"enableAdBlock":false,"startupPage":"subscriptions"}');
+  assert.equal(first.configRead('enableAdBlock'),false);
+  first.configWrite('enableAdBlock',true);
+  assert.equal(first.configPersistenceStatus(),true);
+  const second=fresh();assert.equal(second.configRead('enableAdBlock'),true);assert.equal(second.configRead('startupPage'),'subscriptions');
+  second.configWrite('accountToken','must not persist');assert.equal(native.includes('accountToken'),false);
+  system.setYtafUiPreferences=()=>true;second.configWrite('enableAdBlock',false);
+  assert.equal(second.configPersistenceStatus(),false);assert.equal(fresh().configRead('enableAdBlock'),true);
 });

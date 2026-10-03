@@ -81,7 +81,7 @@ ordering. It must be tested on a TV; a client that navigates before emitting
 See [caption and DeArrow integration evidence](caption-dearrow-integration.md)
 for API sources, bounds, privacy behavior and outstanding TV checks.
 
-## Implemented for 2.5.0
+## Historical 2.5.0 (comments removed in 2.6.1)
 
 - **Read-only comments:** GREEN → Comments for this video. Top/Newest sorting,
   on-demand pages and replies; remote arrows/OK/BACK/GREEN.
@@ -89,7 +89,7 @@ for API sources, bounds, privacy behavior and outstanding TV checks.
   handling of unavailable comments. Old results cannot populate a new video.
   [Behavior, evidence and validation limits](comments-viewer.md).
 
-## Implemented for 2.5.1
+## Historical 2.5.1 (comments removed in 2.6.1)
 
 - **Expanded comments:** full received text in a scrolling list, no preview
   expansion or text pages. Replies return to the parent scroll position.
@@ -112,6 +112,20 @@ for API sources, bounds, privacy behavior and outstanding TV checks.
 - Source UI checked in Chromium at 720p and 1080p for category selection,
   navigation, focus visibility, wheel behavior and comments return position.
   See [design and validation](blue-interface.md).
+
+## Corrected after LG C3 testing (2.6.1)
+
+- Removed the separate comments reader and unused clipboard-copy UI.
+- Replaced cycling choices with explicit combobox-style option lists.
+- Listed keys 0–9 separately, each with an action picker.
+- Displayed the whole diagnostics report on category opening, with wheel and
+  arrow scrolling instead of pages.
+- Consumed full BACK key sequences so settings dismissal does not close video.
+- Moved sponsored QR blocking exclusively into General, centred the close icon,
+  removed the startup notification and cleaned up expired notification shells.
+- Added durable, checked native preference saves; adblocking defaults on.
+- Added smaller caption sizes, delayed/verified API size application and DOM
+  text sizing when the player API is absent. C3 rendering needs retesting.
 
 ## Follow-up ideas, not implemented in this batch
 

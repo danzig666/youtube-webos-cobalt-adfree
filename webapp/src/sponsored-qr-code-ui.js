@@ -25,7 +25,7 @@ export function userScriptStartSponsoredQrCodeUI() {
   }
 
   const menuContent =
-    uiContainer.querySelector('.ytaf-ui-content') || uiContainer;
+    uiContainer.querySelector('#__settings_section_general') || uiContainer.querySelector('.ytaf-ui-content') || uiContainer;
   const control = checkboxTools.add(
     '__sponsored_qr_code_block',
     getLabel(),

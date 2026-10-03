@@ -193,23 +193,29 @@ Enabling it sends visible video IDs to DeArrow's public services. Unsupported
 cards and missing submissions keep their originals. See the
 [integration details and TV validation limits](docs/caption-dearrow-integration.md).
 
-### Comments and wheel scrolling (2.5.1)
+### Wheel scrolling and comments
 
-While watching a video, open **GREEN → General → Comments for this video**. Browse Top or
-Newest comments and replies with full text visible by default. Scroll with the
-Magic Remote wheel or Up/Down; Left/Right skips between controls/comments. BACK
-returns one level and GREEN returns to settings. Load more fetches another page.
-The wheel also scrolls the GREEN settings menu, including help and diagnostics. This is a read-only
-viewer; no comments or account actions are submitted. See
-[controls, API evidence and validation limits](docs/comments-viewer.md).
+The Magic Remote wheel scrolls the GREEN settings menu, including option lists,
+help and diagnostics. Use YouTube's own comments interface; the separate app
+comments reader was removed in 2.6.1 following LG C3 feedback.
 
-### Blue settings interface (2.6.0)
+### Blue settings interface (2.6.1)
 
 The GREEN menu has a calm navy/blue design with larger labels and six categories:
 General, Playback, Captions & titles, Remote, SponsorBlock and Diagnostics.
 Use Up/Down to choose a category, Right to enter it, Left to return to categories,
 and OK to select or change a setting. BACK or the close button dismisses settings.
-The Magic Remote wheel scrolls the current category. Comments and replies use
-matching rounded reading cards with full text shown by default.
+The Magic Remote wheel scrolls the current category. Choices open combobox-style
+lists: select an option directly with the pointer or use Up/Down and OK. BACK
+cancels an open list first, then closes settings on a new press without closing
+the video. Remote lists every numeric key with its own action selector.
+Diagnostics automatically displays one complete, scrollable read-only textbox.
+There is no clipboard-copy or report pagination control.
+
+Adblocking defaults to enabled. Menu preferences save to a bounded private file
+in ordinary app storage, separately for each package ID; existing preferences
+migrate from browser storage on the next change. Caption sizes include Extra
+small, Small, Normal, Large and Extra large, with YouTube default to remove app
+text styling. Actual caption rendering on the C3 still needs a retest.
 
 See [interface design and validation](docs/blue-interface.md).

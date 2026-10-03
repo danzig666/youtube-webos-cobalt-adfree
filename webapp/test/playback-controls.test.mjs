@@ -88,10 +88,10 @@ test('remote mapping changes the selected key only and handles duplicate OK even
       stored = value;
     }
   );
-  f.press('__shortcut_key');
-  assert.equal(f.nodes.get('__shortcut_action').textContent, 'Slower playback');
-  f.press('__shortcut_action');
-  f.click('__shortcut_action');
+  assert.equal(Array.from(f.nodes.keys()).filter(key => /^__shortcut_[0-9]$/.test(key)).length, 10);
+  f.press('__shortcut_1');
+  f.key('ArrowDown', 40); f.key('Enter', 13);
+  f.click('__shortcut_1');
   assert.equal(stored[1], 'faster');
   assert.equal(stored[0], 'captions');
 });

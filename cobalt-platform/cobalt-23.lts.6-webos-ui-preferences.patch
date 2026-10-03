@@ -1,0 +1,53 @@
+--- a/cobalt/h5vcc/h5vcc_system.h
++++ b/cobalt/h5vcc/h5vcc_system.h
+@@ -45,6 +45,8 @@
+   bool TriggerHelp() const;
+   std::string GetYtafVideoCapabilitySetting() const;
+   bool SetYtafVideoCapabilitySetting(uint32 value) const;
++  std::string GetYtafUiPreferences() const;
++  bool SetYtafUiPreferences(const std::string& value) const;
+   std::string GetYtafMediaReport() const;
+   void RequestYtafMediaReportCopy() const;
+   int32 GetYtafMediaReportCopyStatus() const;
+--- a/cobalt/h5vcc/h5vcc_system.idl
++++ b/cobalt/h5vcc/h5vcc_system.idl
+@@ -23,6 +23,8 @@
+   boolean triggerHelp();
+   DOMString getYtafVideoCapabilitySetting();
+   boolean setYtafVideoCapabilitySetting(unsigned long value);
++  DOMString getYtafUiPreferences();
++  boolean setYtafUiPreferences(DOMString value);
+   DOMString getYtafMediaReport();
+   void requestYtafMediaReportCopy();
+   long getYtafMediaReportCopyStatus();
+--- a/cobalt/h5vcc/h5vcc_system.cc
++++ b/cobalt/h5vcc/h5vcc_system.cc
+@@ -22,6 +22,7 @@
+ #if defined(STARBOARD_WEBOS)
+ #include "starboard/webos/arm/webos_media_report.h"
+ #include "starboard/webos/arm/webos_media_capabilities.h"
++#include "starboard/webos/arm/webos_ui_preferences.h"
+ #endif
+ 
+ #if SB_API_VERSION < 14
+@@ -139,6 +140,20 @@
+ bool H5vccSystem::SetYtafVideoCapabilitySetting(uint32 value) const {
+ #if defined(STARBOARD_WEBOS)
+   return starboard::shared::webos::SaveVideoCapabilityTier(value);
++#else
++  return false;
++#endif
++}
++std::string H5vccSystem::GetYtafUiPreferences() const {
++#if defined(STARBOARD_WEBOS)
++  return starboard::shared::webos::GetUiPreferences();
++#else
++  return "";
++#endif
++}
++bool H5vccSystem::SetYtafUiPreferences(const std::string& value) const {
++#if defined(STARBOARD_WEBOS)
++  return starboard::shared::webos::SaveUiPreferences(value);
+ #else
+   return false;
+ #endif

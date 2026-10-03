@@ -27,7 +27,7 @@ function menu() {
   doc.activeElement = items[0];
   const src = fs.readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
   const start = src.indexOf('  // Own the wheel');
-  vm.runInContext(src.slice(start, src.indexOf('\n  setTimeout', start)), context);
+  vm.runInContext(src.slice(start, src.indexOf('}, {capture: true, passive: false});', start) + '}, {capture: true, passive: false});'.length), context);
   return {doc, container, content, viewport, items, cancelled,
     close: () => {open = false;}, comments: () => {comments = true;},
     wheel(deltaY, extra = {}) {
@@ -48,10 +48,9 @@ test('settings wheel cancels queued focus scrolling, selects visible controls an
   for (let i = 0; i < 20; i++) f.wheel(-500);
   assert.equal(f.content.style.top, '0px');
 });
-test('settings leaves closed-menu, comments-overlay and modified wheel events alone', () => {
+test('settings leaves closed-menu and modified wheel events alone', () => {
   const f = menu();
   assert.equal(f.wheel(20, {ctrlKey: true}).prevented, undefined);
-  f.comments(); assert.equal(f.wheel(20).prevented, undefined);
   const closed = menu(); closed.close();
   assert.equal(closed.wheel(20).prevented, undefined);
 });

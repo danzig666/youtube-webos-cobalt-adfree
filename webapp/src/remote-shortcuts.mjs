@@ -52,39 +52,16 @@ export function createShortcutHandler(doc, read, perform) {
 }
 export function createShortcutSettings(doc, choices, read, write) {
   const panel = doc.createElement('div');
-  let selected = '0';
-  panel.appendChild(
-    choices.add(
-      '__shortcut_key',
-      'Remote number key',
-      selected,
-      Array.from({ length: 10 }, (_, i) => ({
-        value: String(i),
-        label: String(i)
-      })),
-      (value) => {
-        selected = value;
-        choices.setValue(
-          '__shortcut_action',
-          shortcutAction(selected, read('numericShortcutActions'))
-        );
-      }
-    )
-  );
-  panel.appendChild(
-    choices.add(
-      '__shortcut_action',
-      'Action for selected key',
-      shortcutAction(selected, read('numericShortcutActions')),
-      shortcutOptions,
-      (value) => {
+  for (let key = 0; key <= 9; key++) {
+    const number = String(key);
+    panel.appendChild(choices.add('__shortcut_' + number, 'Key ' + number,
+      shortcutAction(number, read('numericShortcutActions')), shortcutOptions, value => {
         const old = read('numericShortcutActions');
         write('numericShortcutActions', {
           ...(old && typeof old === 'object' && !Array.isArray(old) ? old : {}),
-          [selected]: value
+          [number]: value
         });
-      }
-    )
-  );
+      }));
+  }
   return panel;
 }

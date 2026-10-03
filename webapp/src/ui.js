@@ -6,7 +6,7 @@ import './navigation-checkbox.js';
 import './ui.css';
 import { createSettingsSections } from './settings-sections.mjs';
 import { wheelScrollDelta } from './wheel-scroll.mjs';
-import { createCommentsSetting } from './comments-panel.mjs';
+import { createMenuBackGuard } from './menu-back-guard.mjs';
 import { createCaptionSettings } from './caption-preferences.mjs';
 import { createDeArrowSettings } from './dearrow.mjs';
 import { createShortcutHandler, createShortcutSettings } from './remote-shortcuts.mjs';
@@ -51,7 +51,7 @@ export function userScriptStartUI() {
   let heldDirectionAt = 0;
   let directionMoveFrame = null;
   let heldActivationControl = null;
-  let commentsReturnFocus = null;
+
 
   function getDirectionFromEvent(evt) {
     const key = (evt.key || '').toLowerCase();
@@ -127,7 +127,7 @@ export function userScriptStartUI() {
     uiContainer.scrollTop = 0;
 
     const visibleMargin = 8;
-    const row = item.parentElement && uiContainer.contains(item.parentElement)
+    const row = item.dataset?.ytafControl === 'reader' ? item : item.parentElement && uiContainer.contains(item.parentElement)
       ? item.parentElement
       : item;
     const viewportRect = menuViewport.getBoundingClientRect();
@@ -137,7 +137,7 @@ export function userScriptStartUI() {
 
     if (itemRect.top < visibleTop) {
       menuOffset += itemRect.top - visibleTop;
-    } else if (itemRect.bottom > visibleBottom) {
+    } else if (item.dataset?.ytafControl !== 'reader' && itemRect.bottom > visibleBottom) {
       menuOffset += itemRect.bottom - visibleBottom;
     }
 
@@ -159,6 +159,11 @@ export function userScriptStartUI() {
 
   function moveFocus(dir) {
     const active = document.activeElement;
+    if (active?.dataset.ytafControl === 'reader' && (dir === 'up' || dir === 'down')) {
+      const size = menuViewport.getBoundingClientRect().height;
+      menuOffset = Math.max(0, Math.min(Math.max(0, menuContent.scrollHeight - size), menuOffset + (dir === 'down' ? 1 : -1) * size * .7));
+      menuContent.style.top = `${-menuOffset}px`; menuViewport.scrollTop = 0; return;
+    }
     if (sections.nav.contains(active)) {
       const tabs = Array.from(sections.nav.querySelectorAll('[tabindex]'));
       if (dir === 'right') {
@@ -269,7 +274,7 @@ export function userScriptStartUI() {
     true
   );
 
-  // Key handling is done globally in the document handler to ensure a single
+  // Key handling is done globally in the window capture handler to ensure a single
   // interception point and avoid duplicate handling across capture/bubble phases.
 
   const callbackConfig = (configName) => {
@@ -288,7 +293,7 @@ export function userScriptStartUI() {
   divTitle.appendChild(title);
   const closeButton = document.createElement('button');
   closeButton.id = '__settings_close'; closeButton.className = 'ytaf-settings-close';
-  closeButton.type = 'button'; closeButton.textContent = '×'; closeButton.tabIndex = 1999;
+  closeButton.type = 'button'; closeButton.textContent = '';  closeButton.tabIndex = 1999;
   closeButton.setAttribute('aria-label', 'Close settings');
   closeButton.dataset.ytafControl = 'action'; closeButton.__ytafActivate = closeContainer;
   closeButton.addEventListener('click', () => {
@@ -351,11 +356,6 @@ export function userScriptStartUI() {
   uiContainer.appendChild(createEndStopPanel(document, window, showNotification));
   uiContainer.appendChild(createCaptionSettings(document, window, choiceTools, configRead, configWrite));
   uiContainer.appendChild(createDeArrowSettings(document, window, choiceTools, configRead, configWrite));
-  uiContainer.appendChild(createCommentsSetting(document, window, {
-    beforeOpen: () => { commentsReturnFocus = latestFocus; heldActivationControl = null; closeContainer(); suspendSpatialNavigation(); },
-    returnToMenu: () => { restoreSpatialNavigation(); openContainer(); latestFocus = commentsReturnFocus; commentsReturnFocus = null; },
-    afterClose: () => { restoreSpatialNavigation(); if (commentsReturnFocus && document.documentElement.contains(commentsReturnFocus)) commentsReturnFocus.focus(); commentsReturnFocus = null; }
-  }));
   uiContainer.appendChild(createRemoteHelp(document));
   uiContainer.appendChild(
     checkboxTools.add(
@@ -416,6 +416,7 @@ export function userScriptStartUI() {
     currentFocusIndex = -1;
     // A category can be changed by pointer while a hidden setting had focus.
     sections.currentButton().focus();
+    if (sections.current() === 'diagnostics') document.dispatchEvent(new CustomEvent('ytaf-diagnostics-opened'));
   });
   menuContent = sections.content;
   menuContent.style.position = 'relative';
@@ -579,6 +580,7 @@ export function userScriptStartUI() {
       window.cancelAnimationFrame(directionMoveFrame);
       directionMoveFrame = null;
     }
+    choiceTools.close(false);
     uiContainer.style.display = 'none';
     uiContainer.style.visibility = 'hidden';
     uiContainer.style.pointerEvents = 'none';
@@ -593,7 +595,6 @@ export function userScriptStartUI() {
     latestFocus = null;
     const restoreFocus = () => {
       if (
-        !(typeof window !== 'undefined' && window.__ytafComments?.isOpen()) &&
         focusBeforeMenu && document.documentElement.contains(focusBeforeMenu) &&
         typeof focusBeforeMenu.focus === 'function' &&
         !uiContainer.contains(focusBeforeMenu)
@@ -617,8 +618,15 @@ export function userScriptStartUI() {
   });
 
   window.addEventListener('blur', () => handleNumericShortcut.reset());
+  const menuBackGuard = createMenuBackGuard(isContainerOpen, closeContainer);
   const eventHandler = (evt) => {
-    if (typeof window !== 'undefined' && window.__ytafComments?.handleKey(evt)) return false;
+    if (evt.type === 'keyup' && heldActivationControl) {
+      const wrapper = heldActivationControl.parentElement;
+      if (wrapper) wrapper.dataset.ytafIgnoreClickUntil = String(Date.now() + 1000);
+      heldActivationControl = null;
+    }
+    if (typeof choiceTools !== 'undefined' && choiceTools.handleKey?.(evt)) return false;
+    if (typeof menuBackGuard !== 'undefined' && menuBackGuard(evt)) return false;
     const menuOpen = isContainerOpen();
     if (typeof window !== 'undefined' && window.__ytafPromptRelease?.(evt)) return false;
     if (!menuOpen && typeof window !== 'undefined' && window.__ytafSponsorPrompt?.handleKey(evt)) return false;
@@ -644,12 +652,14 @@ export function userScriptStartUI() {
       if (evt.type === 'keyup') heldActivationControl = null;
       evt.preventDefault();
       evt.stopPropagation();
+      evt.stopImmediatePropagation?.();
       return false;
     }
 
     if (menuOpen && isActivationKey && evt.type !== 'keydown') {
       evt.preventDefault();
       evt.stopPropagation();
+      evt.stopImmediatePropagation?.();
       return false;
     }
 
@@ -659,6 +669,7 @@ export function userScriptStartUI() {
       }
       evt.preventDefault();
       evt.stopPropagation();
+      evt.stopImmediatePropagation?.();
       return false;
     }
 
@@ -666,6 +677,7 @@ export function userScriptStartUI() {
       if (!focusInsideMenu) {
         evt.preventDefault();
         evt.stopPropagation();
+      evt.stopImmediatePropagation?.();
         captureMenuFocus();
       }
 
@@ -673,6 +685,7 @@ export function userScriptStartUI() {
       if (direction) {
         evt.preventDefault();
         evt.stopPropagation();
+      evt.stopImmediatePropagation?.();
         const now = Date.now();
         if (
           evt.repeat ||
@@ -689,6 +702,7 @@ export function userScriptStartUI() {
       if (isActivationKey) {
         evt.preventDefault();
         evt.stopPropagation();
+      evt.stopImmediatePropagation?.();
         if (evt.repeat) return false;
         const focusedElement = document.querySelector(':focus');
         if (focusedElement && focusedElement.id) {
@@ -702,8 +716,8 @@ export function userScriptStartUI() {
             focusedElement.__ytafActivate?.();
             queueMenuItemScroll(focusedElement);
           } else if (focusedElement.dataset.ytafControl === 'choice') {
-            choiceTools.cycle(focusedElement.id);
-          } else {
+            choiceTools.open(focusedElement.id, evt.keyCode || (evt.key === 'Enter' ? 13 : 32));
+          } else if (focusedElement.dataset.ytafControl !== 'reader') {
             checkboxTools.toggleCheck(focusedElement.id);
           }
         }
@@ -713,6 +727,7 @@ export function userScriptStartUI() {
       if (evt.key === 'Escape' || evt.keyCode === 27 || evt.keyCode === 461 || evt.keyCode === 8) {
         evt.preventDefault();
         evt.stopPropagation();
+      evt.stopImmediatePropagation?.();
         closeContainer();
         return false;
       }
@@ -722,6 +737,7 @@ export function userScriptStartUI() {
       console.info('Taking over!');
       evt.preventDefault();
       evt.stopPropagation();
+      evt.stopImmediatePropagation?.();
       const now = Date.now();
       if (evt.type === 'keydown' && !evt.repeat && now - lastGreenKeyAt > 350) {
         lastGreenKeyAt = now;
@@ -744,10 +760,12 @@ export function userScriptStartUI() {
         openContainer();
         evt.preventDefault();
         evt.stopPropagation();
+      evt.stopImmediatePropagation?.();
       } else {
         closeContainer();
         evt.preventDefault();
         evt.stopPropagation();
+      evt.stopImmediatePropagation?.();
       }
     }
     return true;
@@ -756,9 +774,9 @@ export function userScriptStartUI() {
   // Red, Green, Yellow, Blue
   // 403, 404, 405, 406
   // ---, 172, 170, 191
-  document.addEventListener('keydown', eventHandler, true);
-  document.addEventListener('keypress', eventHandler, true);
-  document.addEventListener('keyup', eventHandler, true);
+  window.addEventListener('keydown', eventHandler, true);
+  window.addEventListener('keypress', eventHandler, true);
+  window.addEventListener('keyup', eventHandler, true);
   // YouTube's visible player controls can reclaim focus after handling a key.
   // While our menu is open, keep focus modal and restore the last menu item.
   document.addEventListener('focus', guardMenuFocus, true);
@@ -766,7 +784,8 @@ export function userScriptStartUI() {
   // Own the wheel only while our modal menu is open. Otherwise Cobalt's
   // native wheel event reaches YouTube unchanged.
   document.addEventListener('wheel', (event) => {
-    if (!isContainerOpen() || window.__ytafComments?.isOpen() || event.ctrlKey) return;
+    if (typeof choiceTools !== 'undefined' && choiceTools.handleWheel?.(event)) return;
+    if (!isContainerOpen() || event.ctrlKey) return;
     const rect = menuViewport.getBoundingClientRect();
     const delta = wheelScrollDelta(event, rect.height);
     if (!delta) return;
@@ -790,7 +809,9 @@ export function userScriptStartUI() {
       .filter(item => item.tabIndex > 0 && item.getClientRects?.().length !== 0);
     const visible = item => {
       const box = item.getBoundingClientRect();
-      return box.top >= rect.top && box.bottom <= rect.bottom;
+      return item.dataset?.ytafControl === 'reader'
+        ? box.bottom > rect.top && box.top < rect.bottom
+        : box.top >= rect.top && box.bottom <= rect.bottom;
     };
     const target = visible(document.activeElement) && items.includes(document.activeElement)
       ? document.activeElement : items.find(visible);
@@ -811,9 +832,7 @@ export function userScriptStartUI() {
 
 
 
-  setTimeout(() => {
-    showNotification(text('openHint'), 3000, 'green');
-  }, 2000);
+
 }
 
 export function showNotification(text, time = 3000, variant = 'yellow') {
@@ -840,9 +859,8 @@ export function showNotification(text, time = 3000, variant = 'yellow') {
     elmInner.classList.remove('message-hidden');
   }, 100);
   setTimeout(() => {
-    elmInner.classList.add('message-hidden');
-    setTimeout(() => {
-      if (elm.parentNode) elm.parentNode.removeChild(elm);
-    }, 1000);
+    if (elm.parentNode) elm.parentNode.removeChild(elm);
+    if (!notificationContainer.children.length && notificationContainer.parentNode)
+      notificationContainer.parentNode.removeChild(notificationContainer);
   }, time);
 }

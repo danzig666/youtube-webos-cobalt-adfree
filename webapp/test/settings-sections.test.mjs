@@ -35,7 +35,7 @@ test('settings controls belong to the intended categories, including native-unav
     __captionMode: 'captions',
     __dearrow_mode: 'captions',
     __numeric_shortcuts: 'remote',
-    __shortcut_key: 'remote',
+    __shortcut_0: 'remote',
     __remote_help: 'remote',
     __sponsorblock: 'sponsorblock',
     __sponsorblock_sponsor: 'sponsorblock',

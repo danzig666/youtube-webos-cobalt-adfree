@@ -31,12 +31,12 @@ test('remote timer selection and cancel resist repeat and synthetic clicks', () 
   const f = menuFixture(), notifications = [];
   const win = { setTimeout() { return 1; }, clearTimeout() {}, addEventListener() {} };
   const panel = createSleepTimerPanel(f.doc, win, f.choices, text => notifications.push(text));
-  f.press('__sleep_timer'); f.click('__sleep_timer');
+  f.press('__sleep_timer'); f.key('ArrowDown', 40); f.key('Enter', 13); f.click('__sleep_timer');
   assert.equal(win.__ytafSleepTimer.timer.state().minutes, 15);
   assert.match(panel.children[1].textContent, /15:00/);
   f.press('__sleep_timer_cancel'); f.click('__sleep_timer_cancel');
   assert.equal(win.__ytafSleepTimer.timer.state().minutes, 0);
-  assert.equal(f.nodes.get('__sleep_timer').textContent, 'Off');
+  assert.equal(f.nodes.get('__sleep_timer').textContent, 'Off  ▾');
   assert.equal(notifications.length, 0);
 });
 test('rebuilding the timer panel retains a deadline without extra lifecycle listeners', () => {
@@ -58,7 +58,7 @@ test('expired timer pauses the current video on resume and reports pause failure
     win.__ytafSleepTimer.timer.setMinutes(15); now+=16*60000;
     f.doc.dispatchEvent({type:'visibilitychange'}); f.doc.dispatchEvent({type:'visibilitychange'});
     assert.equal(notices.length,1); assert.equal(calls,kind==='missing'?0:1);
-    assert.equal(f.nodes.get('__sleep_timer').textContent,'Off');
+    assert.equal(f.nodes.get('__sleep_timer').textContent,'Off  ▾');
     assert.match(panel.children[1].textContent,kind==='throws'?/could not be paused/:kind==='missing'?/No video/:/Playback paused/);
   }
 });

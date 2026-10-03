@@ -31,6 +31,9 @@ function add(name, label, checked = false, callback = null, options = {}) {
   const checkboxSliderDiv = document.createElement('div');
   checkboxSliderDiv.setAttribute('id', name);
   checkboxSliderDiv.setAttribute('type', 'checkbox');
+  checkboxSliderDiv.setAttribute('role', 'checkbox');
+  checkboxSliderDiv.setAttribute('aria-label', label);
+  checkboxSliderDiv.setAttribute('aria-checked', String(Boolean(checked)));
   checkboxSliderDiv.setAttribute('tabindex', checkboxTabIndex);
   checkboxSliderDiv.appendChild(sliderDiv);
 
@@ -117,6 +120,7 @@ function check(name) {
   const sliceDiv = document.querySelector('#' + name);
   if (!sliceDiv) return;
   sliceDiv.setAttribute('checked', 'checked');
+  sliceDiv.setAttribute('aria-checked', 'true');
   callbacks[sliceDiv.tabIndex]?.(true);
 }
 
@@ -127,6 +131,7 @@ function uncheck(name) {
   const sliceDiv = document.querySelector('#' + name);
   if (!sliceDiv) return;
   sliceDiv.removeAttribute('checked');
+  sliceDiv.setAttribute('aria-checked', 'false');
   callbacks[sliceDiv.tabIndex]?.(false);
 }
 

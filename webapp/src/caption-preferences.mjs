@@ -1,3 +1,4 @@
+import { startCaptionSizing, captionSizeScale } from './caption-sizing.mjs';
 import { getCurrentVideoId } from './sponsorblock-channels.mjs';
 export const captionLanguages = [
   ['youtube', 'YouTube choice'],
@@ -44,6 +45,10 @@ export function selectCaptionTrack(tracks, language) {
 }
 export function startCaptionPreferences(doc, win, read) {
   if (win.__ytafCaptions) return win.__ytafCaptions;
+  const sizing = doc.querySelectorAll && win.getComputedStyle
+    ? startCaptionSizing(doc, win, read) : {refresh: () => 0};
+  const originalApiSizes = new Map();
+  let fontRequested = false, trackRequested = false;
   let key = null,
     element = null,
     timer = null,
@@ -83,6 +88,7 @@ export function startCaptionPreferences(doc, win, read) {
       attempts = 0;
       done = false;
       loadedModule = false;
+      fontRequested = false; trackRequested = false;
     }
     if (done || timer !== null || !id || !video) return;
     const mode = ['youtube', 'on', 'off'].includes(read('captionMode'))
@@ -93,8 +99,10 @@ export function startCaptionPreferences(doc, win, read) {
     )
       ? read('captionLanguage')
       : 'youtube';
-    const size = { large: 1, extra: 2 }[read('captionSize')];
-    if (mode === 'youtube' && language === 'youtube' && size === undefined) {
+    const size = { small: -1, normal: 0, large: 1, extra: 2 }[read('captionSize')];
+    const sizedText = sizing.refresh();
+    const hasSize = captionSizeScale[read('captionSize')] !== undefined;
+    if (mode === 'youtube' && language === 'youtube' && !hasSize) {
       done = true;
       status('Uses YouTube caption settings.');
       return;
@@ -121,7 +129,9 @@ export function startCaptionPreferences(doc, win, read) {
       typeof player?.getOption !== 'function' ||
       typeof player?.setOption !== 'function'
     ) {
-      wait('Caption controls unavailable here. Use YouTube’s caption menu.');
+      wait(sizedText
+        ? 'Caption text size applied. Use YouTube’s menu for caption tracks.'
+        : 'Waiting for rendered captions. Use YouTube’s caption menu to enable them.');
       return;
     }
     try {
@@ -135,6 +145,19 @@ export function startCaptionPreferences(doc, win, read) {
       if (video.readyState === 0) {
         wait('Waiting for video metadata.');
         return;
+      }
+      // Request size only after the caption module exposes the option. Read
+      // back the value; an accepted call alone does not prove it was applied.
+      let sizeConfirmed = !hasSize || sizedText > 0;
+      if (size !== undefined) {
+        const availableSize = player.getOption('captions', 'fontSize');
+        if (typeof availableSize === 'number' && !fontRequested) {
+          if (!originalApiSizes.has(player)) originalApiSizes.set(player, {original: availableSize, requested: size});
+          originalApiSizes.get(player).requested = size;
+          player.setOption('captions', 'fontSize', size);
+          fontRequested = true;
+        }
+        sizeConfirmed ||= fontRequested && player.getOption('captions', 'fontSize') === size;
       }
       const tracks = player.getOption('captions', 'tracklist');
       const current = player.getOption('captions', 'track');
@@ -174,12 +197,18 @@ export function startCaptionPreferences(doc, win, read) {
       }
       // Set at most once per video/configuration. Never retry writes or police later choices.
       done = true;
-      if (size !== undefined) player.setOption('captions', 'fontSize', size);
-      if (mode === 'off') player.setOption('captions', 'track', {});
-      else if (selected) player.setOption('captions', 'track', selected);
-      status(
-        'Caption preference requested for this video. Manual changes remain available.'
-      );
+      if (!trackRequested) {
+        if (mode === 'off') player.setOption('captions', 'track', {});
+        else if (selected) player.setOption('captions', 'track', selected);
+        trackRequested = true;
+      }
+      if (!sizeConfirmed && hasSize && mode !== 'off') {
+        // Track selection may initialise the caption module on a later frame.
+        done = false;
+        wait('Caption text size pending; turn captions on in YouTube.');
+      } else status(hasSize && sizeConfirmed
+        ? 'Caption size applied. Manual caption choices remain available.'
+        : 'Caption preference requested for this video. Manual changes remain available.');
     } catch (_) {
       done = true;
       status(
@@ -192,6 +221,15 @@ export function startCaptionPreferences(doc, win, read) {
   doc.addEventListener('yt-navigate-finish', () => check());
   win.addEventListener('hashchange', () => check());
   doc.addEventListener('ytaf-config-changed', (event) => {
+    if (event.detail?.key === 'captionSize' && read('captionSize') === 'youtube') {
+      for (const [player, values] of originalApiSizes) {
+        try {
+          if (player.getOption('captions', 'fontSize') === values.requested)
+            player.setOption('captions', 'fontSize', values.original);
+        } catch (_) { /* retain unsupported/manual player state */ }
+      }
+      originalApiSizes.clear();
+    }
     if (
       ['captionMode', 'captionLanguage', 'captionSize'].includes(
         event.detail?.key
@@ -241,7 +279,10 @@ export function createCaptionSettings(doc, win, choices, read, write) {
       'captionSize',
       'Caption text size',
       [
-        { value: 'youtube', label: 'YouTube choice' },
+        { value: 'youtube', label: 'YouTube default' },
+        { value: 'smallest', label: 'Extra small' },
+        { value: 'small', label: 'Small' },
+        { value: 'normal', label: 'Normal' },
         { value: 'large', label: 'Large' },
         { value: 'extra', label: 'Extra large' }
       ]
@@ -255,7 +296,7 @@ export function createCaptionSettings(doc, win, choices, read, write) {
   const help = doc.createElement('div');
   help.className = 'ytaf-setting-help';
   help.textContent =
-    'Applied once per video when supported. No automatic translation. Missing languages keep YouTube’s choice. Manual changes take priority. YouTube choice stops future overrides; use its caption menu to reset the current video.';
+    'Track preferences apply once per video when supported. Text size also applies to rendered YouTube captions without the player API. YouTube default restores app size changes. No automatic translation; missing languages keep YouTube’s choice.';
   const state = doc.createElement('div');
   state.className = 'ytaf-setting-help';
   api.render = () => {

@@ -1,13 +1,14 @@
 # Caption preferences and optional DeArrow
 
 Implemented in 2.4.0. Both application IDs contain the same features. All new
-preferences use existing local configuration storage and save-status feedback.
+preferences use native app preference storage from 2.6.1, with legacy browser
+storage migration and verified save-status feedback.
 Backup/restore remains excluded.
 
 ## Captions
 
 GREEN exposes per-video Prefer on / Prefer off / YouTube choice, a preferred
-language, and YouTube choice / Large / Extra large text. Default values leave
+language, and YouTube default / Extra small / Small / Normal / Large / Extra large text. Default values leave
 YouTube untouched. Available tracks are matched by exact language then regional
 variant, preferring human captions within the same match. No translation is
 requested; unavailable languages preserve the current choice.
@@ -18,7 +19,19 @@ when Prefer on needs an unloaded module, it calls `loadModule('captions')` only
 if exposed. These track/module controls are internal YouTube interfaces, not
 LG APIs and not guaranteed on every TV-client version. The public YouTube
 [IFrame API](https://developers.google.com/youtube/iframe_api_reference#onApiChange)
-documents `captions.fontSize`: Large uses 1 and Extra large uses 2.
+documents `captions.fontSize`: Small uses -1, Normal 0, Large 1 and Extra large 2.
+Size requests wait until the caption module exposes a numeric option and check
+read-back. Track selection is not repeated while waiting for font readiness.
+
+On TV clients without those methods, the app styles rendered caption segments
+and text leaves in known caption windows. Extra small scales to 60%, Small 80%,
+Normal 100%, Large 125% and Extra large 150% of their original computed size.
+Mutation observation handles new text/segments; writes are idempotent and original
+inline styles are restored on YouTube default. This affects caption elements,
+not the native video plane or ordinary YouTube text. Unknown/canvas renderers
+cannot be sized through CSS. The C3's exact renderer is not available here and
+must be retested; API confirmation or matched text is required before reporting
+size as applied.
 
 Pending readiness is retried at most 20 times at 250 ms intervals. Writes are
 attempted once per current video/configuration; exceptions do not trigger repeat
@@ -26,8 +39,8 @@ writes. Matching player identity is checked when `getVideoData` is available.
 Native caption-button activation and the caption shortcut cancel pending
 preferences. Settings explicitly changed in GREEN may request them again.
 Changing to YouTube choice stops future overrides; the current player state is
-not reset behind the user's back. Feedback says “requested”, since host tests
-cannot prove a TV accepted an internal player option.
+not reset behind the user's back. Track feedback says “requested”; size feedback distinguishes pending controls
+from confirmed options or rendered text. Host tests cannot verify C3 rendering.
 
 ## DeArrow
 

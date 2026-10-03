@@ -22,14 +22,15 @@ function fixture(config = {}) {
   let n = 0,
     tracks = [english, hungarian],
     current = {},
-    loads = 0;
+    loads = 0, fontSize = 0;
   const video = {};
   let available = true;
   const player = {
-    getOption: (_mod, key) => (key === 'tracklist' ? tracks : current),
+    getOption: (_mod, key) => (key === 'tracklist' ? tracks : key === 'fontSize' ? fontSize : current),
     setOption: (_mod, key, value) => {
       writes.push({ key, value });
       if (key === 'track') current = value;
+      if (key === 'fontSize') fontSize = value;
     },
     loadModule() {
       loads++;
@@ -174,13 +175,43 @@ test('caption menu uses normal one-press choice handling and persists each selec
     (key, value) => writes.push({ key, value })
   );
   f.press('__captionMode');
+  assert.equal(writes.length, 0);
+  f.key('ArrowDown', 40); f.key('Enter', 13);
   f.click('__captionMode');
   assert.deepEqual(writes, [{ key: 'captionMode', value: 'on' }]);
   f.press('__captionSize');
-  assert.equal(writes.at(-1).value, 'large');
+  f.key('ArrowDown', 40); f.key('Enter', 13);
+  assert.equal(writes.at(-1).value, 'smallest');
 });
 
 test('caption preference waits for matching player identity after navigation',()=>{
   const f=fixture();f.player.getVideoData=()=>({video_id:'oldoldoldol'});f.change('captionMode','on');
   assert.equal(f.writes.length,0);f.player.getVideoData=()=>({video_id:'aaaaaaaaaaa'});f.tick();assert.equal(f.writes.length,1);
+});
+
+
+test('size waits for an initialised captions module and never repeats track writes',()=>{
+  const f=fixture(); let size, writes=0;
+  const oldGet=f.player.getOption, oldSet=f.player.setOption;
+  f.player.getOption=(mod,key)=>key==='fontSize'?size:oldGet(mod,key);
+  f.player.setOption=(mod,key,value)=>{if(key==='fontSize'){writes++;size=value;}else oldSet(mod,key,value);};
+  f.change('captionMode','on');f.change('captionSize','small');
+  assert.equal(writes,0); const tracks=f.writes.length;
+  f.tick();assert.equal(f.writes.length,tracks);
+  size=0; f.tick();assert.equal(writes,1);assert.equal(size,-1);
+  assert.match(f.api.status,/size applied/);
+  f.emit('canplay');assert.equal(writes,1);
+});
+test('a silently ignored caption font change is not reported as applied',()=>{
+  const f=fixture();f.player.setOption=()=>{};
+  f.change('captionSize','large');for(let i=0;i<25;i++)f.tick();
+  assert.equal(f.timers.size,0);assert.doesNotMatch(f.api.status,/size applied/);
+});
+
+
+test('YouTube default restores the original API size without undoing a manual change',()=>{
+  const f=fixture();f.change('captionSize','large');f.change('captionSize','youtube');
+  assert.equal(f.player.getOption('captions','fontSize'),0);
+  f.change('captionSize','extra');f.player.setOption('captions','fontSize',-1);
+  f.change('captionSize','youtube');assert.equal(f.player.getOption('captions','fontSize'),-1);
 });

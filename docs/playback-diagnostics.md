@@ -1,8 +1,9 @@
 # Playback diagnostics on TV
 
-Open the GREEN-button extras menu, select **Show / refresh playback report**
-under Diagnostics, and use Previous/Next to read the report. Refresh takes a
-new snapshot; there is no continuous polling while the menu is closed.
+Open **GREEN → Diagnostics**. The full snapshot appears automatically in one
+read-only textbox. Use the Magic Remote wheel, or Right to focus the report and
+Up/Down to scroll it. Left returns to categories. Reopening the category refreshes
+the snapshot; there is no polling, pagination or clipboard-copy control.
 
 The report contains the packaged application version, repository source SHA,
 Cobalt/Starboard versions, ARMv7 build architecture and allowlisted kernel architecture (from uname), numeric webOS release if
@@ -14,13 +15,6 @@ player's independent audio decoder is not observed by the video backend;
 its audio configuration is reported as unknown. The newer player snapshot
 rejects late updates from earlier sessions/generations and survives ring eviction.
 Queue values describe queued input, not private firmware buffer occupancy.
-
-**Copy diagnostic report** schedules SDL clipboard access on the Starboard
-application thread and confirms read-back before displaying “Report copied.”
-If the compositor/runtime has no usable clipboard, copying reports unavailable;
-the paged report remains readable. Copying never writes to a network service,
-GitHub, a user profile, or a permanent file. Clipboard interoperability on an
-actual webOS compositor still needs device validation.
 
 The build adds a small H5VCC binding (`h5vcc.system.getYtafMediaReport`, copy
 request/status, and numeric MediaSource tracing) to Cobalt's existing bindings.
@@ -36,7 +30,7 @@ Host regressions cover report bounds, validation of numeric trace arguments,
 stale-generation snapshots, ring/log budgets, remote activation once per press,
 clipboard confirmation/failure, and sampled MediaSource traces. ARM checks and
 the full Gold build validate native/IDL integration. Host tests cannot establish
-on-device playback or clipboard availability.
+on-device playback.
 
 ## Video quality preference
 

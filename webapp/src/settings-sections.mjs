@@ -17,7 +17,7 @@ export function settingsSectionFor(node) {
       ['__video_capabilities', '__sleep_timer', '__stop_after_video']
     ],
     ['captions', ['__captionMode', '__dearrow_mode']],
-    ['remote', ['__numeric_shortcuts', '__shortcut_key', '__remote_help']],
+    ['remote', ['__numeric_shortcuts', '__shortcut_0', '__remote_help']],
     [
       'sponsorblock',
       [
@@ -72,7 +72,7 @@ export function createSettingsSections(doc, nodes, onSelect) {
     nav.appendChild(row);
     buttons[key] = button;
     const pane = doc.createElement('div');
-    pane.className = 'ytaf-settings-section';
+    pane.className = 'ytaf-settings-section'; pane.id = '__settings_section_' + key;
     const heading = doc.createElement('h2');
     heading.textContent = label;
     const hint = doc.createElement('div');
