@@ -47,8 +47,12 @@ falls back to the existing factory.
 
 ## Verification and limits
 
-Playback-rate policy is also process-latched. Unknown devices default to pause
-and 1x. `YTAF_PLAYBACK_RATES=common` permits 0.5/0.75/1/1.25/1.5/1.75/2x.
+Playback-rate environment policy is process-latched. Unknown devices initially
+accept pause and 1x. In 2.6.2, an explicit custom speed selection or faster/slower
+shortcut calls `h5vcc.system.enableYtafPlaybackRates()` to enable common rates in
+that process before requesting them. The app saves the selected speed and
+reapplies its opt-in on the next launch. Environment overrides take precedence;
+`YTAF_PLAYBACK_RATES=common` permits 0.5/0.75/1/1.25/1.5/1.75/2x.
 `full-range` is an explicit developer experiment permitting 0.1–2x, rounded to
 millionths. Invalid overrides fail closed to 1x. These overrides require TV
 validation; policy admission does not prove firmware support. Repeated requests
