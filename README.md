@@ -6,16 +6,17 @@
 
 Unofficial Cobalt-based YouTube modification for LG webOS TVs with ad blocking and SponsorBlock support.
 
-**Current corrective build: [v2.6.5-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.5-beta.1)**
+**Current corrective build: [v2.6.6-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.6-beta.1)**
 
-- [Separate-ID IPK — installs alongside YouTube](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.5-beta.1/com.cobalt.youtube.adfree_2.6.5_arm.ipk)
-- [Original-ID IPK — replaces official YouTube](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.5-beta.1/youtube.leanback.v4_2.6.5_arm.ipk)
+- [Separate-ID IPK — installs alongside YouTube](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.6-beta.1/com.cobalt.youtube.adfree_2.6.6_arm.ipk)
+- [Original-ID IPK — replaces official YouTube](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.6-beta.1/youtube.leanback.v4_2.6.6_arm.ipk)
 
 Update the same package ID you already use, then fully close and reopen the app.
-This build fixes Cobalt caption styles not activating and Magic Remote cursor
-selection, retains black caption backing/outline, and shows measured size feedback.
-It includes the 2.6.3 playback fixes. Physical C3 validation still needs a retest;
-see the release notes for checks and limits.
+Custom captions now have a thin black outline around each letter, without a
+rectangular background. YouTube default restores YouTube’s own styling. The
+working 2.6.5 caption-size and Magic Remote selection fixes are retained.
+The user confirmed those fixes on an LG C3; the new outline was checked here
+without a connected TV. See the release notes for validation details.
 
 > This project is unofficial and is not affiliated with YouTube, Google, LG or webOS.
 
