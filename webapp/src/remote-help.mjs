@@ -1,8 +1,8 @@
-export function canUseNumericShortcuts(event, doc, enabled) {
+export function canUseNumericShortcuts(event, doc, enabled, homeRefresh = false) {
   if (!enabled || event.type !== 'keydown' || event.repeat ||
       event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
   const body = doc.body;
-  if (!body || !(body.classList.contains('WEB_PAGE_TYPE_WATCH') ||
+  if (!body || !(homeRefresh || body.classList.contains('WEB_PAGE_TYPE_WATCH') ||
                 body.classList.contains('WEB_PAGE_TYPE_SHORTS'))) return false;
   function editing(target) {
     for (let node = target; node; node = node.parentElement) {
@@ -20,7 +20,7 @@ export function createRemoteHelp(doc) {
   const panel = doc.createElement('div');
   const help = doc.createElement('div');
   help.className = 'ytaf-setting-help'; help.style.display = 'none';
-  help.textContent = 'GREEN or =: open settings. Wheel: scroll settings and option lists. Arrows: move. OK: open an option list or toggle a setting. Left/Right seeking can apply immediately or after a short pause; choose this under Playback. BACK: close settings. Number keys are customizable below Numeric playback shortcuts. Defaults: 0 captions, 1 slower, 3 faster. Stop after this video holds autoplay paused until Continue playback is selected. Speed support depends on the TV and native runtime. The sleep timer pauses playback, not the TV. Fully close and reopen the app after changing Video quality.';
+  help.textContent = 'GREEN or =: open settings. Wheel: scroll settings and option lists. Arrows: move. OK: open an option list or toggle a setting. Left/Right seeking can apply immediately or after a short pause; choose this under Playback. BACK: close settings. Number keys are customizable below Numeric playback shortcuts. Defaults: 0 captions, 1 slower, 3 faster. Assign Refresh Home recommendations to a number key to reload Home; it does not run during playback. Stop after this video holds autoplay paused until Continue playback is selected. Speed support depends on the TV and native runtime. The sleep timer pauses playback, not the TV. Fully close and reopen the app after changing Video quality.';
   const row = doc.createElement('div');
   const button = doc.createElement('div');
   button.id = '__remote_help'; button.tabIndex = 901;

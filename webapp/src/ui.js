@@ -14,6 +14,7 @@ import { createMenuBackGuard } from './menu-back-guard.mjs';
 import { createCaptionSettings } from './caption-preferences.mjs';
 import { createDeArrowSettings } from './dearrow.mjs';
 import { createShortcutHandler, createShortcutSettings } from './remote-shortcuts.mjs';
+import { createHomeRefresh, createHomeRefreshButton } from './home-refresh.mjs';
 import { createEndStopPanel } from './stop-after-video.mjs';
 import { createVideoCapabilitySetting } from './video-capability-setting.mjs';
 import { createPlaybackDiagnostics } from './playback-diagnostics.mjs';
@@ -319,6 +320,8 @@ export function userScriptStartUI() {
       callbackConfig('startupPage')
     )
   );
+  const refreshHome = createHomeRefresh(document, window, showNotification);
+  uiContainer.appendChild(createHomeRefreshButton(document, refreshHome));
   const videoQuality = createVideoCapabilitySetting(document, window, choiceTools);
   videoQuality.dataset.ytafSection = 'playback';
   uiContainer.appendChild(videoQuality);
@@ -631,6 +634,7 @@ export function userScriptStartUI() {
   }
 
   const handleNumericShortcut = createShortcutHandler(document, configRead, action => {
+    if (action === 'refresh_home') refreshHome();
     if (action === 'captions') toggleSubtitles((state, name) => {
       showNotification(text({on:'subtitleOn',off:'subtitleOff',unavailable:'subtitleUnavailable'}[state] || 'subtitleUnavailable') + (state === 'on' && name ? ` (${name})` : ''), 1800, 'green');
     });
@@ -639,7 +643,7 @@ export function userScriptStartUI() {
     if (action === 'end_stop') window.__ytafEndStop?.activate();
     if (action === 'cancel_timer') { window.__ytafSleepTimer?.timer.setMinutes(0); showNotification('Sleep timer cancelled.',2000,'green'); }
     if (action === 'skip' && !window.sponsorblock?.skipCurrentSegment()) showNotification('No skippable segment here.',2000,'green');
-  });
+  }, window);
 
   window.addEventListener('blur', () => handleNumericShortcut.reset());
   const menuBackGuard = createMenuBackGuard(isContainerOpen, closeContainer);

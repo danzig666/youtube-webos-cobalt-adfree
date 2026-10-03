@@ -1,6 +1,8 @@
+import { isHomeScreen } from './home-refresh.mjs';
 import { canUseNumericShortcuts } from './remote-help.mjs';
 export const shortcutOptions = [
   ['none', 'No action'],
+  ['refresh_home', 'Refresh Home recommendations'],
   ['captions', 'Toggle captions'],
   ['slower', 'Slower playback'],
   ['faster', 'Faster playback'],
@@ -18,7 +20,7 @@ export function shortcutAction(key, mapping) {
     ? value
     : { 0: 'captions', 1: 'slower', 3: 'faster' }[key] || 'none';
 }
-export function createShortcutHandler(doc, read, perform) {
+export function createShortcutHandler(doc, read, perform, win = doc.defaultView) {
   const held = new Set();
   const handler = (event, allowNew = true) => {
     const code = event.keyCode || event.which;
@@ -38,9 +40,11 @@ export function createShortcutHandler(doc, read, perform) {
       event.stopPropagation();
       return true;
     }
-    if (!allowNew || !canUseNumericShortcuts(event, doc, read('enableNumericShortcuts')))
-      return false;
     const action = shortcutAction(key, read('numericShortcutActions'));
+    const homeRefresh = action === 'refresh_home' && isHomeScreen(doc, win);
+    if (action === 'refresh_home' && !homeRefresh) return false;
+    if (!allowNew || !canUseNumericShortcuts(event, doc, read('enableNumericShortcuts'), homeRefresh))
+      return false;
     if (action === 'none') return false;
     held.add(key);
     event.preventDefault();

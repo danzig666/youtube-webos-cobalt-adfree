@@ -148,3 +148,26 @@ cancellation, resume expiry, failed pause, editable fields and menu focus.
 Production assets and both ARM Gold/IPK variants are validated before release.
 No TV is available: neither live UI compatibility nor sign-in/pairing is claimed
 verified. Keep publishing both IDs until separate-ID sign-in is confirmed.
+
+## Home refresh (2.6.7)
+
+General → Refresh Home recommendations reloads the YouTube Home page. Assign
+the same action to any key 0–9 under Remote; default key mappings remain intact.
+The master numeric-shortcut switch, editing protection and held-key suppression
+apply. It only activates on known Home routes and never during Watch/Shorts.
+If navigation begins during the brief notification, the pending refresh cancels.
+
+Cobalt 23 has no History.replaceState and recreates sessionStorage with Window.
+The action uses supported Location.replace with a transient Home query flag;
+later refreshes use Location.reload because identical replace URLs with a hash
+are ignored. Initial startup routing bypasses the saved startup page once per
+document when this flag is present. Ordinary relaunches still apply the saved
+preference, and fresh app launches start with their normal URL. The preference,
+accounts and bookmarks are not cleared. This is a page reload, not an unverified
+YouTube internal refresh endpoint. Recommendations may remain the same.
+
+Host regressions cover route restrictions, duplicate presses, navigation races,
+missing/failed navigation APIs, one-shot startup bypass and per-key activation.
+Browser integration checks exercise actual reloads and saved mappings on Home
+with History reduced to its Cobalt shape. Physical Home-route/API behavior still
+needs a TV check.
