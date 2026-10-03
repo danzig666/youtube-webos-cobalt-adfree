@@ -163,7 +163,8 @@
   position: fixed;
   right: 34px;
   bottom: 34px;
-  z-index: 12000;
+  z-index: 2147483647;
+  pointer-events: none;
   text-align: right;
   font:
     20px/1.4 Arial,

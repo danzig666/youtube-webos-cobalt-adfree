@@ -884,6 +884,8 @@ export function showNotification(text, time = 3000, variant = 'yellow') {
   const notificationContainer = document.querySelector('.ytaf-notification-container');
   if (!notificationContainer) return;
   notificationContainer.appendChild(elm);
+  // Keep feedback above a reopened settings surface without intercepting clicks.
+  (document.body || document.documentElement).appendChild(notificationContainer);
 
   setTimeout(() => {
     elmInner.classList.remove('message-hidden');
