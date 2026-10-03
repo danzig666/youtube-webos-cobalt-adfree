@@ -121,3 +121,10 @@ test('pending resume cancellation handles navigation, disabling, clearing and pa
     assert.equal(f.notifications.length,notifications,variant);
   }
 });
+test('an account seek already in flight is not restarted by a synthetic timeupdate',()=>{
+  const f=playbackFixture();f.video.currentTime=120;f.video.seeking=true;nativeReport(f,0);
+  const seeks=[];f.doc.player={getVideoData:()=>({video_id:'aaaaaaaaaaa'}),seekTo:time=>seeks.push(time)};
+  start(f);f.media('playing');f.media('timeupdate');assert.deepEqual(seeks,[]);
+  nativeReport(f,120.2,4,2);f.video.currentTime=120.2;f.video.seeking=false;f.media('seeked');
+  assert.deepEqual(seeks,[]);assert.equal(f.timers.size,0);assert.equal(f.notifications.length,0);
+});

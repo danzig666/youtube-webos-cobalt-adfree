@@ -3,14 +3,14 @@ import assert from 'node:assert/strict';
 import {startPlaybackSpeed} from '../src/playback-speed.mjs';
 import {playbackFixture} from './helpers/playback-fixture.mjs';
 function fixture(saved='youtube') {
-  const f=playbackFixture();let nativeRate=1,enabled=0,resets=0,position=0,frames=10,shared=true,generation=1;
+  const f=playbackFixture();let nativeRate=1,enabled=0,resets=0,position=0,frames=10,shared=true,generation=1;const resetPauses=[];
   f.video.playbackRate=1;f.settings.playbackSpeed=saved;
   f.win.h5vcc={system:{enableYtafPlaybackRates:()=>{enabled++;return true;},
-    resetYtafPlaybackRate:()=>{resets++;nativeRate=1;return true;},
+    resetYtafPlaybackRate:paused=>{resetPauses.push(paused);resets++;nativeRate=1;return true;},
     getYtafMediaReport:()=>`Current player: ${shared?'Shared':'Legacy'} Starfish\nSession: 8 generation: ${generation}\nPlayback rate: requested ${nativeRate}x applied ${nativeRate}x\nNative presentation: ${position} seconds\nPresented frames: ${frames}\n`}};
   const write=(key,value)=>{f.settings[key]=value;f.doc.emit('ytaf-config-changed',{detail:{key}});};
   const api=startPlaybackSpeed(f.doc,f.win,f.read,write,f.notify);
-  return {...f,api,native:value=>nativeRate=value,enabled:()=>enabled,resets:()=>resets,
+  return {...f,api,native:value=>nativeRate=value,enabled:()=>enabled,resets:()=>resets,resetPauses,
     frame(value){position=value;frames++;f.video.currentTime=value;},
     noFrames(){frames=0;},legacy(){shared=false;},generation(){generation++;frames=1;},
     progress(rate,seconds=4){for(let i=0;i<seconds*2;i++){position+=rate*.5;frames++;f.video.currentTime=position;f.advance(500);}}};
@@ -93,4 +93,9 @@ test('configuration dropdown uses the same request/reset path and does not recur
   assert.equal(f.video.playbackRate,.75);assert.equal(f.enabled(),1);assert.equal(f.notifications.length,1);
   f.settings.playbackSpeed='youtube';f.doc.emit('ytaf-config-changed',{detail:{key:'playbackSpeed'}});
   assert.equal(f.video.playbackRate,1);assert.equal(f.resets(),1);assert.equal(f.notifications.length,2);
+});
+
+test('reset without a visible media element cannot restart an old hidden native player',()=>{
+  const f=fixture();f.doc.video=null;f.api.reset();assert.deepEqual(f.resetPauses,[true]);
+  assert.equal(f.settings.playbackSpeed,'youtube');
 });

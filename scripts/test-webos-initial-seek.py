@@ -58,7 +58,8 @@ struct HTMLMediaElement {
  float last_seek_time_=0,webos_initial_playback_position_=0;
  scoped_refptr<TimeRanges> ranges{new TimeRanges};
  scoped_refptr<TimeRanges> seekable() const{return ranges;}
- float duration() const{return 300;}
+ float duration_value=300;
+ float duration() const{return duration_value;}
  void ScheduleOwnEvent(int){} void ScheduleTimeupdateEvent(bool){}
  void AddPlayedRange(float,float){}
  float current_time(script::ExceptionState*) const;
@@ -91,10 +92,11 @@ int main(){
  media.ranges->count=1;media.ApplyWebOsInitialPlaybackPosition();
  assert((media.instance.seeks==std::vector<float>{90}) && media.current_time(&error)==90);
  media.ApplyWebOsInitialPlaybackPosition();assert(media.instance.seeks.size()==1);
- HTMLMediaElement late;late.ready_state_=WebMediaPlayer::kReadyStateHaveMetadata;
+ HTMLMediaElement late;late.duration_value=0;late.ready_state_=WebMediaPlayer::kReadyStateHaveMetadata;
  late.set_current_time(80,&error);late.set_current_time(120,&error);
  assert(late.instance.seeks.empty() && late.webos_initial_playback_position_==120);
- late.ranges->count=1;late.ApplyWebOsInitialPlaybackPosition();
+ assert(late.current_time(&error)==120);
+ late.duration_value=300;late.ranges->count=1;late.ApplyWebOsInitialPlaybackPosition();
  assert((late.instance.seeks==std::vector<float>{120}));
  HTMLMediaElement zero;zero.set_current_time(90,&error);zero.set_current_time(0,&error);
  zero.ready_state_=WebMediaPlayer::kReadyStateHaveMetadata;zero.ranges->count=1;

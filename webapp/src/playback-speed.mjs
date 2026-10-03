@@ -17,7 +17,7 @@ export function startPlaybackSpeed(doc, win, read, write, notify) {
     try {if(video){video.defaultPlaybackRate=1;video.playbackRate=1;}} catch (_) {}
     // DOM SetRate may not reach a preroll/buffering pipeline. This bridge posts
     // a 1x recovery to the native worker without changing a genuine pause.
-    try {win.h5vcc?.system?.resetYtafPlaybackRate?.(Boolean(video?.paused));} catch (_) {}
+    try {win.h5vcc?.system?.resetYtafPlaybackRate?.(Boolean(!video || video.paused));} catch (_) {}
   }
   function reset() {normal();status('Normal playback speed: 1×');notify(api.status,2500,'green');return true;}
   function fail(current,text) {

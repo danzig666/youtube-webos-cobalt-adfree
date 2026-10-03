@@ -211,7 +211,7 @@ if ! grep -q 'ResetYtafPlaybackRate' "$cobalt_root/cobalt/h5vcc/h5vcc_system.h";
   git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-reset-playback-speed.patch"
   git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-reset-playback-speed.patch"
 fi
-if ! grep -q 'TimeRanges::Nearest(empty)' "$cobalt_root/cobalt/dom/html_media_element.cc"; then
+if ! grep -q 'Preserve the original target before duration clamping' "$cobalt_root/cobalt/dom/html_media_element.cc"; then
   git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-seekable-resume.patch"
   git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-seekable-resume.patch"
 fi

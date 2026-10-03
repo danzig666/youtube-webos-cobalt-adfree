@@ -1,4 +1,4 @@
-# LG C3 playback follow-up — 2.6.2
+# LG C3 playback follow-up — 2.6.2 / 2.6.3
 
 This update responds to physical Magic Remote selection failures, sticky option
 lists, caption sizes being overwritten, ineffective playback speed, missing
@@ -48,7 +48,8 @@ metadata can precede a seekable MSE range, and the real DOM method clamps a
 bookmark to zero through `TimeRanges::Nearest(empty)`. The new test compiles the
 real getter, setter and Seek, reproduces both the original exception and the
 2.6.2 seek-to-zero, then verifies the corrected pending target across late ranges,
-latest-target replacement, zero cancellation and resource reset. Native retry
+latest-target replacement, initial duration zero, pending getter readback, zero
+cancellation and resource reset. Deferral happens before duration clamping. Native retry
 hooks cover ready state, duration changes, time changes and playback progress.
 Local resume uses YouTube's public `seekTo` where available, verifies native frame
 position, retries at most three times and never claims success on setter readback.

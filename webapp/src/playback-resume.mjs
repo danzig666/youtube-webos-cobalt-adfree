@@ -134,7 +134,7 @@ export function startPlaybackResume(doc, win, read, save, notify) {
         if(state && (state.frames===0 || state.position<video.currentTime-3)) {
           // YouTube already supplied its account bookmark; do not replace it
           // with our local record, but verify that native playback gets there.
-          if(!['playing','timeupdate'].includes(event?.type))return;
+          if(video.seeking || !['playing','timeupdate'].includes(event?.type))return;
           beginRestore(Number(video.currentTime),'youtube');return;
         }
         session.restored=true;
