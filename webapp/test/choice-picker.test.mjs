@@ -89,15 +89,24 @@ test('Magic Remote Enter plus compatibility clicks on the opener leave the list 
     assert.deepEqual(f.writes,[]);f.key('BrowserBack',461);
   }
 });
-test('keyboard opening release cannot select a newly focused option from the same gesture',()=>{
-  const f=fixture();f.press('test');
-  const option=f.doc.body.children[0].children[2].children[0].children[1];
-  const event={button:0,preventDefault(){},stopPropagation(){}};
-  option.listeners.pointerup(event);option.listeners.mouseup(event);option.listeners.click(event);
-  assert.equal(f.choices.isOpen(),true);assert.deepEqual(f.writes,[]);
-  // A deliberate next pointer gesture can select normally.
-  f.doc.dispatchEvent({type:'pointerdown',target:option,...event});option.listeners.pointerup(event);
-  assert.deepEqual(f.writes,['b']);assert.equal(f.choices.isOpen(),false);
+test('Magic Remote release/click selects after keyboard opening even without a matching keyup or pointerdown',()=>{
+  for(const type of ['pointerup','mouseup','click']) {
+    const f=fixture();f.choices.open('test',13);
+    const option=f.doc.body.children[0].children[2].children[0].children[1];
+    const event={type,target:option,button:0,preventDefault(){this.prevented=true;},stopPropagation(){}};
+    f.doc.dispatchEvent(event);assert.equal(event.prevented,undefined);
+    option.listeners[type](event);
+    assert.deepEqual(f.writes,['b']);assert.equal(f.choices.isOpen(),false);
+  }
+});
+test('keyboard-opened list options are not blocked by the previous popup release guard',()=>{
+  const f=fixture();f.click('test');
+  f.doc.body.children[0].children[2].children[0].children[1].listeners.pointerup({preventDefault(){},stopPropagation(){}});
+  f.choices.open('test',13);
+  const option=f.doc.body.children[0].children[2].children[0].children[2];
+  const event={type:'click',target:option,button:0,preventDefault(){this.prevented=true;},stopPropagation(){}};
+  f.doc.dispatchEvent(event);assert.equal(event.prevented,undefined);option.listeners.click(event);
+  assert.deepEqual(f.writes,['b','c']);assert.equal(f.choices.isOpen(),false);
 });
 
 
@@ -109,4 +118,18 @@ test('mouse-only input can immediately reopen after a selection without lifting 
   const down={type:'mousedown',target:control,buttons:1,preventDefault(){this.prevented=true;},stopPropagation(){}};
   f.doc.dispatchEvent(down);assert.equal(down.prevented,undefined);f.click('test');
   assert.equal(f.choices.isOpen(),true);assert.deepEqual(f.writes,['b']);
+});
+
+
+test('options belong to the active settings surface and explicitly enable cursor hit testing',()=>{
+  const f=fixture(),owner=f.doc.createElement('div'),oldQuery=f.doc.querySelector;
+  f.doc.querySelector=s=>s==='.ytaf-ui-container'?owner:oldQuery(s);
+  f.choices.open('test');assert.equal(f.doc.body.children.length,0);
+  assert.equal(owner.children.length,1);assert.equal(owner.children[0].style.pointerEvents,'auto');
+  f.choices.close();assert.equal(owner.children.length,0);
+});
+test('mouse-only hover focuses the option that OK will select',()=>{
+  const f=fixture();f.choices.open('test');
+  const option=f.doc.body.children[0].children[2].children[0].children[2];
+  option.listeners.mousemove();f.key('Enter',13);assert.deepEqual(f.writes,['c']);
 });

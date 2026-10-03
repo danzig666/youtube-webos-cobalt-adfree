@@ -61,6 +61,7 @@ export function startCaptionPreferences(doc, win, read) {
     status: 'Uses YouTube caption settings.',
     render() {},
     check,
+    sizeReport() {sizing.refresh(); return sizing.report?.() || api.status;},
     manual() {
       key = getCurrentVideoId(win, doc, false);
       element = doc.querySelector('video');
@@ -262,7 +263,7 @@ export function startCaptionPreferences(doc, win, read) {
   check();
   return api;
 }
-export function createCaptionSettings(doc, win, choices, read, write) {
+export function createCaptionSettings(doc, win, choices, read, write, notify = () => {}) {
   const api = startCaptionPreferences(doc, win, read),
     panel = doc.createElement('div');
   for (const [key, label, options] of [
@@ -290,9 +291,14 @@ export function createCaptionSettings(doc, win, choices, read, write) {
     ]
   ])
     panel.appendChild(
-      choices.add('__' + key, label, read(key), options, (value) =>
-        write(key, value)
-      )
+      choices.add('__' + key, label, read(key), options, (value) => {
+        const result = write(key, value);
+        if (key === 'captionSize') {
+          const message = api.sizeReport?.() || 'Caption preference updated.';
+          notify(message, 2400, read('captionSize') === 'youtube' || message.endsWith('caption text applied.') ? 'green' : 'yellow');
+        }
+        return result;
+      })
     );
   const help = doc.createElement('div');
   help.className = 'ytaf-setting-help';
@@ -301,10 +307,11 @@ export function createCaptionSettings(doc, win, choices, read, write) {
   const state = doc.createElement('div');
   state.className = 'ytaf-setting-help';
   api.render = () => {
-    state.textContent = api.status;
+    state.textContent = captionSizeScale[read('captionSize')] !== undefined
+      ? api.sizeReport?.() || api.status : api.status;
   };
   api.render();
-  panel.appendChild(help);
   panel.appendChild(state);
+  panel.appendChild(help);
   return panel;
 }

@@ -21,7 +21,7 @@ interfaces, not LG APIs and not guaranteed on every TV-client version. Track
 preferences are requested once per video/configuration; manual caption choices
 cancel pending track requests. Missing languages retain the YouTube choice.
 
-As of 2.6.4, rendered caption sizing has exactly one owner: a persistent scoped
+As of 2.6.5, rendered caption sizing has exactly one owner: a persistent scoped
 stylesheet. The app does not additionally call the player `captions.fontSize`
 option when DOM sizing is available. Earlier releases used both paths, allowing
 YouTube's asynchronous API rerender to change the baseline. Extra small uses
@@ -31,11 +31,21 @@ replacement and adjusted proportionally when the viewport height changes.
 
 Rules cover fresh caption segments and known caption-window descendants before
 mutation delivery, so a replacement cue cannot paint once at YouTube's alternate
-size. Mutation callbacks update text-leaf markers within the same microtask,
+size. The stylesheet is filled before insertion and replaced when its rules change.
+Cobalt 23 parses HTMLStyleElement only on insertion/parser completion; changing
+textContent after attachment does not update its parsed sheet. The 2.6.4 build
+inserted an empty style, leaving Cobalt with an empty parsed sheet even though
+Chrome applied later text writes. This failure is reproduced with Cobalt’s real
+OnInsertedIntoDocument/Process methods and an insertion-only host DOM fixture.
+Computed font sizes are now checked before reporting the override as applied.
+Selection shows a toast, and renderer feedback appears before the longer help.
+
+Mutation callbacks update text-leaf markers within the same microtask,
 without waiting another animation frame. A 250 ms fallback scan handles clients
 with incomplete mutation delivery. No inline font writes compete with the
 renderer or overwrite its later updates. Matching nodes are released when
 removed; page exit removes the owned stylesheet, markers, observer and timer.
+Returning through pageshow restores the stylesheet and observation idempotently.
 
 Caption text has a black, 80%-opaque backing, including YouTube default, because
 some TV-client DOM renderers omit the backing shown by LG's official app. Custom
@@ -47,7 +57,8 @@ every styling option of LG's official YouTube client. Unsupported/canvas
 renderers remain unchanged. Player font API sizing is retained only as a
 fallback for environments without DOM sizing support.
 
-Host regressions cover stable baselines, replacement cues, resolution changes,
+Host regressions cover insertion-only style parsing, computed-size verification,
+stable baselines, replacement cues, resolution changes,
 black backing/outline, default restoration and absence of competing API writes.
 Browser checks at 720p/1080p measure each frame during cue and window replacement.
 They use sample caption DOM and cannot prove the C3's current YouTube renderer;

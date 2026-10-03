@@ -225,3 +225,13 @@ test('rendered captions have one size owner and never invoke the competing playe
   assert.equal(f.writes.filter(write=>write.key==='fontSize').length,0);
   f.change('captionSize','youtube');assert.equal(f.player.getOption('captions','fontSize'),0);
 });
+
+
+test('caption size selection gives feedback independently of player track readiness',()=>{
+  const f=menuFixture(),notes=[],settings={captionMode:'youtube',captionLanguage:'youtube',captionSize:'youtube'};
+  const win={__ytafCaptions:{status:'Waiting for metadata.',render(){},sizeReport:()=> 'Extra large caption text applied.'}};
+  createCaptionSettings(f.doc,win,f.choices,key=>settings[key],(key,value)=>settings[key]=value,(...args)=>notes.push(args));
+  f.choices.open('__captionSize');f.choose('__captionSize','extra');
+  assert.equal(settings.captionSize,'extra');assert.equal(notes[0][0],'Extra large caption text applied.');
+  assert.equal(notes[0][2],'green');
+});

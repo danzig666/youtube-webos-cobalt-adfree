@@ -374,7 +374,7 @@ export function userScriptStartUI() {
   ));
   uiContainer.appendChild(createShortcutSettings(document, choiceTools, configRead, configWrite));
   uiContainer.appendChild(createEndStopPanel(document, window, showNotification));
-  uiContainer.appendChild(createCaptionSettings(document, window, choiceTools, configRead, configWrite));
+  uiContainer.appendChild(createCaptionSettings(document, window, choiceTools, configRead, configWrite, showNotification));
   uiContainer.appendChild(createDeArrowSettings(document, window, choiceTools, configRead, configWrite));
   uiContainer.appendChild(createRemoteHelp(document));
   uiContainer.appendChild(

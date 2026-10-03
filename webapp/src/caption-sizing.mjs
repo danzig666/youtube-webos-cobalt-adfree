@@ -11,17 +11,25 @@ export function startCaptionSizing(doc, win, read) {
   const marked = new Map();
   let sheet = null, observer = null, timer = null;
   let base = null, referenceHeight = null;
+  let report = 'YouTube default text size.';
   const textSelector = segments + ',' + `[${attribute}]`;
   // Cover fresh cue nodes before MutationObserver sees them, including cues
   // replacing an entire window. Pixel sizes on parent/child never compound.
   const sizeSelector = textSelector + ',' + (windows + ',' + segments).split(',').map(s => s.trim() + ' *').join(',');
   function rules(text) {
-    if (!sheet && doc.createElement && (doc.head || doc.documentElement).appendChild) {
-      sheet = doc.createElement('style');
-      sheet.setAttribute?.('data-ytaf-caption-style', '');
-      (doc.head || doc.documentElement).appendChild(sheet);
-    }
-    if (sheet && sheet.textContent !== text) sheet.textContent = text;
+    if (sheet?.textContent === text && sheet.parentNode) return;
+    const parent = sheet?.parentNode || doc.head || doc.documentElement;
+    if (!doc.createElement || !parent?.appendChild) return;
+    // Cobalt 23 HTMLStyleElement parses on insertion only. Filling an already
+    // attached empty style, or editing its text later, does not update CSS.
+    const replacement = doc.createElement('style');
+    replacement.setAttribute?.('data-ytaf-caption-style', '');
+    const nonce = doc.querySelector?.('style[nonce]')?.getAttribute('nonce');
+    if (nonce) replacement.setAttribute('nonce', nonce);
+    replacement.textContent = text;
+    if (sheet?.parentNode) parent.replaceChild(replacement, sheet);
+    else parent.appendChild(replacement);
+    sheet = replacement;
   }
   function unmark(node, original) {
     if (original == null) node.removeAttribute?.(attribute);
@@ -56,12 +64,14 @@ export function startCaptionSizing(doc, win, read) {
     }
     // Default never writes font size, line height, colour or outline. Supply
     // the black caption backing missing from some TV-client DOM renderers.
+    let requestedPixels = null;
     let css = `${textSelector}{background-color:rgba(0,0,0,.8)!important;}`;
     if (scale !== undefined) {
       css += `${sizeSelector}{text-shadow:${captionOutline}!important;}`;
       if (base !== null) {
         const heightScale = (win.innerHeight || referenceHeight) / referenceHeight;
         const pixels = Math.round(base * heightScale * scale * 1000) / 1000;
+        requestedPixels = pixels;
         css += `${sizeSelector}{font-size:${pixels}px!important;line-height:1.25!important;}`;
       }
     } else {
@@ -69,7 +79,21 @@ export function startCaptionSizing(doc, win, read) {
       base = referenceHeight = null;
     }
     rules(css);
-    return scale !== undefined && base !== null ? nodes.size : 0;
+    // Finding text or writing CSS does not prove that Cobalt applied it.
+    // Read the computed font before reporting a successful size override.
+    let verified = 0;
+    if (requestedPixels !== null) {
+      for (const node of nodes) {
+        const actual = parseFloat(win.getComputedStyle(node).fontSize);
+        if (Number.isFinite(actual) && Math.abs(actual - requestedPixels) < .5) verified++;
+      }
+    }
+    const label = {smallest:'Extra small',small:'Small',normal:'Normal',large:'Large',extra:'Extra large'}[read('captionSize')];
+    report = scale === undefined ? 'YouTube default text size.' : verified > 0
+      ? `${label} caption text applied.` : nodes.size
+      ? `${label} selected, but the caption renderer has not applied it.`
+      : `${label} selected; waiting for visible caption text.`;
+    return verified;
   }
   function relevant(records) {
     const selector = windows + ',' + segments;
@@ -83,7 +107,8 @@ export function startCaptionSizing(doc, win, read) {
       (record.type === 'childList' && Array.from(record.addedNodes).concat(Array.from(record.removedNodes))
         .some(node => ancestor(node) || node.querySelector?.(selector))));
   }
-  if (win.MutationObserver && doc.documentElement) {
+  function observe() {
+    if (observer || !win.MutationObserver || !doc.documentElement) return;
     observer = new win.MutationObserver(records => {
       // Run within the mutation microtask, before the next paint. Do not wait
       // another animation frame and visibly flash YouTube's replacement size.
@@ -107,6 +132,11 @@ export function startCaptionSizing(doc, win, read) {
   });
   win.addEventListener('resize', apply);
   win.addEventListener('pagehide', stop);
+  win.addEventListener('pageshow', () => {
+    observe(); apply();
+    if (timer === null) timer = win.setTimeout?.(check, 250) ?? null;
+  });
+  observe();
   apply(); timer = win.setTimeout?.(check, 250) ?? null;
-  return {refresh: apply, stop};
+  return {refresh: apply, stop, report: () => report};
 }

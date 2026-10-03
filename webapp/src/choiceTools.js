@@ -62,6 +62,9 @@ function open(name, activationCode = null) {
   const control = entry.control;
   const owner = document.querySelector('.ytaf-ui-container') || document.body;
   const root = document.createElement('div'); root.className = 'ytaf-choice-popup';
+  // The YouTube page can disable its pointer surface during playback. Keep
+  // the option list on the active settings surface, with explicit hit testing.
+  root.style.pointerEvents = 'auto';
   const heading = document.createElement('div'); heading.className = 'ytaf-choice-heading';
   heading.textContent = entry.label; root.appendChild(heading);
   const hint = document.createElement('div'); hint.className = 'ytaf-choice-hint';
@@ -76,12 +79,12 @@ function open(name, activationCode = null) {
     node.textContent = option.label; node.tabIndex = 0; node.setAttribute('role', 'option');
     node.setAttribute('aria-selected', String(option.value === entry.value));
     node.addEventListener('focus', () => { if (popup) popup.index = i; });
-    node.addEventListener('pointermove', () => {if(popup?.name===name){popup.index=i;node.focus();}});
+    for (const type of ['pointermove','mousemove'])
+      node.addEventListener(type, () => {if(popup?.name===name){popup.index=i;node.focus();}});
     function activate(event) {
       consume(event);
       if (event.button !== undefined && event.button !== 0) return;
       if (popup?.name === name) {
-        if (popup.openingKey !== null) return;
         // Cobalt can hit-test compatibility mouseup/click again after this
         // pointerup removes the list. Consume the remainder of that gesture
         // at document capture, before an underlying switch sees it.
@@ -96,7 +99,7 @@ function open(name, activationCode = null) {
   });
   for (const type of ['pointerdown','pointerup','mousedown','mouseup','click'])
     root.addEventListener(type, consume);
-  viewport.appendChild(content); root.appendChild(viewport); (document.body || owner).appendChild(root);
+  viewport.appendChild(content); root.appendChild(viewport); owner.appendChild(root);
   // Keep the listbox inside the menu, including at 720p. It can scroll independently.
   const panel = owner.getBoundingClientRect?.() || {width: 900, height: 600, left: 0, top: 0};
   const anchor = control.parentElement.getBoundingClientRect?.() || {left: 220, top: 100, width: 500, bottom: 150};
@@ -106,7 +109,7 @@ function open(name, activationCode = null) {
   root.style.left = `${panel.left + Math.max(20, Math.min(anchor.left - panel.left, panel.width - width - 20))}px`;
   root.style.top = `${panel.top + Math.max(20, Math.min(anchor.bottom - panel.top + 6, panel.height - height - 20))}px`;
   viewport.style.height = `${Math.max(100, Math.min(entry.options.length * 50, height - 90))}px`;
-  popup = {name, root, viewport, content, nodes, index, offset: 0, control, openingKey: activationCode, openingReleased: false};
+  popup = {name, root, viewport, content, nodes, index, offset: 0, control};
   held = activationCode;
   control.setAttribute('aria-expanded', 'true'); focusOption();
 }
@@ -132,12 +135,10 @@ function handleKey(event) {
   consume(event);
   if (event.type === 'keyup') {
     popup.control.parentElement.dataset.ytafIgnoreClickUntil = String(Date.now() + 1000);
-    if (code === popup.openingKey) popup.openingReleased = true;
     held = null; return true;
   }
   if (event.type !== 'keydown' || held === code) return true;
   held = code;
-  popup.openingKey = null;
   if (code === 38 || code === 40) {
     popup.index = Math.max(0, Math.min(popup.nodes.length - 1, popup.index + (code === 40 ? 1 : -1)));
     focusOption();
@@ -181,16 +182,18 @@ function guardPointer(event) {
         }
       }
     }
-    if (popup?.openingReleased && popup.root.contains?.(event.target)) popup.openingKey = null;
   }
-  if (releaseGuardUntil > Date.now()) { consume(event); return; }
   if (popup?.control.parentElement.contains?.(event.target)) {
     // Magic Remote can emit Enter plus pointer/mouse events for one press.
     // The opener is not an outside click; its trailing events must not close
     // or immediately reopen the list. Repeated clicks leave the list open.
     consume(event); return;
   }
-  if (popup && !popup.root.contains?.(event.target)) {
+  // Visible options own their mouse events regardless of how the list was
+  // opened. Do not require another keyup or pointerdown to unlock them.
+  if (popup?.root.contains?.(event.target)) return;
+  if (releaseGuardUntil > Date.now()) { consume(event); return; }
+  if (popup) {
     guardRelease(event); consume(event); close(false);
   }
 }
