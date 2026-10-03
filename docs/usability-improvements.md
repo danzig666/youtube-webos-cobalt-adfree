@@ -185,3 +185,24 @@ attribute; they do not need URLSearchParams or a YouTube-provided polyfill.
 Browser reload checks also remove URL.searchParams. The Location.replace/reload
 path is retained; no guessed guide callback sequence is introduced. Device
 confirmation of the corrected action remains pending.
+
+### Light Home refresh (2.6.9)
+
+The user confirmed 2.6.8 refresh works on the C3 but starts with the YouTube logo.
+The action now prefers the guide renderer props.onSelect callbacks already used
+by startup-page routing: Library (or Subscriptions if Library is unavailable),
+then Home (FEwhat_to_watch). Settings closes for the round trip. No account,
+startup preference, session timer or JavaScript controller is reset on this path.
+It may briefly show the other browse page; it does not navigate to Shorts/video.
+
+Soft refresh requires both guide callbacks and a visible recognized video card.
+A bounded poll observes URL changes or the original Home card becoming removed/
+hidden; it handles clients that retain cards and do not update the URL. Home’s
+callback is re-read after departure, avoiding stale component instances. User
+arrows, BACK/GREEN, pointer navigation, playback, unrelated routes and page exit
+cancel pending work. Ignored callbacks/timeouts or lost Home hooks use the known
+reload fallback; that fallback can still show the startup logo. No guessed
+YouTube refresh request or undocumented LG API is added.
+
+Host and browser checks use sample sidebar/card behavior; they cannot prove the
+C3’s current guide shape or callback ordering. The lighter path needs TV testing.

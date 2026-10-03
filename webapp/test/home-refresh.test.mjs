@@ -106,3 +106,87 @@ test('Home refresh preserves unrelated parameters and normalizes only its marker
     const f=fixture(href,CobaltURL);assert.equal(f.refresh(),false);assert.equal(f.frames.length,0);
   }
 });
+
+function softFixture(constantUrl=false, hideInsteadOfRemove=false) {
+  const f=fixture(), calls=[], events=new Map();
+  let currentHome, awayCard=null;
+  const guides=[];
+  f.win.addEventListener=(type,fn)=>events.set(type,fn);
+  f.win.clearTimeout=()=>{};
+  function card() {return {connected:true,visible:true,getClientRects(){return this.visible?[{}]:[];}};}
+  currentHome=card();let cards=[currentHome];
+  function hide(node){node.visible=false;if(!hideInsteadOfRemove)node.connected=false;}
+  function setGuide(id,select) {
+    const node={__instance:{props:{data:{navigationEndpoint:{browseEndpoint:{browseId:id}}},onSelect:select}}};guides.push(node);return node;
+  }
+  const home=setGuide('FEwhat_to_watch',()=>{
+    calls.push('home');if(awayCard)hide(awayCard);currentHome=card();cards.push(currentHome);
+    if(!constantUrl)f.win.location.href='https://www.youtube.com/tv#/';
+  });
+  const away=setGuide('FElibrary',()=>{
+    calls.push('library');hide(currentHome);awayCard=card();cards.push(awayCard);
+    if(!constantUrl)f.win.location.href='https://www.youtube.com/tv#/browse/FElibrary';
+  });
+  f.doc.documentElement={contains:node=>node.connected};
+  f.doc.querySelectorAll=selector=>selector==='ytlr-guide-entry-renderer'?guides:cards;
+  let closes=0;
+  f.refresh=createHomeRefresh(f.doc,f.win,(...args)=>f.messages.push(args),()=>closes++);
+  return Object.assign(f,{calls,guides,home,away,events,tick(){assert.ok(f.frames.length);f.frames.shift()();},getCloses:()=>closes});
+}
+test('soft refresh selects Library and then fresh Home guide callback without replacing or reloading the app',()=>{
+  const f=softFixture();assert.equal(f.refresh(),true);assert.equal(f.refresh(),false);
+  f.tick();assert.deepEqual(f.calls,['library']);assert.equal(f.getCloses(),1);
+  // Navigation can replace guide component instances. Never invoke old props.
+  const original=f.home.__instance.props.onSelect;
+  f.home.__instance={props:{data:{navigationEndpoint:{browseEndpoint:{browseId:'FEwhat_to_watch'}}},onSelect:()=>{f.calls.push('fresh instance');original();}}};
+  f.tick();assert.deepEqual(f.calls,['library','fresh instance','home']);f.tick();
+  assert.equal(f.reloads,0);assert.equal(f.refresh(),true);
+  assert.match(f.messages[0][0],/without restarting/);
+});
+test('soft refresh observes cached hidden cards and constant-URL navigation instead of assuming a URL change',()=>{
+  const f=softFixture(true,true);f.refresh();f.tick();assert.deepEqual(f.calls,['library']);
+  f.tick();assert.deepEqual(f.calls,['library','home']);f.tick();assert.equal(f.reloads,0);assert.equal(f.refresh(),true);
+});
+test('slow Library navigation is observed before returning Home; ignored callbacks fall back finitely',()=>{
+  const f=softFixture();const select=f.away.__instance.props.onSelect;
+  f.away.__instance.props.onSelect=()=>f.calls.push('requested');
+  f.refresh();f.tick();for(let i=0;i<10;i++)f.tick();assert.deepEqual(f.calls,['requested']);
+  select();f.tick();assert.deepEqual(f.calls,['requested','library','home']);f.tick();assert.equal(f.reloads,0);
+  const ignored=softFixture();ignored.away.__instance.props.onSelect=()=>{};ignored.refresh();ignored.tick();
+  for(let i=0;i<30;i++)ignored.tick();assert.equal(ignored.reloads,1);
+});
+test('soft refresh returns from its own temporary page through the known reload fallback when Home hook disappears',()=>{
+  const f=softFixture();f.refresh();f.tick();f.home.__instance=null;f.tick();
+  assert.equal(f.reloads,1);assert.match(f.win.location.href,/ytaf_refresh_home=1/);assert.ok(!f.win.location.href.includes('FElibrary'));
+});
+test('unavailable soft prerequisites retain the working reload; Subscriptions can substitute for Library',()=>{
+  const f=softFixture();f.guides.splice(f.guides.indexOf(f.away),1);f.refresh();f.tick();assert.equal(f.reloads,1);assert.deepEqual(f.calls,[]);
+  const sub=softFixture(true);sub.away.__instance.props.data.navigationEndpoint.browseEndpoint.browseId='FEsubscriptions';
+  sub.refresh();sub.tick();sub.tick();sub.tick();assert.deepEqual(sub.calls,['library','home']);assert.equal(sub.reloads,0);
+});
+test('soft refresh cancels for playback or unrelated navigation without forcing Home or reloading',()=>{
+  for(const change of [f=>f.classes.add('WEB_PAGE_TYPE_WATCH'),f=>f.win.location.href='https://www.youtube.com/tv#/search']) {
+    const f=softFixture();f.refresh();f.tick();change(f);f.tick();assert.deepEqual(f.calls,['library']);assert.equal(f.reloads,0);
+  }
+});
+test('user navigation and page exit cancel pending soft return; activation releases do not',()=>{
+  for(const [type,event] of [['keydown',{key:'ArrowRight'}],['pointerdown',{target:{}}],['pagehide',{}]]) {
+    const f=softFixture();f.refresh();f.tick();f.events.get(type)(event);f.tick();assert.deepEqual(f.calls,['library']);assert.equal(f.reloads,0);
+  }
+  const f=softFixture();f.refresh();f.tick();f.events.get('mousedown')({target:{id:'__refresh_home'}});f.tick();assert.deepEqual(f.calls,['library','home']);
+});
+
+test('an ignored Home return recovers to Home with a bounded reload fallback',()=>{
+  const f=softFixture();f.home.__instance.props.onSelect=()=>f.calls.push('ignored home');
+  f.refresh();f.tick();f.tick();for(let i=0;i<30;i++)f.tick();assert.equal(f.reloads,1);
+  assert.ok(!f.win.location.href.includes('FElibrary'));
+});
+
+test('recovery from a marked away route changes its query to force Cobalt navigation, then skips startup once',()=>{
+  const f=softFixture();f.win.location.href='https://www.youtube.com/tv?ytaf_refresh_home=1#/';
+  const select=f.away.__instance.props.onSelect;
+  f.away.__instance.props.onSelect=()=>{select();f.win.location.href='https://www.youtube.com/tv?ytaf_refresh_home=1#/browse/FElibrary';};
+  f.refresh();f.tick();f.home.__instance=null;f.tick();
+  assert.equal(f.win.location.href,'https://www.youtube.com/tv?ytaf_refresh_home=2#/');
+  assert.equal(f.reloads,1);assert.equal(consumeHomeRefresh(f.win),true);assert.equal(consumeHomeRefresh(f.win),false);
+});

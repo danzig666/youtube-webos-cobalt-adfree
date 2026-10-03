@@ -320,7 +320,9 @@ export function userScriptStartUI() {
       callbackConfig('startupPage')
     )
   );
-  const refreshHome = createHomeRefresh(document, window, showNotification);
+  const refreshHome = createHomeRefresh(document, window, showNotification, () => {
+    if (isContainerOpen()) closeContainer();
+  });
   uiContainer.appendChild(createHomeRefreshButton(document, refreshHome));
   const videoQuality = createVideoCapabilitySetting(document, window, choiceTools);
   videoQuality.dataset.ytafSection = 'playback';

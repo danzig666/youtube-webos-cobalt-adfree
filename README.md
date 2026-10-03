@@ -24,7 +24,7 @@ The original ad blocking, Return YouTube Dislike, automatic account selection, s
 | Addition | What it does |
 | --- | --- |
 | Blue settings interface | Six categories, larger controls, visible focus, direct option lists and remembered menu position |
-| Home refresh | General-menu button and assignable number-key action; reloads Home recommendations without changing your startup preference |
+| Home refresh | General-menu button and assignable number-key action; tries a brief sidebar round trip, with full reload fallback |
 | Magic Remote support | Cursor selection and wheel scrolling in settings, option lists, help and diagnostics |
 | Video quality profiles | Safe 1080p SDR, 4K SDR or 4K HDR; saved on the TV and applied after a full restart |
 | SponsorBlock category actions | Auto skip, Ask first, Markers only or Off for each category |
@@ -41,7 +41,7 @@ The original ad blocking, Return YouTube Dislike, automatic account selection, s
 | Durable preferences | Private per-install saves, migration from older browser settings and visible save-failure feedback |
 | Two installable variants | Original-ID and separate-ID IPKs with matching runtime identities, build records and SHA-256 checksums |
 
-Press **GREEN** to open settings. Use arrows and **OK**, the cursor or the wheel; **BACK** cancels an option list first, then closes settings without closing the video. Default numeric shortcuts: **0** captions, **1** slower, **3** faster. Assign **Reset playback speed to 1×** or **Refresh Home recommendations** under Remote. Home refresh works only on Home and briefly reloads the page; YouTube decides which recommendations are returned.
+Press **GREEN** to open settings. Use arrows and **OK**, the cursor or the wheel; **BACK** cancels an option list first, then closes settings without closing the video. Default numeric shortcuts: **0** captions, **1** slower, **3** faster. Assign **Reset playback speed to 1×** or **Refresh Home recommendations** under Remote. Home refresh works only on Home. It tries a brief Library/Subscriptions round trip to avoid the startup logo; clients without usable sidebar controls fall back to a full reload. YouTube decides which recommendations are returned.
 
 Choose a quality profile your TV supports; restart to apply it. Custom speeds require shared A/V and reset each video. Bookmarks are local, exclude live/DVR and Shorts, and retain up to 100 unfinished VODs for 90 days. Timers pause playback, not the TV.
 
