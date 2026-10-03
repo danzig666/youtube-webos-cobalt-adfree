@@ -215,3 +215,13 @@ test('YouTube default restores the original API size without undoing a manual ch
   f.change('captionSize','extra');f.player.setOption('captions','fontSize',-1);
   f.change('captionSize','youtube');assert.equal(f.player.getOption('captions','fontSize'),-1);
 });
+
+test('rendered captions have one size owner and never invoke the competing player font API',()=>{
+  const f=fixture();delete f.win.__ytafCaptions;
+  f.doc.querySelectorAll=()=>[];f.doc.documentElement={contains:()=>true};
+  f.win.getComputedStyle=()=>({fontSize:'40px'});
+  startCaptionPreferences(f.doc,f.win,key=>f.settings[key]);
+  f.change('captionSize','large');f.emit('canplay');f.tick();
+  assert.equal(f.writes.filter(write=>write.key==='fontSize').length,0);
+  f.change('captionSize','youtube');assert.equal(f.player.getOption('captions','fontSize'),0);
+});

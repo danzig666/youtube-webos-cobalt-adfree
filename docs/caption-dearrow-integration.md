@@ -8,39 +8,50 @@ Backup/restore remains excluded.
 ## Captions
 
 GREEN exposes per-video Prefer on / Prefer off / YouTube choice, a preferred
-language, and YouTube default / Extra small / Small / Normal / Large / Extra large text. Default values leave
-YouTube untouched. Available tracks are matched by exact language then regional
+language, and YouTube default / Extra small / Small / Normal / Large / Extra large text. Default track and language values leave YouTube’s selections untouched;
+text has a black backing for visibility. Available tracks are matched by exact language then regional
 variant, preferring human captions within the same match. No translation is
 requested; unavailable languages preserve the current choice.
 
 The adapter uses the existing YouTube player element with capability checks for
-`getOption` / `setOption`. It reads `captions.tracklist` and `captions.track`;
-when Prefer on needs an unloaded module, it calls `loadModule('captions')` only
-if exposed. These track/module controls are internal YouTube interfaces, not
-LG APIs and not guaranteed on every TV-client version. The public YouTube
-[IFrame API](https://developers.google.com/youtube/iframe_api_reference#onApiChange)
-documents `captions.fontSize`: Small uses -1, Normal 0, Large 1 and Extra large 2.
-Size requests wait until the caption module exposes a numeric option and check
-read-back. Track selection is not repeated while waiting for font readiness.
+`getOption` / `setOption` to select tracks. It reads `captions.tracklist` and
+`captions.track`; when Prefer on needs an unloaded module, it calls
+`loadModule('captions')` only if exposed. These controls are internal YouTube
+interfaces, not LG APIs and not guaranteed on every TV-client version. Track
+preferences are requested once per video/configuration; manual caption choices
+cancel pending track requests. Missing languages retain the YouTube choice.
 
-On TV clients without those methods, the app styles rendered caption segments
-and text leaves in known caption windows. Extra small scales to 60%, Small 80%,
-Normal 100%, Large 125% and Extra large 150% of their original computed size.
-Mutation observation handles new text/segments; writes are idempotent and original
-inline styles are restored on YouTube default. This affects caption elements,
-not the native video plane or ordinary YouTube text. Unknown/canvas renderers
-cannot be sized through CSS. The C3's exact renderer is not available here and
-must be retested; API confirmation or matched text is required before reporting
-size as applied.
+As of 2.6.4, rendered caption sizing has exactly one owner: a persistent scoped
+stylesheet. The app does not additionally call the player `captions.fontSize`
+option when DOM sizing is available. Earlier releases used both paths, allowing
+YouTube's asynchronous API rerender to change the baseline. Extra small uses
+60%, Small 80%, Normal 100%, Large 125% and Extra large 150% of the first
+unmodified rendered size. That baseline is retained across cue/whole-window
+replacement and adjusted proportionally when the viewport height changes.
 
-Pending readiness is retried at most 20 times at 250 ms intervals. Writes are
-attempted once per current video/configuration; exceptions do not trigger repeat
-writes. Matching player identity is checked when `getVideoData` is available.
-Native caption-button activation and the caption shortcut cancel pending
-preferences. Settings explicitly changed in GREEN may request them again.
-Changing to YouTube choice stops future overrides; the current player state is
-not reset behind the user's back. Track feedback says “requested”; size feedback distinguishes pending controls
-from confirmed options or rendered text. Host tests cannot verify C3 rendering.
+Rules cover fresh caption segments and known caption-window descendants before
+mutation delivery, so a replacement cue cannot paint once at YouTube's alternate
+size. Mutation callbacks update text-leaf markers within the same microtask,
+without waiting another animation frame. A 250 ms fallback scan handles clients
+with incomplete mutation delivery. No inline font writes compete with the
+renderer or overwrite its later updates. Matching nodes are released when
+removed; page exit removes the owned stylesheet, markers, observer and timer.
+
+Caption text has a black, 80%-opaque backing, including YouTube default, because
+some TV-client DOM renderers omit the backing shown by LG's official app. Custom
+sizes also have an eight-direction black `text-shadow` outline, supported by
+Cobalt 23. YouTube default removes all app font-size, line-height and outline
+rules while leaving the current YouTube font, colour and text size intact. The
+black backing is an explicit visibility improvement, not a claim to reproduce
+every styling option of LG's official YouTube client. Unsupported/canvas
+renderers remain unchanged. Player font API sizing is retained only as a
+fallback for environments without DOM sizing support.
+
+Host regressions cover stable baselines, replacement cues, resolution changes,
+black backing/outline, default restoration and absence of competing API writes.
+Browser checks at 720p/1080p measure each frame during cue and window replacement.
+They use sample caption DOM and cannot prove the C3's current YouTube renderer;
+this corrective build still needs a device retest.
 
 ## DeArrow
 

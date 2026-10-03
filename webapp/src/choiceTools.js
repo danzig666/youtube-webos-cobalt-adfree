@@ -3,9 +3,12 @@ import './choiceTools.css';
 let choiceTabIndex = 100;
 const choices = {};
 let popup = null, held = null, released = null;
-let releaseGuardUntil = 0;
+let releaseGuardUntil = 0, pointerReleasePending = false;
 
-function guardRelease() { releaseGuardUntil = Date.now() + 750; }
+function guardRelease(event) {
+  releaseGuardUntil = Date.now() + 750;
+  pointerReleasePending = !event?.type || event.type.startsWith('pointer') || event.type.startsWith('key');
+}
 
 function consume(event) {
   event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation?.();
@@ -78,10 +81,11 @@ function open(name, activationCode = null) {
       consume(event);
       if (event.button !== undefined && event.button !== 0) return;
       if (popup?.name === name) {
+        if (popup.openingKey !== null) return;
         // Cobalt can hit-test compatibility mouseup/click again after this
         // pointerup removes the list. Consume the remainder of that gesture
         // at document capture, before an underlying switch sees it.
-        guardRelease(); select(name, option.value);
+        guardRelease(event); select(name, option.value);
       }
     }
     node.addEventListener('pointerup', activate);
@@ -102,7 +106,7 @@ function open(name, activationCode = null) {
   root.style.left = `${panel.left + Math.max(20, Math.min(anchor.left - panel.left, panel.width - width - 20))}px`;
   root.style.top = `${panel.top + Math.max(20, Math.min(anchor.bottom - panel.top + 6, panel.height - height - 20))}px`;
   viewport.style.height = `${Math.max(100, Math.min(entry.options.length * 50, height - 90))}px`;
-  popup = {name, root, viewport, content, nodes, index, offset: 0, control};
+  popup = {name, root, viewport, content, nodes, index, offset: 0, control, openingKey: activationCode, openingReleased: false};
   held = activationCode;
   control.setAttribute('aria-expanded', 'true'); focusOption();
 }
@@ -128,16 +132,18 @@ function handleKey(event) {
   consume(event);
   if (event.type === 'keyup') {
     popup.control.parentElement.dataset.ytafIgnoreClickUntil = String(Date.now() + 1000);
+    if (code === popup.openingKey) popup.openingReleased = true;
     held = null; return true;
   }
   if (event.type !== 'keydown' || held === code) return true;
   held = code;
+  popup.openingKey = null;
   if (code === 38 || code === 40) {
     popup.index = Math.max(0, Math.min(popup.nodes.length - 1, popup.index + (code === 40 ? 1 : -1)));
     focusOption();
   } else if (code === 13 || code === 32) {
     const {name, index} = popup;
-    released = code; guardRelease(); select(name, choices[name].options[index].value);
+    released = code; guardRelease(event); select(name, choices[name].options[index].value);
   } else if ([27,461,8,404,172].includes(code)) {
     released = code; close();
   }
@@ -145,6 +151,7 @@ function handleKey(event) {
 }
 function add(name, label, value, options, callback = null) {
   const wrapper = document.createElement('div'); wrapper.classList.add('choice-wrapper');
+  wrapper.dataset.ytafChoice = name;
   const description = document.createElement('div'); description.classList.add('desc'); description.textContent = label;
   const control = document.createElement('div'); control.id = name; control.classList.add('choice-value');
   control.tabIndex = choiceTabIndex++; control.dataset.ytafControl = 'choice';
@@ -163,10 +170,28 @@ function add(name, label, value, options, callback = null) {
 function guardPointer(event) {
   // A new pointerdown starts a deliberate gesture. A compatibility mousedown
   // after pointerup does not: do not let it reopen or toggle another control.
-  if (event.type === 'pointerdown') releaseGuardUntil = 0;
+  if (event.type === 'pointerdown' || event.type === 'mousedown') {
+    // A real mouse-only remote must also be able to start the next gesture.
+    // A compatibility mousedown after selection is not a new gesture.
+    if (event.type === 'pointerdown' || (event.buttons === 1 && !pointerReleasePending)) {
+      releaseGuardUntil = 0; pointerReleasePending = false;
+      if (held === null && released === null) {
+        for (let node = event.target; node; node = node.parentElement) {
+          if (node.dataset?.ytafChoice) {node.dataset.ytafIgnoreClickUntil = '0'; break;}
+        }
+      }
+    }
+    if (popup?.openingReleased && popup.root.contains?.(event.target)) popup.openingKey = null;
+  }
   if (releaseGuardUntil > Date.now()) { consume(event); return; }
+  if (popup?.control.parentElement.contains?.(event.target)) {
+    // Magic Remote can emit Enter plus pointer/mouse events for one press.
+    // The opener is not an outside click; its trailing events must not close
+    // or immediately reopen the list. Repeated clicks leave the list open.
+    consume(event); return;
+  }
   if (popup && !popup.root.contains?.(event.target)) {
-    guardRelease(); consume(event); close(false);
+    guardRelease(event); consume(event); close(false);
   }
 }
 for (const type of ['pointerdown','pointerup','mousedown','mouseup','click'])

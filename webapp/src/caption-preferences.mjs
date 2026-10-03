@@ -45,7 +45,8 @@ export function selectCaptionTrack(tracks, language) {
 }
 export function startCaptionPreferences(doc, win, read) {
   if (win.__ytafCaptions) return win.__ytafCaptions;
-  const sizing = doc.querySelectorAll && win.getComputedStyle
+  const domSizing = Boolean(doc.querySelectorAll && win.getComputedStyle);
+  const sizing = domSizing
     ? startCaptionSizing(doc, win, read) : {refresh: () => 0};
   const originalApiSizes = new Map();
   let fontRequested = false, trackRequested = false;
@@ -99,7 +100,7 @@ export function startCaptionPreferences(doc, win, read) {
     )
       ? read('captionLanguage')
       : 'youtube';
-    const size = { small: -1, normal: 0, large: 1, extra: 2 }[read('captionSize')];
+    const size = domSizing ? undefined : { small: -1, normal: 0, large: 1, extra: 2 }[read('captionSize')];
     const sizedText = sizing.refresh();
     const hasSize = captionSizeScale[read('captionSize')] !== undefined;
     if (mode === 'youtube' && language === 'youtube' && !hasSize) {
@@ -296,7 +297,7 @@ export function createCaptionSettings(doc, win, choices, read, write) {
   const help = doc.createElement('div');
   help.className = 'ytaf-setting-help';
   help.textContent =
-    'Track preferences apply once per video when supported. Text size also applies to rendered YouTube captions without the player API. YouTube default restores app size changes. No automatic translation; missing languages keep YouTube’s choice.';
+    'Track preferences apply once per video when supported. Rendered captions use one stable size, a black backing and, at custom sizes, a black outline. YouTube default leaves YouTube’s text size unchanged. No automatic translation; missing languages keep YouTube’s choice.';
   const state = doc.createElement('div');
   state.className = 'ytaf-setting-help';
   api.render = () => {

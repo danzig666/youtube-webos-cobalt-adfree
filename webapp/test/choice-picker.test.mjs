@@ -54,7 +54,7 @@ test('compatibility mouse events re-targeted under a dismissed popup cannot togg
   const checkbox=f.doc.createElement('div');let toggles=0;
   option.listeners.pointerup({button:0,preventDefault(){},stopPropagation(){}});
   for(const type of ['mousedown','mouseup','click']) {
-    const event={type,target:checkbox,preventDefault(){this.prevented=true;},stopPropagation(){}};
+    const event={type,target:checkbox,buttons:type==='mousedown'?1:0,preventDefault(){this.prevented=true;},stopPropagation(){}};
     f.doc.dispatchEvent(event);if(!event.prevented)toggles++;
     assert.equal(event.prevented,true,type);
   }
@@ -75,4 +75,38 @@ test('a callback recovery keeps the restored display instead of showing a reject
   const f=menuFixture();f.choices.add('speed','Speed','1',[{value:'1',label:'Normal'},{value:'2',label:'2x'}],()=>f.choices.setValue('speed','1'));
   f.choices.open('speed');f.choose('speed','2');assert.match(f.nodes.get('speed').textContent,/Normal/);
   assert.equal(f.choices.isOpen(),false);
+});
+
+test('Magic Remote Enter plus compatibility clicks on the opener leave the list open repeatedly',()=>{
+  const f=fixture(),control=f.nodes.get('test');
+  for(let iteration=0;iteration<5;iteration++) {
+    f.press('test');
+    for(const type of ['pointerdown','pointerup','mousedown','mouseup','click']) {
+      const event={type,target:control,button:0,preventDefault(){this.prevented=true;},stopPropagation(){}};
+      f.doc.dispatchEvent(event);assert.equal(event.prevented,true,type);
+      assert.equal(f.choices.isOpen(),true,type);
+    }
+    assert.deepEqual(f.writes,[]);f.key('BrowserBack',461);
+  }
+});
+test('keyboard opening release cannot select a newly focused option from the same gesture',()=>{
+  const f=fixture();f.press('test');
+  const option=f.doc.body.children[0].children[2].children[0].children[1];
+  const event={button:0,preventDefault(){},stopPropagation(){}};
+  option.listeners.pointerup(event);option.listeners.mouseup(event);option.listeners.click(event);
+  assert.equal(f.choices.isOpen(),true);assert.deepEqual(f.writes,[]);
+  // A deliberate next pointer gesture can select normally.
+  f.doc.dispatchEvent({type:'pointerdown',target:option,...event});option.listeners.pointerup(event);
+  assert.deepEqual(f.writes,['b']);assert.equal(f.choices.isOpen(),false);
+});
+
+
+test('mouse-only input can immediately reopen after a selection without lifting the pointer-release guard',()=>{
+  const f=fixture();f.click('test');
+  const option=f.doc.body.children[0].children[2].children[0].children[1];
+  option.listeners.mouseup({type:'mouseup',button:0,preventDefault(){},stopPropagation(){}});
+  const control=f.nodes.get('test');
+  const down={type:'mousedown',target:control,buttons:1,preventDefault(){this.prevented=true;},stopPropagation(){}};
+  f.doc.dispatchEvent(down);assert.equal(down.prevented,undefined);f.click('test');
+  assert.equal(f.choices.isOpen(),true);assert.deepEqual(f.writes,['b']);
 });

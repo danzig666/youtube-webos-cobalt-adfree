@@ -1,63 +1,64 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {startCaptionSizing} from '../src/caption-sizing.mjs';
-for (const cobalt of [false,true]) test(`caption text sizing and restoration with ${cobalt ? 'Cobalt' : 'browser'} CSS APIs`,()=>{
-  let size='youtube',attached=true,callback,observers=0,disconnected=0,writes=0;
-  const styles=new Map([['font-size',{value:'40px',priority:''}]]);
-  const node={style:{getPropertyValue:key=>styles.get(key)?.value||'',getPropertyPriority:key=>styles.get(key)?.priority||'',setProperty:(key,value,priority)=>{writes++;styles.set(key,{value,priority});},removeProperty:key=>styles.delete(key)}};
-  if(cobalt) {
-    delete node.style.getPropertyPriority;
-    node.style.setProperty=(key,value)=>{writes++;styles.set(key,{value,priority:''});};
-    Object.defineProperty(node.style,'cssText',{
-      get:()=>[...styles].map(([key,item])=>`${key}:${item.value}${item.priority?' !'+item.priority:''};`).join(''),
-      set:value=>{styles.clear();for(const declaration of value.split(';')){const [key,raw]=declaration.split(':');if(!raw)continue;styles.set(key.trim(),{value:raw.replace(/\s*!important\s*$/,'').trim(),priority:/!important/.test(raw)?'important':''});}}
-    });
+import {startCaptionSizing, captionOutline} from '../src/caption-sizing.mjs';
+function fixture(size='youtube') {
+  let callback, timer, clears=0, disconnected=0, inlineWrites=0;
+  const nodes=[];
+  const head={children:[],appendChild(node){this.children.push(node);node.parentNode=this;},removeChild(node){this.children=this.children.filter(n=>n!==node);}};
+  const events={}, windowEvents={};
+  const doc={head,createElement:()=>({textContent:'',setAttribute(){}}),documentElement:{contains:n=>nodes.includes(n)},
+    querySelectorAll:s=>s.startsWith('.ytp')?nodes:[],addEventListener:(key,fn)=>events[key]=fn};
+  const win={innerHeight:1080,addEventListener:(key,fn)=>windowEvents[key]=fn,
+    getComputedStyle:node=>({fontSize:node.naturalSize+'px'}),
+    setTimeout(fn,ms){assert.equal(ms,250);timer=fn;return 1;},clearTimeout(){clears++;timer=null;},
+    MutationObserver:class{constructor(fn){callback=fn;}observe(){}disconnect(){disconnected++;}}};
+  function node(size=40) {
+    const attrs=new Map();
+    const n={children:[],naturalSize:size,style:{setProperty(){inlineWrites++;}},
+      getAttribute:key=>attrs.get(key)??null,setAttribute:(key,value)=>attrs.set(key,value),removeAttribute:key=>attrs.delete(key)};
+    nodes.push(n);return n;
   }
-
-  const doc={documentElement:{contains:()=>attached},querySelectorAll:selector=>attached && selector.startsWith('.ytp') ? (cobalt ? {0:node,length:1} : [node]) : (cobalt ? {length:0} : [])};
-  const win={getComputedStyle:()=>({fontSize:'40px'}),addEventListener(){},requestAnimationFrame:fn=>{callback=fn;return 1;},cancelAnimationFrame(){},MutationObserver:class{constructor(fn){this.fn=fn;observers++;}observe(){}disconnect(){disconnected++;}}};
-  const api=startCaptionSizing(doc,win,()=>size);assert.equal(observers,0);
-  for(const [setting,pixels] of [['smallest','24px'],['small','32px'],['large','50px'],['extra','60px'],['normal','40px']]) {
-    size=setting;assert.equal(api.refresh(),1);assert.equal(styles.get('font-size').value,pixels);assert.equal(styles.get('font-size').priority,'important');
+  const first=node();const api=startCaptionSizing(doc,win,()=>size);
+  return {doc,win,first,nodes,node,api,windowEvents,
+    css:()=>head.children[0]?.textContent||'',change:value=>{size=value;events['ytaf-config-changed']({detail:{key:'captionSize'}});},
+    mutation:records=>callback(records),tick:()=>timer(),get timer(){return timer;},get clears(){return clears;},
+    get disconnected(){return disconnected;},get inlineWrites(){return inlineWrites;}};
+}
+test('default keeps YouTube size and outline untouched while providing black caption backing',()=>{
+  const f=fixture();assert.match(f.css(),/background-color:rgba\(0,0,0,.8\)!important/);
+  assert.doesNotMatch(f.css(),/font-size|line-height|text-shadow/);assert.equal(f.inlineWrites,0);
+});
+test('every custom size uses one stable baseline and a Cobalt-compatible black outline',()=>{
+  const f=fixture();
+  for(const [size,pixels] of [['smallest',24],['small',32],['normal',40],['large',50],['extra',60]]) {
+    f.change(size);assert.match(f.css(),new RegExp('font-size:'+pixels+'px!important'));
+    assert.ok(f.css().includes('text-shadow:'+captionOutline+'!important'));
   }
-  const previousWrites=writes;api.refresh();assert.equal(writes,previousWrites);
-  assert.equal(observers,1);size='youtube';api.refresh();assert.equal(disconnected,1);assert.deepEqual(styles.get('font-size'),{value:'40px',priority:''});assert.equal(styles.has('line-height'),false);
-  size='large';api.refresh();attached=false;api.refresh();assert.deepEqual(styles.get('font-size'),{value:'40px',priority:''});
+  const original=f.css();f.tick();assert.equal(f.css(),original);assert.equal(f.inlineWrites,0);
 });
-
-
-test('caption observation ignores unrelated animation and coalesces caption changes',()=>{
-  let callback,queued=0,frame;
-  const doc={documentElement:{contains:()=>true},querySelectorAll:()=>({length:0})};
-  const win={getComputedStyle(){},addEventListener(){},requestAnimationFrame:fn=>{queued++;frame=fn;return queued;},cancelAnimationFrame(){},MutationObserver:class{constructor(fn){callback=fn;}observe(){}disconnect(){}}};
-  startCaptionSizing(doc,win,()=> 'large');
-  const other={matches:()=>false,querySelector:()=>null};
-  callback([{type:'attributes',target:other}]);assert.equal(queued,0);
-  const caption={matches:()=>true};
-  const record={type:'childList',target:other,addedNodes:{0:caption,length:1},removedNodes:{length:0}};
-  callback([record]);callback([record]);assert.equal(queued,1);frame();
-  callback([{type:'attributes',target:caption}]);assert.equal(queued,2);
+test('silent cue/parent style changes and complete cue replacement cannot redefine size',()=>{
+  const f=fixture('extra');f.first.naturalSize=80;f.tick();assert.match(f.css(),/font-size:60px!important/);
+  f.nodes.length=0;const replacement=f.node(100);
+  f.mutation([{type:'childList',target:{matches:()=>true}}]);
+  assert.match(f.css(),/font-size:60px!important/);assert.equal(f.first.getAttribute('data-ytaf-caption-text'),null);
+  assert.equal(replacement.getAttribute('data-ytaf-caption-text'),'');
+  // The rule covers unobserved fresh segments too, without another RAF/paint.
+  assert.match(f.css(),/\.ytp-caption-segment/);assert.match(f.css(),/caption-window.* \*/);
 });
-
-test('persistent rules and watchdog survive silent YouTube style replacement, then fully stop on default',()=>{
-  let size='extra',timer,callback,clears=0,removed=0;
-  const attributes=new Map(),values=new Map([['font-size','40px']]),priorities=new Map();
-  const node={children:[],style:{getPropertyValue:key=>values.get(key)||'',getPropertyPriority:key=>priorities.get(key)||'',
-    setProperty(key,value,level){values.set(key,value);priorities.set(key,level);},removeProperty(key){values.delete(key);priorities.delete(key);}},
-    getAttribute:key=>attributes.get(key)??null,setAttribute:(key,value)=>attributes.set(key,value),removeAttribute:key=>attributes.delete(key)};
-  const head={children:[],appendChild(node){this.children.push(node);node.parentNode=this;},removeChild(node){this.children=this.children.filter(n=>n!==node);removed++;}};
-  const doc={head,createElement:()=>({textContent:''}),documentElement:{contains:()=>true},
-    querySelectorAll:selector=>selector.startsWith('.ytp')?[node]:[]};
-  const win={addEventListener(){},getComputedStyle:()=>({fontSize:values.get('font-size')}),
-    setTimeout(fn,delay){assert.equal(delay,250);timer=fn;return 1;},clearTimeout(){clears++;timer=null;},
-    requestAnimationFrame:()=>1,cancelAnimationFrame(){},MutationObserver:class{constructor(fn){callback=fn;}observe(){}disconnect(){}}};
-  const api=startCaptionSizing(doc,win,()=>size);
-  assert.match(head.children[0].textContent,/font-size:60px!important/);
-  values.set('font-size','40px');priorities.set('font-size','');
-  // No mutation is delivered, as can happen for Cobalt CSS property writes.
-  timer();assert.equal(values.get('font-size'),'60px');assert.equal(priorities.get('font-size'),'important');
-  assert.match(head.children[0].textContent,/font-size:60px!important/);
-  size='youtube';api.refresh();assert.equal(timer,null);assert.equal(clears,1);
-  assert.equal(removed,1);assert.equal(attributes.size,0);assert.equal(values.get('font-size'),'40px');
-  assert.equal(typeof callback,'function');
+test('default removes only app font/outline rules and preserves later YouTube styles',()=>{
+  const f=fixture('extra');f.first.naturalSize=46;f.change('youtube');
+  assert.doesNotMatch(f.css(),/font-size|line-height|text-shadow/);assert.equal(f.first.naturalSize,46);
+  f.change('large');assert.match(f.css(),/font-size:57.5px!important/);
+  assert.equal(f.inlineWrites,0);
+});
+test('caption observation ignores unrelated animation and applies relevant cues before paint',()=>{
+  const f=fixture('large');const original=f.css();f.first.naturalSize=48;
+  f.mutation([{type:'attributes',target:{matches:()=>false}}]);assert.equal(f.css(),original);
+  f.nodes.length=0;const next=f.node();f.mutation([{type:'childList',target:{matches:()=>false},addedNodes:[{querySelector:()=>next}],removedNodes:[]}]);
+  assert.equal(next.getAttribute('data-ytaf-caption-text'),'');assert.match(f.css(),/font-size:50px!important/);
+});
+test('resolution change scales stable caption pixels; page exit removes owned rules and timer',()=>{
+  const f=fixture('extra');f.win.innerHeight=720;f.windowEvents.resize();assert.match(f.css(),/font-size:40px!important/);
+  f.windowEvents.pagehide();assert.equal(f.timer,null);assert.equal(f.clears,1);assert.equal(f.disconnected,1);
+  assert.equal(f.css(),'');assert.equal(f.first.getAttribute('data-ytaf-caption-text'),null);
 });
