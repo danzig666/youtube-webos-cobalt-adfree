@@ -6,6 +6,7 @@ import './navigation-checkbox.js';
 import './ui.css';
 import { startPlaybackResume } from './playback-resume.mjs';
 import { createPlaybackSeek } from './playback-seek.mjs';
+import { createSeekPreview } from './seek-preview.mjs';
 import { startPlaybackSpeed, playbackRates } from './playback-speed.mjs';
 import { ensureSettingsMounted } from './settings-mount.mjs';
 import { createSettingsSections } from './settings-sections.mjs';
@@ -353,7 +354,7 @@ export function userScriptStartUI() {
     configRead('rememberPlaybackPosition'), callbackConfig('rememberPlaybackPosition')));
   playbackPreferences.appendChild(choiceTools.add('__seek_behavior', 'Left / Right seeking', configRead('seekBehavior'), [
     {value:'youtube',label:'YouTube default (OK to confirm)'},
-    {value:'immediate',label:'Quickly (80 ms after last press)'},
+    {value:'immediate',label:'Quickly (200 ms after last press)'},
     {value:'delayed',label:'After a short pause (300 ms)'}
   ], callbackConfig('seekBehavior')));
   const playbackHint = document.createElement('div'); playbackHint.className='ytaf-setting-help';
@@ -365,13 +366,7 @@ export function userScriptStartUI() {
   clearPositions.textContent='Clear saved playback positions';clearPositions.__ytafActivate=()=>resume.clear();
   clearPositions.addEventListener('click',()=>{if(Number(clearRow.dataset.ytafIgnoreClickUntil||0)<=Date.now())resume.clear();});
   clearRow.appendChild(clearPositions);playbackPreferences.appendChild(clearRow);uiContainer.appendChild(playbackPreferences);
-  let seekPreview=null;
-  const handlePlaybackSeek=createPlaybackSeek(document,window,configRead,target=>{
-    if(target===null){if(seekPreview?.parentNode)seekPreview.parentNode.removeChild(seekPreview);seekPreview=null;return;}
-    if(!seekPreview){seekPreview=document.createElement('div');seekPreview.className='ytaf-seek-preview';seekPreview.setAttribute('role','status');document.body.appendChild(seekPreview);}
-    const seconds=Math.floor(target), minutes=Math.floor(seconds/60);
-    seekPreview.textContent=`Seek to ${minutes}:${String(seconds%60).padStart(2,'0')}`;
-  },showNotification);
+  const handlePlaybackSeek=createPlaybackSeek(document,window,configRead,createSeekPreview(document,window),showNotification);
 
   uiContainer.appendChild(checkboxTools.add(
     '__numeric_shortcuts', 'Numeric playback shortcuts',

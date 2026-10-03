@@ -44,14 +44,15 @@ export function createPlaybackSeek(doc, win, read, preview, notify) {
   function commit() {
     const ticket = pending;
     if (timer !== null) win.clearTimeout(timer);
-    timer=null;pending=null;preview(null);
-    if (!current(ticket) || !canSeekFromFocus(doc, ticket.video)) {applied=null;return;}
+    timer=null;pending=null;
+    if (!current(ticket) || !canSeekFromFocus(doc, ticket.video)) {applied=null;preview(null);return;}
     const value = seekTarget(ticket.video, ticket.target);
-    if (value === null) return;
+    if (value === null) {preview(null);return;}
     try {
       ticket.video.currentTime = value;
       applied = {...ticket,target:value,at:now()};
-    } catch (_) {applied=null;notify('Could not seek. Use YouTube’s seek controls.',4000,'yellow');}
+      preview(value,ticket.video,'applied');
+    } catch (_) {applied=null;preview(null);notify('Could not seek. Use YouTube’s seek controls.',4000,'yellow');}
   }
   function handler(event, allowNew = true) {
     const code = event.keyCode || event.which || ({ArrowLeft:37,ArrowRight:39,Enter:13,Escape:27,BrowserBack:461,Backspace:8}[event.key]);
@@ -77,9 +78,9 @@ export function createPlaybackSeek(doc, win, read, preview, notify) {
     const target = seekTarget(video, base+(code===39?10:-10));
     if (target === null) return false;
     consume(event);held.add(code);lastDirection=code;lastPress=now();
-    pending={id,video,target};preview(target);
+    pending={id,video,target};preview(target,video);
     if (timer !== null) win.clearTimeout(timer);
-    timer=win.setTimeout(commit,read('seekBehavior') === 'immediate' ? 80 : 300);
+    timer=win.setTimeout(commit,read('seekBehavior') === 'immediate' ? 200 : 300);
     return true;
   }
   for (const type of ['loadedmetadata','emptied','ytaf-menu-opened','yt-navigate-finish']) doc.addEventListener(type,cancel,true);

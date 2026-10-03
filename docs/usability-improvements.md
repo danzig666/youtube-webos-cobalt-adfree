@@ -299,3 +299,16 @@ initialization saves all such changes in one preferences write and preserves
 other mappings. Even before migration (or if a save fails), action resolution
 treats the removed identifier as inactive. The tested soft command, Home-only
 guards and compatibility sidebar path retain their existing behavior.
+
+### Visible debounced seeking (2.6.13)
+
+Quick seeking now waits **200 ms after the last Left/Right press**, instead of
+80 ms. Separate taps 120 ms apart combine into one native seek; the optional
+300 ms mode and YouTube's default confirmation controls remain available.
+
+Automatic seek shows the requested destination on the visible YouTube timeline
+with a blue marker and timestamp. If YouTube controls are hidden, a temporary
+bottom timeline shows the current position and target instead. The preview
+stays for 900 ms after applying the seek and disappears on navigation, menu
+opening, cancellation or failure. Live DVR uses its seekable window. This
+overlay does not alter YouTube's renderer or handle pointer input.

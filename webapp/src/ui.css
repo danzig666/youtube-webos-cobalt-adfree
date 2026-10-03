@@ -236,4 +236,9 @@
 .ytaf-diagnostics-report:focus { border-color: #85c5ff; }
 @media (max-width:1300px) { .ytaf-settings-nav { width:190px; } .ytaf-ui-viewport { margin-left:214px; } .ytaf-settings-tab { font-size:18px; padding:12px 14px; } }
 
-.ytaf-seek-preview {position:fixed;z-index:2147483646;bottom:18%;left:38%;width:24%;box-sizing:border-box;padding:16px 24px;border:2px solid #85c5ff;border-radius:14px;background:#152b45;color:#eef4ff;text-align:center;font:24px/1.4 Arial,sans-serif;pointer-events:none;}
+.ytaf-seek-preview {position:fixed;z-index:2147483646;height:6px;background:#627184;border-radius:3px;pointer-events:none;}
+.ytaf-seek-preview-native {background:transparent;}
+.ytaf-seek-fill {position:absolute;left:0;top:0;height:100%;background:#65b9ff;border-radius:3px;}
+.ytaf-seek-current {position:absolute;top:-3px;width:3px;height:12px;background:#fff;}
+.ytaf-seek-marker {position:absolute;top:-5px;margin-left:-8px;width:16px;height:16px;border-radius:8px;background:#85c5ff;box-shadow:0 0 0 2px #152b45;}
+.ytaf-seek-label {position:absolute;bottom:22px;margin-left:-130px;width:260px;color:#fff;text-align:center;font:22px/1.4 Arial,sans-serif;text-shadow:-1px -1px 2px #000,1px 1px 2px #000;}
