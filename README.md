@@ -6,12 +6,12 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 ## Download and install
 
-**[Latest release: v2.6.7-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.7-beta.1)**
+**[Latest release: v2.6.8-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.8-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
-| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.7-beta.1/com.cobalt.youtube.adfree_2.6.7_arm.ipk) | Installs alongside official YouTube |
-| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.7-beta.1/youtube.leanback.v4_2.6.7_arm.ipk) | **Replaces official YouTube** |
+| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.8-beta.1/com.cobalt.youtube.adfree_2.6.8_arm.ipk) | Installs alongside official YouTube |
+| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.8-beta.1/youtube.leanback.v4_2.6.8_arm.ipk) | **Replaces official YouTube** |
 
 Install using webOS Device Manager or `ares-cli` with Developer Mode, or Homebrew Channel on a compatible setup. Update the same package ID you already use, then fully close and reopen the app. Checksums and build records accompany each release.
 
@@ -49,6 +49,8 @@ YouTube default restores native caption styling. DeArrow sends visible video IDs
 
 ## Fixes and playback hardening
 
+- **Home refresh:** fixed the silent Home-detection failure caused by Cobalt lacking `URL.searchParams`; refresh now uses its supported query-string interface.
+
 - **Settings:** fixed adblock preference saving, malformed configuration recovery, BACK closing the video, the off-centre close icon, the empty blue notification pill and QR controls appearing on every category.
 - **Option lists:** fixed cursor selection, open/close flicker, stale popups after category changes, duplicate key/mouse activation and clicks passing through to underlying switches. Remote keys now have individual selectors.
 - **Captions:** fixed styles not activating on Cobalt, sizes being overwritten by YouTube and competing font-size updates. Added smaller sizes, stable sizing across cue replacement, measured feedback and the thin outline without a black bar.
@@ -59,7 +61,7 @@ YouTube default restores native caption styling. DeArrow sends visible video IDs
 - **Diagnostics and packaging:** replaced paged reports with one scrollable textbox and removed unusable clipboard copy. Fixed MSE trace attribution/error handling, dependency inspection, runtime-library inclusion and non-root package permissions.
 - **Development:** added SDK-free native host tests, a scheduled full Gold ARM build workflow, device-report templates and a compatibility-matrix generator. Scheduled builds activate on the default branch; they do not publish stable releases.
 
-The LG C3 user confirmed caption sizing and Magic Remote selection work in 2.6.5. The current release passes browser checks, 196 web tests and both ARM builds. **Playback resume, fractional speeds, live/DVR, HDR, lifecycle recovery and intermittent disappearing controls still need device validation; the controls issue is not confirmed resolved.** AAC retains its existing decoder path; legacy playback and `YTAF_SHARED_AV=0` rollback remain available.
+The LG C3 user confirmed caption sizing and Magic Remote selection work in 2.6.5. The current release passes browser checks, 198 web tests and both ARM builds. **Playback resume, fractional speeds, live/DVR, HDR, lifecycle recovery and intermittent disappearing controls still need device validation; the controls issue is not confirmed resolved.** AAC retains its existing decoder path; legacy playback and `YTAF_SHARED_AV=0` rollback remain available.
 
 ## Screenshots
 
