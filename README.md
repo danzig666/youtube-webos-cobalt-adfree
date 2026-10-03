@@ -6,12 +6,12 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 ## Download and install
 
-**[Latest release: v2.6.8-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.8-beta.1)**
+**[Latest release: v2.6.9-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.9-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
-| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.8-beta.1/com.cobalt.youtube.adfree_2.6.8_arm.ipk) | Installs alongside official YouTube |
-| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.8-beta.1/youtube.leanback.v4_2.6.8_arm.ipk) | **Replaces official YouTube** |
+| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.9-beta.1/com.cobalt.youtube.adfree_2.6.9_arm.ipk) | Installs alongside official YouTube |
+| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.9-beta.1/youtube.leanback.v4_2.6.9_arm.ipk) | **Replaces official YouTube** |
 
 Install using webOS Device Manager or `ares-cli` with Developer Mode, or Homebrew Channel on a compatible setup. Update the same package ID you already use, then fully close and reopen the app. Checksums and build records accompany each release.
 
@@ -24,7 +24,7 @@ The original ad blocking, Return YouTube Dislike, automatic account selection, s
 | Addition | What it does |
 | --- | --- |
 | Blue settings interface | Six categories, larger controls, visible focus, direct option lists and remembered menu position |
-| Home refresh | General-menu button and assignable number-key action; reloads Home recommendations without changing your startup preference |
+| Home refresh | General-menu button and assignable number-key action; tries a brief sidebar round trip, with full reload fallback |
 | Magic Remote support | Cursor selection and wheel scrolling in settings, option lists, help and diagnostics |
 | Video quality profiles | Safe 1080p SDR, 4K SDR or 4K HDR; saved on the TV and applied after a full restart |
 | SponsorBlock category actions | Auto skip, Ask first, Markers only or Off for each category |
@@ -41,7 +41,7 @@ The original ad blocking, Return YouTube Dislike, automatic account selection, s
 | Durable preferences | Private per-install saves, migration from older browser settings and visible save-failure feedback |
 | Two installable variants | Original-ID and separate-ID IPKs with matching runtime identities, build records and SHA-256 checksums |
 
-Press **GREEN** to open settings. Use arrows and **OK**, the cursor or the wheel; **BACK** cancels an option list first, then closes settings without closing the video. Default numeric shortcuts: **0** captions, **1** slower, **3** faster. Assign **Reset playback speed to 1×** or **Refresh Home recommendations** under Remote. Home refresh works only on Home and briefly reloads the page; YouTube decides which recommendations are returned.
+Press **GREEN** to open settings. Use arrows and **OK**, the cursor or the wheel; **BACK** cancels an option list first, then closes settings without closing the video. Default numeric shortcuts: **0** captions, **1** slower, **3** faster. Assign **Reset playback speed to 1×** or **Refresh Home recommendations** under Remote. Home refresh works only on Home. It tries a brief Library/Subscriptions round trip to avoid the startup logo; clients without usable sidebar controls fall back to a full reload. YouTube decides which recommendations are returned.
 
 Choose a quality profile your TV supports; restart to apply it. Custom speeds require shared A/V and reset each video. Bookmarks are local, exclude live/DVR and Shorts, and retain up to 100 unfinished VODs for 90 days. Timers pause playback, not the TV.
 
@@ -61,7 +61,7 @@ YouTube default restores native caption styling. DeArrow sends visible video IDs
 - **Diagnostics and packaging:** replaced paged reports with one scrollable textbox and removed unusable clipboard copy. Fixed MSE trace attribution/error handling, dependency inspection, runtime-library inclusion and non-root package permissions.
 - **Development:** added SDK-free native host tests, a scheduled full Gold ARM build workflow, device-report templates and a compatibility-matrix generator. Scheduled builds activate on the default branch; they do not publish stable releases.
 
-The LG C3 user confirmed caption sizing and Magic Remote selection work in 2.6.5. The current release passes browser checks, 198 web tests and both ARM builds. **Playback resume, fractional speeds, live/DVR, HDR, lifecycle recovery and intermittent disappearing controls still need device validation; the controls issue is not confirmed resolved.** AAC retains its existing decoder path; legacy playback and `YTAF_SHARED_AV=0` rollback remain available.
+The LG C3 user confirmed caption sizing/cursor selection in 2.6.5 and full Home reload in 2.6.8. The lighter sidebar refresh still needs a TV check. The current release passes browser checks, 207 web tests and both ARM builds. **Playback resume, fractional speeds, live/DVR, HDR, lifecycle recovery and intermittent disappearing controls still need device validation; the controls issue is not confirmed resolved.** AAC retains its existing decoder path; legacy playback and `YTAF_SHARED_AV=0` rollback remain available.
 
 ## Screenshots
 
