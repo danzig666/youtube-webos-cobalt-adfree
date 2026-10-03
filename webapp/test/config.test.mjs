@@ -96,3 +96,18 @@ test('native preferences survive lost browser storage, migrate old preferences, 
   system.setYtafUiPreferences=()=>true;second.configWrite('enableAdBlock',false);
   assert.equal(second.configPersistenceStatus(),false);assert.equal(fresh().configRead('enableAdBlock'),true);
 });
+
+test('playback bookmarks persist silently without resetting settings or emitting history events',()=>{
+  const f=load('{}');assert.equal(f.context.configRead('rememberPlaybackPosition'),true);
+  assert.equal(f.context.configRead('seekBehavior'),'youtube');
+  f.context.configWrite('enableAdBlock',false);const count=f.events.length;
+  assert.equal(f.context.persistPlaybackPositions([{id:'aaaaaaaaaaa',position:42,duration:300,updated:Date.now()}]),true);
+  assert.equal(f.events.length,count);
+  const next=load(f.saved());assert.equal(next.context.configRead('playbackPositions')[0].position,42);
+  assert.equal(next.context.configRead('enableAdBlock'),false);
+  next.context.configWrite('rememberPlaybackPosition',false);
+  next.context.configWrite('seekBehavior','delayed');
+  const again=load(next.saved());assert.equal(again.context.configRead('rememberPlaybackPosition'),false);
+  assert.equal(again.context.configRead('seekBehavior'),'delayed');
+  assert.equal(load('{}',true).context.persistPlaybackPositions([]),false);
+});

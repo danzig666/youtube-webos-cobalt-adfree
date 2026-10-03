@@ -23,6 +23,9 @@ platform="$repo_root/cobalt-platform/webos/arm"
 run_test starfish-av-session-state
 run_test starfish-audio-session
 run_test starfish-playback-rate "$platform/starfish_playback_rate.cc"
+for rate_override in common full-range invalid; do
+  YTAF_PLAYBACK_RATES="$rate_override" "$test_dir/starfish-playback-rate"
+done
 run_test webos-ui-preferences
 run_test webos-scroll-input
 run_test webos-lifecycle "$platform/webos_lifecycle.cc"

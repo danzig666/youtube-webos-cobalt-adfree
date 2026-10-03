@@ -12,6 +12,7 @@ export function menuFixture() {
         classList: { add() {}, remove() {} },
         appendChild(child) { this.children.push(child); child.parentElement = this; child.parentNode = this; },
         removeChild(child) { this.children = this.children.filter(node => node !== child); child.parentElement = child.parentNode = null; },
+        contains(child) { return this === child || this.children.some(node => node.contains(child)); },
         addEventListener(type, handler) { this.listeners[type] = handler; },
         setAttribute(key, value) { attributes.set(key, value); },
         getAttribute(key) { return attributes.get(key); },

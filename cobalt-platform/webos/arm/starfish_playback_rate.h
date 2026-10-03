@@ -7,6 +7,9 @@ namespace shared {
 namespace webos {
 enum class PlaybackRateSupport { kOneXOnly, kCommonFractional, kFullRange };
 PlaybackRateSupport GetPlaybackRateSupport();
+// Explicit UI requests enable the common rates for this process. Environment
+// policy remains authoritative, including an invalid override failing closed.
+bool EnableUserPlaybackRates();
 bool NormalizePlaybackRate(double requested, PlaybackRateSupport support,
                            double* normalized);
 

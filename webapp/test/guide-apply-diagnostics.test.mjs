@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import {rememberPlaybackMetadata} from '../src/playback-metadata.mjs';
 import test from 'node:test';
 import * as filters from '../src/shorts-response-filter.mjs';
 
@@ -8,7 +9,7 @@ const source = readFileSync(new URL('../src/adblock-preload.js', import.meta.url
 
 test('class constructor call site discovers J without invoking the constructor', () => {
   let enabled = true;
-  const context = vm.createContext({
+  const context = vm.createContext({rememberPlaybackMetadata,
     ...filters,
     configRead: () => enabled,
     window: {},
@@ -44,7 +45,7 @@ test('class constructor call site discovers J without invoking the constructor',
 for (const failInCaller of [true, false]) {
   test(`guide failure reports target exception even when caller would throw: ${failInCaller}`, () => {
     const logs = [];
-    const context = vm.createContext({
+    const context = vm.createContext({rememberPlaybackMetadata,
       ...filters,
       configRead: () => false,
       window: {},

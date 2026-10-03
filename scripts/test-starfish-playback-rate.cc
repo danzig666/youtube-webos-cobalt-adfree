@@ -1,10 +1,24 @@
 #include <cassert>
+#include <cstdlib>
 #include <iostream>
 #include <limits>
 #include <vector>
 #include "starfish_playback_rate.h"
 using namespace starboard::shared::webos;
 int main() {
+  const char* override = std::getenv("YTAF_PLAYBACK_RATES");
+  if (!override) {
+    assert(GetPlaybackRateSupport() == PlaybackRateSupport::kOneXOnly);
+    assert(EnableUserPlaybackRates());
+    assert(GetPlaybackRateSupport() == PlaybackRateSupport::kCommonFractional);
+    assert(EnableUserPlaybackRates());
+  } else {
+    const std::string value(override);
+    const bool allowed = value == "common" || value == "full-range";
+    assert(EnableUserPlaybackRates() == allowed);
+    assert(GetPlaybackRateSupport() == (value == "full-range" ? PlaybackRateSupport::kFullRange :
+      value == "common" ? PlaybackRateSupport::kCommonFractional : PlaybackRateSupport::kOneXOnly));
+  }
   double normalized = -1;
   for (const auto support : {PlaybackRateSupport::kOneXOnly,
                             PlaybackRateSupport::kCommonFractional,

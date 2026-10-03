@@ -1,13 +1,15 @@
 #include "starfish_playback_rate.h"
 #include <cmath>
+#include <atomic>
 #include <cstdlib>
 #include <cstring>
 #include <initializer_list>
 namespace starboard {
 namespace shared {
 namespace webos {
+namespace { std::atomic<bool> user_playback_rates(false); }
 PlaybackRateSupport GetPlaybackRateSupport() {
-  static const PlaybackRateSupport support = [] {
+  static const PlaybackRateSupport environment_support = [] {
     const char* value = std::getenv("YTAF_PLAYBACK_RATES");
     if (value && std::strcmp(value, "common") == 0)
       return PlaybackRateSupport::kCommonFractional;
@@ -15,7 +17,14 @@ PlaybackRateSupport GetPlaybackRateSupport() {
       return PlaybackRateSupport::kFullRange;
     return PlaybackRateSupport::kOneXOnly;
   }();
-  return support;
+  static const bool has_override = std::getenv("YTAF_PLAYBACK_RATES") != nullptr;
+  if (has_override) return environment_support;
+  return user_playback_rates.load() ? PlaybackRateSupport::kCommonFractional
+                                   : PlaybackRateSupport::kOneXOnly;
+}
+bool EnableUserPlaybackRates() {
+  user_playback_rates.store(true);
+  return GetPlaybackRateSupport() != PlaybackRateSupport::kOneXOnly;
 }
 bool NormalizePlaybackRate(double rate, PlaybackRateSupport support,
                            double* normalized) {

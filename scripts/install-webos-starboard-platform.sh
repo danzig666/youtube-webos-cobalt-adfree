@@ -199,6 +199,10 @@ if ! grep -q 'GetYtafUiPreferences' "$cobalt_root/cobalt/h5vcc/h5vcc_system.h"; 
   git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-ui-preferences.patch"
   git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-ui-preferences.patch"
 fi
+if ! grep -q 'EnableYtafPlaybackRates' "$cobalt_root/cobalt/h5vcc/h5vcc_system.h"; then
+  git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-playback-speed-setting.patch"
+  git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-playback-speed-setting.patch"
+fi
 python3 - "$repo_root" "$platform_target/arm/webos_build_metadata.h" <<'PYMETA'
 from pathlib import Path
 import json, re, subprocess, sys

@@ -38,3 +38,26 @@ test('caption observation ignores unrelated animation and coalesces caption chan
   callback([record]);callback([record]);assert.equal(queued,1);frame();
   callback([{type:'attributes',target:caption}]);assert.equal(queued,2);
 });
+
+test('persistent rules and watchdog survive silent YouTube style replacement, then fully stop on default',()=>{
+  let size='extra',timer,callback,clears=0,removed=0;
+  const attributes=new Map(),values=new Map([['font-size','40px']]),priorities=new Map();
+  const node={children:[],style:{getPropertyValue:key=>values.get(key)||'',getPropertyPriority:key=>priorities.get(key)||'',
+    setProperty(key,value,level){values.set(key,value);priorities.set(key,level);},removeProperty(key){values.delete(key);priorities.delete(key);}},
+    getAttribute:key=>attributes.get(key)??null,setAttribute:(key,value)=>attributes.set(key,value),removeAttribute:key=>attributes.delete(key)};
+  const head={children:[],appendChild(node){this.children.push(node);node.parentNode=this;},removeChild(node){this.children=this.children.filter(n=>n!==node);removed++;}};
+  const doc={head,createElement:()=>({textContent:''}),documentElement:{contains:()=>true},
+    querySelectorAll:selector=>selector.startsWith('.ytp')?[node]:[]};
+  const win={addEventListener(){},getComputedStyle:()=>({fontSize:values.get('font-size')}),
+    setTimeout(fn,delay){assert.equal(delay,250);timer=fn;return 1;},clearTimeout(){clears++;timer=null;},
+    requestAnimationFrame:()=>1,cancelAnimationFrame(){},MutationObserver:class{constructor(fn){callback=fn;}observe(){}disconnect(){}}};
+  const api=startCaptionSizing(doc,win,()=>size);
+  assert.match(head.children[0].textContent,/font-size:60px!important/);
+  values.set('font-size','40px');priorities.set('font-size','');
+  // No mutation is delivered, as can happen for Cobalt CSS property writes.
+  timer();assert.equal(values.get('font-size'),'60px');assert.equal(priorities.get('font-size'),'important');
+  assert.match(head.children[0].textContent,/font-size:60px!important/);
+  size='youtube';api.refresh();assert.equal(timer,null);assert.equal(clears,1);
+  assert.equal(removed,1);assert.equal(attributes.size,0);assert.equal(values.get('font-size'),'40px');
+  assert.equal(typeof callback,'function');
+});

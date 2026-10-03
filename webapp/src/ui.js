@@ -4,6 +4,9 @@
 import './navigation-checkbox.js';
 
 import './ui.css';
+import { startPlaybackResume } from './playback-resume.mjs';
+import { createPlaybackSeek } from './playback-seek.mjs';
+import { startPlaybackSpeed, playbackRates } from './playback-speed.mjs';
 import { createSettingsSections } from './settings-sections.mjs';
 import { wheelScrollDelta } from './wheel-scroll.mjs';
 import { createMenuBackGuard } from './menu-back-guard.mjs';
@@ -17,7 +20,7 @@ import { createSleepTimerPanel } from './sleep-timer.mjs';
 import { createRemoteHelp } from './remote-help.mjs';
 import { createChannelExclusionsPanel } from './sponsorblock-channels.mjs';
 
-import { configRead, configWrite, configPersistenceStatus } from './config.js';
+import { configRead, configWrite, configPersistenceStatus, persistPlaybackPositions } from './config.js';
 import { checkboxTools } from './checkboxTools.js';
 import { choiceTools } from './choiceTools.js';
 import { text as languageText } from './languages/index.js';
@@ -39,7 +42,6 @@ export function userScriptStartUI() {
   console.info('[ytaf] userScriptStartUI() called');
 
   const ARROW_KEY_CODE = { 37: 'left', 38: 'up', 39: 'right', 40: 'down' };
-  const PLAYBACK_RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
   let lastGreenKeyAt = 0;
   let currentFocusIndex = -1;
   let menuScrollFrame = null;
@@ -84,38 +86,7 @@ export function userScriptStartUI() {
   }
 
   function adjustPlaybackRate(direction) {
-    const video = document.querySelector('video');
-    if (!video) return false;
-
-    const currentRate = Number(video.playbackRate) || 1;
-    const currentIndex = PLAYBACK_RATES.findIndex(
-      (rate) => Math.abs(rate - currentRate) < 0.01
-    );
-    const nearestIndex = PLAYBACK_RATES.reduce(
-      (nearest, rate, index) =>
-        Math.abs(rate - currentRate) < Math.abs(PLAYBACK_RATES[nearest] - currentRate)
-          ? index
-          : nearest,
-      0
-    );
-    const nextIndex = Math.max(
-      0,
-      Math.min(
-        PLAYBACK_RATES.length - 1,
-        (currentIndex === -1 ? nearestIndex : currentIndex) + direction
-      )
-    );
-    const nextRate = PLAYBACK_RATES[nextIndex];
-
-    if (nextRate === currentRate) return true;
-
-    try {
-      video.playbackRate = nextRate;
-      showNotification(`Requested playback speed: ${nextRate}x`, 1800, 'green');
-    } catch (_) {
-      showNotification('Playback speed could not be changed.', 3000, 'yellow');
-    }
-    return true;
+    return playbackSpeed.adjust(direction);
   }
 
   function scrollMenuItemIntoView(item) {
@@ -348,6 +319,41 @@ export function userScriptStartUI() {
   videoQuality.dataset.ytafSection = 'playback';
   uiContainer.appendChild(videoQuality);
   uiContainer.appendChild(createSleepTimerPanel(document, window, choiceTools, showNotification));
+  const resume = window.__ytafResume || (window.__ytafResume = startPlaybackResume(document, window,
+    configRead, persistPlaybackPositions, showNotification));
+  const playbackPreferences = document.createElement('div');
+  playbackPreferences.dataset.ytafSection = 'playback';
+  const playbackSpeed = startPlaybackSpeed(document,window,configRead,configWrite,showNotification);
+  playbackPreferences.appendChild(choiceTools.add('__playback_speed','Playback speed',configRead('playbackSpeed'),
+    [{value:'youtube',label:'YouTube choice'},...playbackRates.map(rate=>({value:String(rate),label:`${rate}×`}))],
+    value=>configWrite('playbackSpeed',value)));
+  const speedStatus=document.createElement('div');speedStatus.className='ytaf-setting-help';
+  playbackSpeed.render=()=>{speedStatus.textContent=playbackSpeed.status;choiceTools.setValue('__playback_speed',configRead('playbackSpeed'));};
+  playbackSpeed.render();playbackPreferences.appendChild(speedStatus);
+  playbackPreferences.appendChild(checkboxTools.add('__remember_position', 'Remember playback position on this TV',
+    configRead('rememberPlaybackPosition'), callbackConfig('rememberPlaybackPosition')));
+  playbackPreferences.appendChild(choiceTools.add('__seek_behavior', 'Left / Right seeking', configRead('seekBehavior'), [
+    {value:'youtube',label:'YouTube default (OK to confirm)'},
+    {value:'immediate',label:'Immediately'},
+    {value:'delayed',label:'After a short pause (300 ms)'}
+  ], callbackConfig('seekBehavior')));
+  const playbackHint = document.createElement('div'); playbackHint.className='ytaf-setting-help';
+  playbackHint.textContent='Positions are saved on this TV, separately for each app install. Live streams and Shorts are excluded. Automatic seeking uses 10-second steps during playback or on the timeline; other controls keep normal arrow navigation.';
+  playbackPreferences.appendChild(playbackHint);
+  const clearRow=document.createElement('div'), clearPositions=document.createElement('div');
+  clearPositions.id='__clear_playback_positions';clearPositions.tabIndex=903;clearPositions.className='ytaf-diagnostic-action';
+  clearPositions.dataset.ytafControl='action';clearPositions.setAttribute('role','button');
+  clearPositions.textContent='Clear saved playback positions';clearPositions.__ytafActivate=()=>resume.clear();
+  clearPositions.addEventListener('click',()=>{if(Number(clearRow.dataset.ytafIgnoreClickUntil||0)<=Date.now())resume.clear();});
+  clearRow.appendChild(clearPositions);playbackPreferences.appendChild(clearRow);uiContainer.appendChild(playbackPreferences);
+  let seekPreview=null;
+  const handlePlaybackSeek=createPlaybackSeek(document,window,configRead,target=>{
+    if(target===null){if(seekPreview?.parentNode)seekPreview.parentNode.removeChild(seekPreview);seekPreview=null;return;}
+    if(!seekPreview){seekPreview=document.createElement('div');seekPreview.className='ytaf-seek-preview';seekPreview.setAttribute('role','status');document.body.appendChild(seekPreview);}
+    const seconds=Math.floor(target), minutes=Math.floor(seconds/60);
+    seekPreview.textContent=`Seek to ${minutes}:${String(seconds%60).padStart(2,'0')}`;
+  },showNotification);
+
   uiContainer.appendChild(checkboxTools.add(
     '__numeric_shortcuts', 'Numeric playback shortcuts',
     configRead('enableNumericShortcuts'), callbackConfig('enableNumericShortcuts')
@@ -410,6 +416,7 @@ export function userScriptStartUI() {
   uiContainer.appendChild(createPlaybackDiagnostics(document, window));
 
   const sections = createSettingsSections(document, Array.from(uiContainer.children).slice(1), () => {
+    choiceTools.close(false);
     if (menuScrollFrame !== null) window.cancelAnimationFrame(menuScrollFrame);
     menuScrollFrame = null;
     menuOffset = 0; menuContent.style.top = '0';
@@ -536,7 +543,7 @@ export function userScriptStartUI() {
   function menuHasFocus() {
     return Boolean(
       document.activeElement &&
-      (document.activeElement === uiContainer || uiContainer.contains(document.activeElement))
+      (document.activeElement === uiContainer || uiContainer.contains(document.activeElement) || choiceTools.contains(document.activeElement))
     );
   }
 
@@ -561,7 +568,7 @@ export function userScriptStartUI() {
       isContainerOpen() &&
       evt.target &&
       evt.target !== uiContainer &&
-      !uiContainer.contains(evt.target)
+      !uiContainer.contains(evt.target) && !choiceTools.contains(evt.target)
     ) {
       queueMenuFocusGuard();
     }
@@ -638,6 +645,7 @@ export function userScriptStartUI() {
     if (typeof window !== 'undefined' && window.__ytafPromptRelease?.(evt)) return false;
     if (!menuOpen && typeof window !== 'undefined' && window.__ytafSponsorPrompt?.handleKey(evt)) return false;
     if (typeof handleNumericShortcut !== 'undefined' && handleNumericShortcut(evt, !menuOpen)) return false;
+    if (typeof handlePlaybackSeek !== 'undefined' && handlePlaybackSeek(evt, !menuOpen)) return false;
     const focusInsideMenu = menuOpen && menuHasFocus();
     const eventDirection = menuOpen ? getDirectionFromEvent(evt) : null;
     const isActivationKey =

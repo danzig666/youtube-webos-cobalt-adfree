@@ -65,25 +65,31 @@ function open(name, activationCode = null) {
   const nodes = [];
   const index = Math.max(0, entry.options.findIndex(option => option.value === entry.value));
   entry.options.forEach((option, i) => {
-    const node = document.createElement('div'); node.className = 'ytaf-choice-option';
+    const node = document.createElement('button'); node.type = 'button'; node.className = 'ytaf-choice-option';
     node.textContent = option.label; node.tabIndex = 0; node.setAttribute('role', 'option');
     node.setAttribute('aria-selected', String(option.value === entry.value));
     node.addEventListener('focus', () => { if (popup) popup.index = i; });
-    node.addEventListener('click', event => {
+    node.addEventListener('pointermove', () => {if(popup?.name===name){popup.index=i;node.focus();}});
+    function activate(event) {
       consume(event);
-      if (Number(root.dataset.ytafIgnoreClickUntil || 0) <= Date.now()) select(name, option.value);
-    });
+      if (event.button !== undefined && event.button !== 0) return;
+      if (popup?.name === name) select(name, option.value);
+    }
+    node.addEventListener('pointerup', activate);
+    node.addEventListener('mouseup', activate);
+    node.addEventListener('click', activate);
+
     nodes.push(node); content.appendChild(node);
   });
-  viewport.appendChild(content); root.appendChild(viewport); owner.appendChild(root);
+  viewport.appendChild(content); root.appendChild(viewport); (document.body || owner).appendChild(root);
   // Keep the listbox inside the menu, including at 720p. It can scroll independently.
   const panel = owner.getBoundingClientRect?.() || {width: 900, height: 600, left: 0, top: 0};
   const anchor = control.parentElement.getBoundingClientRect?.() || {left: 220, top: 100, width: 500, bottom: 150};
   const width = Math.min(anchor.width, panel.width - 40);
   const height = Math.min(420, panel.height - 56);
   root.style.width = `${width}px`;
-  root.style.left = `${Math.max(20, Math.min(anchor.left - panel.left, panel.width - width - 20))}px`;
-  root.style.top = `${Math.max(20, Math.min(anchor.bottom - panel.top + 6, panel.height - height - 20))}px`;
+  root.style.left = `${panel.left + Math.max(20, Math.min(anchor.left - panel.left, panel.width - width - 20))}px`;
+  root.style.top = `${panel.top + Math.max(20, Math.min(anchor.bottom - panel.top + 6, panel.height - height - 20))}px`;
   viewport.style.height = `${Math.max(100, Math.min(entry.options.length * 50, height - 90))}px`;
   popup = {name, root, viewport, content, nodes, index, offset: 0, control};
   held = activationCode;
@@ -143,4 +149,7 @@ function add(name, label, value, options, callback = null) {
   control.addEventListener('blur', () => wrapper.classList.remove('ytaf-focused'));
   return wrapper;
 }
-export const choiceTools = {add, open, close, select, setValue, handleKey, handleWheel, isOpen: () => Boolean(popup)};
+document.addEventListener('pointerdown', event => {
+  if (popup && !popup.root.contains?.(event.target) && event.target !== popup.control) close(false);
+}, true);
+export const choiceTools = {contains: node => Boolean(popup?.root.contains?.(node)), add, open, close, select, setValue, handleKey, handleWheel, isOpen: () => Boolean(popup)};

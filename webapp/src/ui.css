@@ -223,14 +223,16 @@
   border-color: #85c5ff;
 }
 /* Combobox listbox and the read-only, continuously scrollable report. */
-.ytaf-choice-popup { position: absolute; z-index: 10; padding: 16px; box-sizing: border-box; background: #152b45; border: 2px solid #85c5ff; border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+.ytaf-choice-popup { position: fixed; z-index: 2147483647; padding: 16px; box-sizing: border-box; background: #152b45; border: 2px solid #85c5ff; border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
 .ytaf-choice-heading { font-size: 22px; color: #eef4ff; margin-bottom: 6px; }
 .ytaf-choice-hint { font-size: 14px; color: #b3c4da; margin-bottom: 12px; }
 .ytaf-choice-viewport { overflow: hidden; }
 .ytaf-choice-options { position: relative; top: 0; }
-.ytaf-choice-option { box-sizing: border-box; min-height: 50px; padding: 10px 14px; border: 2px solid transparent; border-radius: 8px; font-size: 20px; cursor: pointer; }
+.ytaf-choice-option { display:block; width:100%; text-align:left; background:#152b45; color:#eef4ff; font-family:Arial,sans-serif; box-sizing: border-box; min-height: 50px; padding: 10px 14px; border: 2px solid transparent; border-radius: 8px; font-size: 20px; cursor: pointer; }
 .ytaf-choice-option[aria-selected="true"] { color: #9dcaff; background: #203c60; }
 .ytaf-choice-option:focus { background: #315f90; color: #fff; border-color: #85c5ff; outline: none; }
 .ytaf-diagnostics-report { white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; padding: 18px; font: 18px/1.5 monospace; background: #0b1726; border: 2px solid #304761; border-radius: 12px; color: #c7dcf5; }
 .ytaf-diagnostics-report:focus { border-color: #85c5ff; }
 @media (max-width:1300px) { .ytaf-settings-nav { width:190px; } .ytaf-ui-viewport { margin-left:214px; } .ytaf-settings-tab { font-size:18px; padding:12px 14px; } }
+
+.ytaf-seek-preview {position:fixed;z-index:2147483646;bottom:18%;left:38%;width:24%;box-sizing:border-box;padding:16px 24px;border:2px solid #85c5ff;border-radius:14px;background:#152b45;color:#eef4ff;text-align:center;font:24px/1.4 Arial,sans-serif;pointer-events:none;}

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import {rememberPlaybackMetadata} from '../src/playback-metadata.mjs';
 import test from 'node:test';
 import * as filters from '../src/shorts-response-filter.mjs';
 
@@ -11,7 +12,7 @@ const shortTile = { tileRenderer: { onSelectCommand: { reelWatchEndpoint: {
 } } } };
 
 function parser(enabled = false, downstream = false) {
-  const context = vm.createContext({
+  const context = vm.createContext({rememberPlaybackMetadata,
     ...filters,
     configRead: () => enabled,
     document: { querySelector: () => null },

@@ -28,3 +28,22 @@ test('closing settings with OK consumes the trailing activation release',()=>{
   node.id='close';node.dataset.ytafControl='action';node.__ytafActivate=()=>f.setOpen(false);wrapper.appendChild(node);
   assert.deepEqual(f.press('close'),[true,true,true,true]);
 });
+
+test('Magic Remote pointer release selects once without a synthetic click',()=>{
+  const f=fixture();f.click('test');
+  const options=f.doc.body.children[0].children[2].children[0].children;
+  const event={button:0,preventDefault(){},stopPropagation(){}};
+  options[1].listeners.pointerup({...event,button:2});assert.deepEqual(f.writes,[]);
+  options[1].listeners.pointerup(event);
+  options[1].listeners.mouseup(event);options[1].listeners.click(event);
+  assert.deepEqual(f.writes,['b']);assert.equal(f.choices.isOpen(),false);
+});
+test('outside pointer and category close remove the portal without stealing focus',()=>{
+  const f=fixture();f.click('test');
+  const root=f.doc.body.children[0], option=root.children[2].children[0].children[1];
+  assert.equal(f.choices.contains(option),true);
+  f.doc.dispatchEvent({type:'pointerdown',target:option});assert.equal(f.choices.isOpen(),true);
+  f.doc.dispatchEvent({type:'pointerdown',target:f.doc.body});assert.equal(f.choices.isOpen(),false);
+  f.choices.open('test');f.choices.close(false);
+  assert.equal(f.doc.body.children.length,0);assert.deepEqual(f.writes,[]);
+});

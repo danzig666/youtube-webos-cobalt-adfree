@@ -15,7 +15,8 @@ Unofficial Cobalt-based YouTube modification for LG webOS TVs with ad blocking a
 - SponsorBlock support with permanent per-channel exceptions
 - Return YouTube Dislike support
 - Automatic account selection on startup
-- Playback speed support
+- Playback speed selector (0.5×–2×) with native rate feedback
+- Local playback-position saving and optional immediate/briefly delayed seeking
 - Optional Shorts visibility
 - Sleep timer (15 / 30 / 60 / 90 minutes)
 - Remote help, optional numeric shortcuts and remembered settings position
@@ -28,7 +29,7 @@ While a video is playing, press **1** to decrease playback speed or **3** to inc
 
 ### Video quality
 
-Press **GREEN**, open **Playback → Video quality**, and press **OK** to cycle through:
+Press **GREEN**, open **Playback → Video quality**, and press **OK** to open the options:
 
 - **Safe · 1080p SDR (default)** — H.264 up to 1080p60.
 - **4K · SDR** — also enables VP9 and AV1 up to 2160p60.
@@ -199,7 +200,7 @@ The Magic Remote wheel scrolls the GREEN settings menu, including option lists,
 help and diagnostics. Use YouTube's own comments interface; the separate app
 comments reader was removed in 2.6.1 following LG C3 feedback.
 
-### Blue settings interface (2.6.1)
+### Blue settings interface (2.6.2)
 
 The GREEN menu has a calm navy/blue design with larger labels and six categories:
 General, Playback, Captions & titles, Remote, SponsorBlock and Diagnostics.
@@ -219,3 +220,35 @@ small, Small, Normal, Large and Extra large, with YouTube default to remove app
 text styling. Actual caption rendering on the C3 still needs a retest.
 
 See [interface design and validation](docs/blue-interface.md).
+
+### Playback position, seeking and speed (2.6.2)
+
+In **GREEN → Playback**, **Remember playback position on this TV** defaults on.
+The app retains up to 100 unfinished VOD positions for 90 days, saving at most
+once every ten seconds during playback and again on pause, completed seeking or
+exit. Positions are local to this TV and package ID, shared by accounts using
+that install, and are not synchronized to YouTube. **Clear saved playback
+positions** removes them. Live/DVR, Shorts and unconfirmed video metadata are
+excluded. YouTube's own nonzero resume point and explicit timestamp links take
+precedence. Uninstalling the app can remove its saved positions.
+
+**Left / Right seeking** offers **YouTube default (confirm with OK)**,
+**Immediately**, and **After short pause (300 ms)**. Automatic modes use
+10-second steps during playback or on the timeline, preserving arrows in other
+controls. The delayed mode combines repeated presses into one seek; OK applies
+it early and BACK cancels it. Opening settings or changing videos cancels it.
+
+**Playback speed** offers **YouTube choice** (default) and **0.5× through 2×**.
+Selecting a custom speed, or using a faster/slower shortcut, explicitly enables
+common native rates before requesting the speed. No restart or SSH is needed.
+The selection applies to later videos; the menu distinguishes requested speed
+from native confirmation. Early YouTube rate resets are retried a bounded number
+of times. Native rejection restores 1× with a warning. Firmware acceptance is
+not proof of correct A/V timing; the C3 needs a retest. Developer
+`YTAF_PLAYBACK_RATES` overrides remain authoritative.
+
+Magic Remote option lists close when changing category and accept pointer
+release directly. Custom caption sizes use a persistent text style and a
+250 ms check while enabled, covering Cobalt style writes that bypass mutation
+observation. YouTube default removes those changes. See
+[implementation and validation limits](docs/c3-playback-followup.md).

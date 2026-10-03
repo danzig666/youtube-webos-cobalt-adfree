@@ -1,0 +1,44 @@
+--- a/cobalt/h5vcc/h5vcc_system.h
++++ b/cobalt/h5vcc/h5vcc_system.h
+@@ -45,6 +45,7 @@
+   bool TriggerHelp() const;
+   std::string GetYtafVideoCapabilitySetting() const;
+   bool SetYtafVideoCapabilitySetting(uint32 value) const;
++  bool EnableYtafPlaybackRates() const;
+   std::string GetYtafUiPreferences() const;
+   bool SetYtafUiPreferences(const std::string& value) const;
+   std::string GetYtafMediaReport() const;
+--- a/cobalt/h5vcc/h5vcc_system.idl
++++ b/cobalt/h5vcc/h5vcc_system.idl
+@@ -23,6 +23,7 @@
+   boolean triggerHelp();
+   DOMString getYtafVideoCapabilitySetting();
+   boolean setYtafVideoCapabilitySetting(unsigned long value);
++  boolean enableYtafPlaybackRates();
+   DOMString getYtafUiPreferences();
+   boolean setYtafUiPreferences(DOMString value);
+   DOMString getYtafMediaReport();
+--- a/cobalt/h5vcc/h5vcc_system.cc
++++ b/cobalt/h5vcc/h5vcc_system.cc
+@@ -23,6 +23,7 @@
+ #include "starboard/webos/arm/webos_media_report.h"
+ #include "starboard/webos/arm/webos_media_capabilities.h"
+ #include "starboard/webos/arm/webos_ui_preferences.h"
++#include "starboard/webos/arm/starfish_playback_rate.h"
+ #endif
+ 
+ #if SB_API_VERSION < 14
+@@ -148,6 +149,13 @@
+   return starboard::shared::webos::GetUiPreferences();
+ #else
+   return "";
++#endif
++}
++bool H5vccSystem::EnableYtafPlaybackRates() const {
++#if defined(STARBOARD_WEBOS)
++  return starboard::shared::webos::EnableUserPlaybackRates();
++#else
++  return false;
+ #endif
+ }
+ bool H5vccSystem::SetYtafUiPreferences(const std::string& value) const {

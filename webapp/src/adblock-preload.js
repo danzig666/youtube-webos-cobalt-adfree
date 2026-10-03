@@ -1,3 +1,4 @@
+import {rememberPlaybackMetadata} from './playback-metadata.mjs';
 import { installMediaSourceDiagnostics } from './media-source-diagnostics.mjs';
 installMediaSourceDiagnostics(window);
 import { configRead } from './config.js';
@@ -210,6 +211,7 @@ if (!window.__ytafPreloadExecuted) {
 
       try {
         const value = downstreamParse.apply(this, arguments);
+        rememberPlaybackMetadata(window, value);
         const guideResponse = isGuideResponse(value);
 
         if (guideResponse) {

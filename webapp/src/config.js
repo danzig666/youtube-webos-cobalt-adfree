@@ -1,6 +1,10 @@
 const CONFIG_KEY = 'ytaf-configuration-cobalt-adfree-v2';
 const defaultConfig = {
   enableAdBlock: true,
+  rememberPlaybackPosition: true,
+  playbackPositions: [],
+  seekBehavior: 'youtube',
+  playbackSpeed: 'youtube',
   captionMode: 'youtube',
   captionLanguage: 'youtube',
   captionSize: 'youtube',
@@ -74,10 +78,7 @@ function dispatchConfigChanged(target, key, value) {
   }
 }
 
-export function configWrite(key, value) {
-  console.info('Setting key', key, 'to', key === 'sponsorBlockExcludedChannels' ? '(channel preferences)' : value);
-  localConfig[key] = value;
-  window.__ytafConfigState = localConfig;
+function persistConfiguration() {
   const serialized = JSON.stringify(normalize(localConfig));
   let saved = false;
   const api = window.h5vcc?.system;
@@ -95,7 +96,21 @@ export function configWrite(key, value) {
   if (saved && api?.setYtafUiPreferences) {
     try { window.localStorage.setItem(CONFIG_KEY, serialized); } catch (_) {}
   }
-  window.__ytafConfigPersisted = Boolean(saved);
+  return Boolean(saved);
+
+}
+
+export function persistPlaybackPositions(positions) {
+  localConfig.playbackPositions = positions;
+  window.__ytafConfigState = localConfig;
+  return persistConfiguration();
+}
+
+export function configWrite(key, value) {
+  console.info('Setting key', key, 'to', key === 'sponsorBlockExcludedChannels' ? '(channel preferences)' : value);
+  localConfig[key] = value;
+  window.__ytafConfigState = localConfig;
+  window.__ytafConfigPersisted = persistConfiguration();
 
   let applyResult = null;
 

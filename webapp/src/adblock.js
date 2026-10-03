@@ -1,3 +1,4 @@
+import {rememberPlaybackMetadata} from './playback-metadata.mjs';
 /* eslint no-redeclare: 0 */
 /* global fetch:writable */
 import { configRead } from './config';
@@ -231,6 +232,7 @@ const origParse = JSON.parse;
 JSON.parse = function () {
   const r = origParse.apply(this, arguments);
   rememberPlayerChannel(window, r);
+  rememberPlaybackMetadata(window, r);
 
   if (configRead('enableAdBlock')) {
     if (stripYouTubeAds(r)) {
