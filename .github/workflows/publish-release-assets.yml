@@ -1,0 +1,40 @@
+name: Publish verified release assets
+
+on:
+  push:
+    branches: [playback/host-tested-v2]
+    paths:
+      - .github/workflows/publish-release-assets.yml
+      - scripts/publish-release-assets.py
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag
+        required: true
+        default: v2.6.0-beta.1
+        type: string
+      artifacts_sha:
+        description: Immutable release-artifacts commit SHA
+        required: true
+        default: abd28240be940ee47b242e3b5ccaf4185e70aa8a
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-assets-${{ inputs.tag || 'v2.6.0-beta.1' }}
+  cancel-in-progress: false
+
+jobs:
+  attach:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify artifacts and attach them to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag || 'v2.6.0-beta.1' }}
+          ARTIFACTS_SHA: ${{ inputs.artifacts_sha || 'abd28240be940ee47b242e3b5ccaf4185e70aa8a' }}
+        run: python3 scripts/publish-release-assets.py --tag "$RELEASE_TAG" --artifacts-sha "$ARTIFACTS_SHA"
