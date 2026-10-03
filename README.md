@@ -6,14 +6,16 @@
 
 Unofficial Cobalt-based YouTube modification for LG webOS TVs with ad blocking and SponsorBlock support.
 
-**Current corrective build: [v2.6.3-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.3-beta.1)**
+**Current corrective build: [v2.6.4-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.4-beta.1)**
 
-- [Separate-ID IPK — installs alongside YouTube](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.3-beta.1/com.cobalt.youtube.adfree_2.6.3_arm.ipk)
-- [Original-ID IPK — replaces official YouTube](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.3-beta.1/youtube.leanback.v4_2.6.3_arm.ipk)
+- [Separate-ID IPK — installs alongside YouTube](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.4-beta.1/com.cobalt.youtube.adfree_2.6.4_arm.ipk)
+- [Original-ID IPK — replaces official YouTube](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.4-beta.1/youtube.leanback.v4_2.6.4_arm.ipk)
 
 Update the same package ID you already use, then fully close and reopen the app.
-This clears old saved custom speeds. C3 playback speed and resume need a retest;
-see the release notes for the native correction and validation limits.
+This build corrects caption-size changes and repeated Magic Remote dropdown
+clicks, adds black caption backing and a black outline for custom sizes, and
+retains the 2.6.3 playback fixes. Physical C3 validation still needs a retest;
+see the release notes for checks and limits.
 
 > This project is unofficial and is not affiliated with YouTube, Google, LG or webOS.
 
@@ -263,10 +265,13 @@ overrides remain authoritative.
 Magic Remote option lists close when changing category and accept pointer
 release directly. The complete pointer/mouse gesture is consumed so dismissal
 cannot toggle switches underneath. An outside click dismisses the list; a second
-click activates the underlying control. Custom caption sizes use a persistent
-text style and a 250 ms check while enabled, covering Cobalt style writes that bypass mutation
-observation. YouTube default removes those changes. See
-[implementation and validation limits](docs/c3-playback-followup.md).
+click activates the underlying control. Repeated clicks on the opener and mixed
+Enter/mouse activation leave the list open; the next deliberate gesture selects
+an option without a one-second wait. Custom caption size has one stylesheet
+owner and a stable baseline across cue/window replacement. Caption text has a
+black backing, with a black outline at custom sizes. YouTube default removes
+app font-size, line-height and outline rules while retaining the black backing.
+See [caption/dropdown correction and validation limits](docs/lg-c3-caption-picker-fixes.md).
 
 The 2.6.3 runtime retains early `currentTime` requests until an actual seekable
 range exists, including after metadata. Regression tests reproduce the previous
