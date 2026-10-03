@@ -2,16 +2,16 @@
 
 A YouTube TV app for LG webOS with ad blocking, SponsorBlock and extra playback controls. No root required for normal use.
 
-Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtube-webos-cobalt-adfree)**. Credit to the original project and contributors for the starterless Cobalt/webOS runtime, ad blocking, SponsorBlock and YouTube TV integration.
+Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtube-webos-cobalt-adfree)**. Credit to the original project and contributors for the starterless Cobalt/webOS runtime, ad blocking, SponsorBlock and YouTube TV integration. The in-place Home-refresh command is adapted from [NicholasBly/youtube-webos](https://github.com/NicholasBly/youtube-webos).
 
 ## Download and install
 
-**[Latest release: v2.6.10-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.10-beta.1)**
+**[Latest release: v2.6.11-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.11-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
-| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.10-beta.1/com.cobalt.youtube.adfree_2.6.10_arm.ipk) | Installs alongside official YouTube |
-| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.10-beta.1/youtube.leanback.v4_2.6.10_arm.ipk) | **Replaces official YouTube** |
+| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.11-beta.1/com.cobalt.youtube.adfree_2.6.11_arm.ipk) | Installs alongside official YouTube |
+| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.11-beta.1/youtube.leanback.v4_2.6.11_arm.ipk) | **Replaces official YouTube** |
 
 Install using webOS Device Manager or `ares-cli` with Developer Mode, or Homebrew Channel on a compatible setup. Update the same package ID you already use, then fully close and reopen the app. Checksums and build records accompany each release.
 
@@ -24,7 +24,7 @@ The original ad blocking, Return YouTube Dislike, automatic account selection, s
 | Addition | What it does |
 | --- | --- |
 | Blue settings interface | Six categories, larger controls, visible focus, direct option lists and remembered menu position |
-| Home refresh | Separate sidebar-refresh and full-reload buttons and number-key actions; light failures show a reason instead of requesting a reload |
+| Home refresh | YouTube’s in-place soft-refresh command, available in General and on number keys; full reload remains a separate action |
 | Magic Remote support | Cursor selection and wheel scrolling in settings, option lists, help and diagnostics |
 | Video quality profiles | Safe 1080p SDR, 4K SDR or 4K HDR; saved on the TV and applied after a full restart |
 | SponsorBlock category actions | Auto skip, Ask first, Markers only or Off for each category |
@@ -41,7 +41,7 @@ The original ad blocking, Return YouTube Dislike, automatic account selection, s
 | Durable preferences | Private per-install saves, migration from older browser settings and visible save-failure feedback |
 | Two installable variants | Original-ID and separate-ID IPKs with matching runtime identities, build records and SHA-256 checksums |
 
-Press **GREEN** to open settings. Use arrows and **OK**, the cursor or the wheel; **BACK** cancels an option list first, then closes settings without closing the video. Default numeric shortcuts: **0** captions, **1** slower, **3** faster. Assign **Reset playback speed to 1×**, **Refresh Home — no automatic reload** or **Reload YouTube Home — shows startup logo** under Remote. Both Home actions work only on Home. Light refresh tries a Library/Subscriptions round trip; missing controls or timeouts show a reason. Opening YouTube’s sidebar first may expose the controls, but this is unconfirmed on the C3. Choose Reload for the known full reload. YouTube decides which recommendations are returned.
+Press **GREEN** to open settings. Use arrows and **OK**, the cursor or the wheel; **BACK** cancels an option list first, then closes settings without closing the video. Default numeric shortcuts: **0** captions, **1** slower, **3** faster. Assign **Reset playback speed to 1×**, **Refresh Home — no automatic reload** or **Reload YouTube Home — shows startup logo** under Remote. Both Home actions work only on Home. Refresh sends YouTube’s `SOFT_RELOAD_PAGE` command, using the method from NicholasBly’s app; it does not require opening the sidebar. Older runtimes without the event API can use a sidebar round trip. Choose Reload for the full reload with the startup logo. YouTube decides which recommendations are returned.
 
 Choose a quality profile your TV supports; restart to apply it. Custom speeds require shared A/V and reset each video. Bookmarks are local, exclude live/DVR and Shorts, and retain up to 100 unfinished VODs for 90 days. Timers pause playback, not the TV.
 
@@ -49,7 +49,7 @@ YouTube default restores native caption styling. DeArrow sends visible video IDs
 
 ## Fixes and playback hardening
 
-- **Home refresh:** fixed the silent Home-detection failure caused by Cobalt lacking `URL.searchParams`; reload uses its supported query-string interface. Removed the automatic reload fallback that hid light-refresh failures; light and full reload now have separate actions.
+- **Home refresh:** fixed the silent Home-detection failure caused by Cobalt lacking `URL.searchParams`; reload uses its supported query-string interface. Removed the automatic reload fallback that hid light-refresh failures. Added the reference `SOFT_RELOAD_PAGE` command and corrected Home detection for current `FEtopics` alongside the older `FEwhat_to_watch`.
 
 - **Settings:** fixed adblock preference saving, malformed configuration recovery, BACK closing the video, the off-centre close icon, the empty blue notification pill and QR controls appearing on every category.
 - **Option lists:** fixed cursor selection, open/close flicker, stale popups after category changes, duplicate key/mouse activation and clicks passing through to underlying switches. Remote keys now have individual selectors.
@@ -61,7 +61,7 @@ YouTube default restores native caption styling. DeArrow sends visible video IDs
 - **Diagnostics and packaging:** replaced paged reports with one scrollable textbox and removed unusable clipboard copy. Fixed MSE trace attribution/error handling, dependency inspection, runtime-library inclusion and non-root package permissions.
 - **Development:** added SDK-free native host tests, a scheduled full Gold ARM build workflow, device-report templates and a compatibility-matrix generator. Scheduled builds activate on the default branch; they do not publish stable releases.
 
-The LG C3 user confirmed caption sizing/cursor selection in 2.6.5 and full Home reload in 2.6.8. The C3 still showed the logo in 2.6.9; 2.6.10 removes the app’s automatic reload from light refresh and reports the failure reason. Logo-free refresh remains unconfirmed on the C3. The current release passes browser checks, 216 web tests and both ARM builds. **Playback resume, fractional speeds, live/DVR, HDR, lifecycle recovery and intermittent disappearing controls still need device validation; the controls issue is not confirmed resolved.** AAC retains its existing decoder path; legacy playback and `YTAF_SHARED_AV=0` rollback remain available.
+The LG C3 user confirmed caption sizing/cursor selection in 2.6.5 and full Home reload in 2.6.8. C3 diagnostics identified the old Home lookup failure in 2.6.10. Version 2.6.11 uses the soft-refresh command from the user-supplied working app and corrects Home-route compatibility; this build still needs C3 confirmation. The current release passes browser checks, 224 web tests and both ARM builds. **Playback resume, fractional speeds, live/DVR, HDR, lifecycle recovery and intermittent disappearing controls still need device validation; the controls issue is not confirmed resolved.** AAC retains its existing decoder path; legacy playback and `YTAF_SHARED_AV=0` rollback remain available.
 
 ## Screenshots
 
