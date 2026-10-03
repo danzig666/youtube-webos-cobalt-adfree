@@ -28,8 +28,8 @@ function fixture(size='youtube') {
     mutation:records=>callback(records),tick:()=>timer(),get timer(){return timer;},get clears(){return clears;},
     get disconnected(){return disconnected;},get inlineWrites(){return inlineWrites;},get insertions(){return insertions;}};
 }
-test('default keeps YouTube size and outline untouched while providing black caption backing',()=>{
-  const f=fixture();assert.match(f.css(),/background-color:rgba\(0,0,0,.8\)!important/);
+test('default leaves all YouTube caption styling untouched',()=>{
+  const f=fixture();assert.equal(f.css(),'');
   assert.doesNotMatch(f.css(),/font-size|line-height|text-shadow/);assert.equal(f.inlineWrites,0);
 });
 test('every custom size uses one stable baseline and a Cobalt-compatible black outline',()=>{
@@ -37,6 +37,8 @@ test('every custom size uses one stable baseline and a Cobalt-compatible black o
   for(const [size,pixels] of [['smallest',24],['small',32],['normal',40],['large',50],['extra',60]]) {
     f.change(size);assert.match(f.css(),new RegExp('font-size:'+pixels+'px!important'));
     assert.ok(f.css().includes('text-shadow:'+captionOutline+'!important'));
+    assert.match(f.css(),/^\[class\*="caption-window"\].*\{background-color:transparent!important;background-image:none!important;\}/);
+    assert.doesNotMatch(captionOutline,/2px|rgba/);
   }
   const original=f.css();f.tick();assert.equal(f.css(),original);assert.equal(f.inlineWrites,0);
 });
@@ -49,9 +51,9 @@ test('silent cue/parent style changes and complete cue replacement cannot redefi
   // The rule covers unobserved fresh segments too, without another RAF/paint.
   assert.match(f.css(),/\.ytp-caption-segment/);assert.match(f.css(),/caption-window.* \*/);
 });
-test('default removes only app font/outline rules and preserves later YouTube styles',()=>{
+test('default removes app background, font and outline rules and preserves later YouTube styles',()=>{
   const f=fixture('extra');f.first.naturalSize=46;f.change('youtube');
-  assert.doesNotMatch(f.css(),/font-size|line-height|text-shadow/);assert.equal(f.first.naturalSize,46);
+  assert.equal(f.css(),'');assert.equal(f.first.naturalSize,46);
   f.change('large');assert.match(f.css(),/font-size:57.5px!important/);
   assert.equal(f.inlineWrites,0);
 });
@@ -69,7 +71,7 @@ test('resolution change scales stable caption pixels; page exit removes owned ru
 
 
 test('Cobalt parses filled styles on insertion; changing size replaces the parsed sheet exactly once',()=>{
-  const f=fixture();assert.match(f.css(),/background-color/);assert.equal(f.insertions,1);
+  const f=fixture();assert.equal(f.css(),'');assert.equal(f.insertions,1);
   f.change('large');assert.match(f.css(),/font-size:50px/);assert.equal(f.api.refresh(),1);
   const count=f.insertions;for(let i=0;i<100;i++)f.tick();assert.equal(f.insertions,count);
   f.change('small');assert.match(f.css(),/font-size:32px/);assert.equal(f.insertions,count+1);

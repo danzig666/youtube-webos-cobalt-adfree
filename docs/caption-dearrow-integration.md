@@ -9,7 +9,7 @@ Backup/restore remains excluded.
 
 GREEN exposes per-video Prefer on / Prefer off / YouTube choice, a preferred
 language, and YouTube default / Extra small / Small / Normal / Large / Extra large text. Default track and language values leave YouTube’s selections untouched;
-text has a black backing for visibility. Available tracks are matched by exact language then regional
+YouTube default preserves the renderer’s own styling. Available tracks are matched by exact language then regional
 variant, preferring human captions within the same match. No translation is
 requested; unavailable languages preserve the current choice.
 
@@ -47,22 +47,21 @@ renderer or overwrite its later updates. Matching nodes are released when
 removed; page exit removes the owned stylesheet, markers, observer and timer.
 Returning through pageshow restores the stylesheet and observation idempotently.
 
-Caption text has a black, 80%-opaque backing, including YouTube default, because
-some TV-client DOM renderers omit the backing shown by LG's official app. Custom
-sizes also have an eight-direction black `text-shadow` outline, supported by
-Cobalt 23. YouTube default removes all app font-size, line-height and outline
-rules while leaving the current YouTube font, colour and text size intact. The
-black backing is an explicit visibility improvement, not a claim to reproduce
-every styling option of LG's official YouTube client. Unsupported/canvas
-renderers remain unchanged. Player font API sizing is retained only as a
-fallback for environments without DOM sizing support.
+From 2.6.6, custom sizes use a thin, one-pixel, eight-direction black
+`text-shadow` outline around individual letters, supported by Cobalt 23. Cue,
+window and text backgrounds are transparent, removing the rectangular backing.
+YouTube default removes all app background, font-size, line-height and outline
+rules, restoring the renderer’s own styling. Unsupported/canvas renderers remain
+unchanged. Player font API sizing is retained only as a fallback for environments
+without DOM sizing support.
 
 Host regressions cover insertion-only style parsing, computed-size verification,
 stable baselines, replacement cues, resolution changes,
-black backing/outline, default restoration and absence of competing API writes.
+transparent cue backgrounds and glyph outline, default restoration and absence of competing API writes.
 Browser checks at 720p/1080p measure each frame during cue and window replacement.
 They use sample caption DOM and cannot prove the C3's current YouTube renderer;
-this corrective build still needs a device retest.
+The user confirmed that 2.6.5 sizing and cursor selection work on the LG C3;
+the thinner outline in 2.6.6 has been checked here, without a connected TV.
 
 ## DeArrow
 

@@ -271,9 +271,8 @@ an option without a one-second wait. Visible options accept click/release direct
 and their settings-owned popup explicitly accepts pointer input. Caption styles
 are filled before insertion and replaced on changes for Cobalt 23. Custom caption
 size has one stylesheet
-owner and a stable baseline across cue/window replacement. Caption text has a
-black backing, with a black outline at custom sizes. YouTube default removes
-app font-size, line-height and outline rules while retaining the black backing.
+owner and a stable baseline across cue/window replacement. Custom captions have a thin black outline around individual letters, with
+transparent backgrounds. YouTube default restores the renderer’s own styling.
 See [caption/dropdown correction and validation limits](docs/lg-c3-caption-picker-fixes.md).
 
 The 2.6.3 runtime retains early `currentTime` requests until an actual seekable

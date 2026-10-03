@@ -303,7 +303,7 @@ export function createCaptionSettings(doc, win, choices, read, write, notify = (
   const help = doc.createElement('div');
   help.className = 'ytaf-setting-help';
   help.textContent =
-    'Track preferences apply once per video when supported. Rendered captions use one stable size, a black backing and, at custom sizes, a black outline. YouTube default leaves YouTube’s text size unchanged. No automatic translation; missing languages keep YouTube’s choice.';
+    'Track preferences apply once per video when supported. Custom caption sizes use one stable size and a thin black outline around each letter, without a background box. YouTube default keeps YouTube’s own styling. No automatic translation; missing languages keep YouTube’s choice.';
   const state = doc.createElement('div');
   state.className = 'ytaf-setting-help';
   api.render = () => {

@@ -5,8 +5,8 @@ const windows = '[class*="caption-window"], ytlr-caption-window, ytlr-caption-wi
 const segments = '.ytp-caption-segment, .captions-text, .caption-segment, ytlr-caption-segment';
 const attribute = 'data-ytaf-caption-text';
 // Cobalt supports text-shadow, but not -webkit-text-stroke. Eight directions
-// give a black outline even on bright video, without changing text colour.
-export const captionOutline = '-2px -2px 0 #000, 0 -2px 0 #000, 2px -2px 0 #000, -2px 0 0 #000, 2px 0 0 #000, -2px 2px 0 #000, 0 2px 0 #000, 2px 2px 0 #000';
+// give a thin black outline around each letter, without a background box.
+export const captionOutline = '-1px -1px 0 #000, 0 -1px 0 #000, 1px -1px 0 #000, -1px 0 0 #000, 1px 0 0 #000, -1px 1px 0 #000, 0 1px 0 #000, 1px 1px 0 #000';
 export function startCaptionSizing(doc, win, read) {
   const marked = new Map();
   let sheet = null, observer = null, timer = null;
@@ -16,6 +16,7 @@ export function startCaptionSizing(doc, win, read) {
   // Cover fresh cue nodes before MutationObserver sees them, including cues
   // replacing an entire window. Pixel sizes on parent/child never compound.
   const sizeSelector = textSelector + ',' + (windows + ',' + segments).split(',').map(s => s.trim() + ' *').join(',');
+  const backgroundSelector = windows + ',' + sizeSelector;
   function rules(text) {
     if (sheet?.textContent === text && sheet.parentNode) return;
     const parent = sheet?.parentNode || doc.head || doc.documentElement;
@@ -62,11 +63,12 @@ export function startCaptionSizing(doc, win, read) {
       if (!marked.has(node)) marked.set(node, node.getAttribute?.(attribute));
       if (node.getAttribute?.(attribute) !== '') node.setAttribute?.(attribute, '');
     }
-    // Default never writes font size, line height, colour or outline. Supply
-    // the black caption backing missing from some TV-client DOM renderers.
+    // Default leaves all YouTube styling intact. Custom sizes use a glyph
+    // outline and clear cue/window backgrounds so no black bar remains.
     let requestedPixels = null;
-    let css = `${textSelector}{background-color:rgba(0,0,0,.8)!important;}`;
+    let css = '';
     if (scale !== undefined) {
+      css += `${backgroundSelector}{background-color:transparent!important;background-image:none!important;}`;
       css += `${sizeSelector}{text-shadow:${captionOutline}!important;}`;
       if (base !== null) {
         const heightScale = (win.innerHeight || referenceHeight) / referenceHeight;
