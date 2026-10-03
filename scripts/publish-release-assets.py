@@ -15,6 +15,21 @@ def gh_json(repo, endpoint):
     return json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/{endpoint}']))
 
 
+def find_release(repo, tag):
+    result = subprocess.run(['gh', 'api', f'repos/{repo}/releases/tags/{tag}'],
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if result.returncode == 0:
+        return json.loads(result.stdout)
+    if b'HTTP 404' not in result.stderr:
+        raise RuntimeError(result.stderr.decode().strip())
+    # GitHub's release-by-tag endpoint can omit unpublished drafts. Keep the
+    # release unpublished until its verified packages have been attached.
+    for release in gh_json(repo, 'releases?per_page=100'):
+        if release['tag_name'] == tag and release['draft']:
+            return release
+    raise ValueError(f'Release does not exist: {tag}')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--tag', required=True)
@@ -27,7 +42,7 @@ def main():
     version = re.fullmatch(r'v(\d+\.\d+\.\d+)(?:-[A-Za-z0-9.-]+)?', args.tag)
     if not version or not re.fullmatch(r'[0-9a-f]{40}', args.artifacts_sha):
         parser.error('Use a release tag and full immutable artifact commit SHA')
-    release = gh_json(repo, f'releases/tags/{args.tag}')
+    release = find_release(repo, args.tag)
     target = gh_json(repo, f'git/ref/tags/{args.tag}')['object']
     for _ in range(4):
         if target['type'] == 'commit':
