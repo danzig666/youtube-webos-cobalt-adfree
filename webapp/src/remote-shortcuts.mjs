@@ -2,8 +2,7 @@ import { isHomeScreen } from './home-refresh.mjs';
 import { canUseNumericShortcuts } from './remote-help.mjs';
 export const shortcutOptions = [
   ['none', 'No action'],
-  ['refresh_home', 'Refresh Home — no automatic reload'],
-  ['reload_home', 'Reload YouTube Home — shows startup logo'],
+  ['refresh_home', 'Refresh Home recommendations'],
   ['captions', 'Toggle captions'],
   ['slower', 'Slower playback'],
   ['faster', 'Faster playback'],
@@ -17,6 +16,8 @@ export function shortcutAction(key, mapping) {
     mapping && typeof mapping === 'object' && !Array.isArray(mapping)
       ? mapping[key]
       : null;
+  // Removed assignments must not become default speed/caption shortcuts.
+  if (value === 'reload_home') return 'none';
   return shortcutOptions.some((option) => option.value === value)
     ? value
     : { 0: 'captions', 1: 'slower', 3: 'faster' }[key] || 'none';
@@ -42,9 +43,8 @@ export function createShortcutHandler(doc, read, perform, win = doc.defaultView)
       return true;
     }
     const action = shortcutAction(key, read('numericShortcutActions'));
-    const homeAction = action === 'refresh_home' || action === 'reload_home';
-    const homeRefresh = homeAction && isHomeScreen(doc, win);
-    if (homeAction && !homeRefresh) return false;
+    const homeRefresh = action === 'refresh_home' && isHomeScreen(doc, win);
+    if (action === 'refresh_home' && !homeRefresh) return false;
     if (!allowNew || !canUseNumericShortcuts(event, doc, read('enableNumericShortcuts'), homeRefresh))
       return false;
     if (action === 'none') return false;
@@ -59,6 +59,15 @@ export function createShortcutHandler(doc, read, perform, win = doc.defaultView)
 }
 export function createShortcutSettings(doc, choices, read, write) {
   const panel = doc.createElement('div');
+  const saved = read('numericShortcutActions');
+  if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+    const removed = Object.keys(saved).filter(key => saved[key] === 'reload_home');
+    if (removed.length) {
+      const migrated = {...saved};
+      for (const key of removed) migrated[key] = 'none';
+      write('numericShortcutActions', migrated);
+    }
+  }
   for (let key = 0; key <= 9; key++) {
     const number = String(key);
     panel.appendChild(choices.add('__shortcut_' + number, 'Key ' + number,

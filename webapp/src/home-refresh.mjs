@@ -1,5 +1,3 @@
-const marker = 'ytaf_refresh_home';
-const consumedLaunches = new WeakSet();
 const refreshStates = new WeakMap();
 // FEtopics is Home in the project's captured guide fixture and TizenTube's
 // current TV navigation. Retain the older Home endpoint for older clients.
@@ -33,16 +31,6 @@ function homeUrl(win) {
 export function isHomeScreen(doc, win) {
   if (['WEB_PAGE_TYPE_WATCH', 'WEB_PAGE_TYPE_SHORTS'].some(name => doc.body?.classList?.contains(name))) return false;
   return homeUrl(win) !== null;
-}
-// Cobalt 23 History only exposes length, and sessionStorage is recreated with
-// its Window. Use a harmless URL flag with supported Location.replace/reload.
-// Bypass startup routing only once per document; an ordinary webOS relaunch
-// still applies the saved startup page. The flag disappears on a fresh launch.
-export function consumeHomeRefresh(win) {
-  const url = homeUrl(win);
-  if (!url || !['1', '2'].includes(queryValue(url, marker)) || consumedLaunches.has(win)) return false;
-  consumedLaunches.add(win);
-  return true;
 }
 function guideEntry(doc, id) {
   const ids = id === 'home' ? homeBrowseIds : [id];
@@ -105,8 +93,8 @@ export function homeRefreshReport(doc, win) {
   ].join('\n');
 }
 export function createHomeRefresh(doc, win, notify, beforeSoftRefresh = () => {}) {
-  let pending = false, timer = null, epoch = 0, mode = 'light';
-  function state(status) { refreshStates.set(doc, {mode, status}); }
+  let pending = false, timer = null, epoch = 0;
+  function state(status) { refreshStates.set(doc, {mode: 'light', status}); }
   function cancel(status = 'cancelled') {
     if (timer !== null) win.clearTimeout?.(timer);
     if (pending) state(status);
@@ -122,27 +110,6 @@ export function createHomeRefresh(doc, win, notify, beforeSoftRefresh = () => {}
   }
   function fail(status, message) {
     cancel(status); notify(message, 4000, 'yellow');
-  }
-  // Called exclusively by the separately labelled reload action. Light
-  // refresh failures must never reach Location.replace/reload.
-  function reload() {
-    if (!isHomeScreen(doc, win)) { cancel(); return; }
-    if (typeof win.location?.replace !== 'function' || typeof win.location?.reload !== 'function') {
-      fail('reload-unavailable', 'Home reload is unavailable in this runtime.'); return;
-    }
-    try {
-      const url = homeUrl(win);
-      // Identical replace URLs with a hash are ignored by Cobalt.
-      state('reload-requested');
-      if (['1', '2'].includes(queryValue(url, marker))) win.location.reload();
-      else {
-        const parts = url.search.slice(1).split('&').filter(part => part && queryPart(part)[0] !== marker);
-        parts.push(marker + '=1'); url.search = '?' + parts.join('&');
-        win.location.replace(url.href);
-      }
-    } catch (_) {
-      fail('reload-failed', 'Could not reload Home. Please try again.');
-    }
   }
   function softRefresh(homeCard, awayId) {
     const awayHash = '#/browse/' + awayId;
@@ -202,26 +169,17 @@ export function createHomeRefresh(doc, win, notify, beforeSoftRefresh = () => {}
   function pointer(event) {
     if (!pending) return;
     for (let node = event.target; node; node = node.parentElement)
-      if (['__refresh_home', '__reload_home'].includes(node.id)) return;
+      if (node.id === '__refresh_home') return;
     cancel();
   }
   win.addEventListener?.('pointerdown', pointer, true);
   win.addEventListener?.('mousedown', pointer, true);
-  win.addEventListener?.('pagehide', () => cancel(mode === 'reload' ? 'reload-requested' : 'document-left'));
-  function request(requestedMode) {
+  win.addEventListener?.('pagehide', () => cancel('document-left'));
+  function request() {
     if (pending) return false;
-    mode = requestedMode;
     if (!isHomeScreen(doc, win)) {
       state('not-home');
       notify('Open YouTube Home to refresh recommendations.', 2200, 'yellow'); return false;
-    }
-    if (mode === 'reload') {
-      if (typeof win.location?.replace !== 'function' || typeof win.location?.reload !== 'function') {
-        state('reload-unavailable'); notify('Home reload is unavailable in this runtime.', 2200, 'yellow'); return false;
-      }
-      pending = true; state('reload-pending');
-      notify('Reloading YouTube Home — the startup logo will appear…', 2000, 'green');
-      later(reload); return true;
     }
     if (softReloadTarget(doc, win)) {
       pending = true; state('soft-command-pending');
@@ -259,9 +217,7 @@ export function createHomeRefresh(doc, win, notify, beforeSoftRefresh = () => {}
     });
     return true;
   }
-  const refresh = () => request('light');
-  refresh.reload = () => request('reload');
-  return refresh;
+  return request;
 }
 function actionButton(doc, activate, id, label, tabIndex) {
   const row = doc.createElement('div'), button = doc.createElement('div');
@@ -276,8 +232,5 @@ function actionButton(doc, activate, id, label, tabIndex) {
   return row;
 }
 export function createHomeRefreshButton(doc, refresh) {
-  return actionButton(doc, refresh, '__refresh_home', 'Refresh Home — no automatic reload', 904);
-}
-export function createHomeReloadButton(doc, reload) {
-  return actionButton(doc, reload, '__reload_home', 'Reload YouTube Home — shows startup logo', 905);
+  return actionButton(doc, refresh, '__refresh_home', 'Refresh Home recommendations', 904);
 }

@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-import {createHomeRefresh, consumeHomeRefresh, isHomeScreen, createHomeRefreshButton, createHomeReloadButton, homeRefreshReport} from '../src/home-refresh.mjs';
+import {createHomeRefresh, isHomeScreen, createHomeRefreshButton, homeRefreshReport} from '../src/home-refresh.mjs';
 import {createShortcutHandler, shortcutOptions} from '../src/remote-shortcuts.mjs';
 import {menuFixture} from './helpers/menu-fixture.mjs';
 class CobaltURL extends URL {
@@ -14,39 +14,31 @@ function fixture(href='https://www.youtube.com/tv#/', Url=URL) {
   const win={URL:Url,location:{href,replace(url){win.location.href=url;reloads++;},reload(){reloads++;}},history:{length:1},setTimeout(fn,delay){assert.equal(delay,100);frames.push(fn);}};
   const doc={body:{classList:{contains:name=>classes.has(name)}},defaultView:win};
   const actions=createHomeRefresh(doc,win,(...args)=>messages.push(args));
-  const refresh=actions.reload;
+  const refresh=actions;
   return {win,doc,classes,refresh,light:actions,frames,messages,get reloads(){return reloads;}};
 }
 function key(type='keydown',extra={}) {return {type,key:'9',preventDefault(){this.blocked=true;},stopPropagation(){},...extra};}
-test('native Cobalt URL without searchParams can refresh and bypass startup routing',()=>{
+test('native Cobalt URL without searchParams can soft-refresh without navigation APIs',()=>{
   const runtime=vm.createContext({URL:CobaltURL});
   vm.runInContext(readFileSync(new URL('../src/home-refresh.mjs',import.meta.url),'utf8').replace(/export function /g,'function '),runtime);
-  const f=fixture('https://www.youtube.com/tv#/',CobaltURL);
-  f.refresh=runtime.createHomeRefresh(f.doc,f.win,(...args)=>f.messages.push(args)).reload;
+  const f=commandFixture();delete f.win.location.replace;delete f.win.location.reload;
+  f.refresh=runtime.createHomeRefresh(f.doc,f.win,(...args)=>f.messages.push(args));
   assert.equal(runtime.isHomeScreen(f.doc,f.win),true);
-  assert.equal(f.refresh(),true);f.frames.shift()();assert.equal(f.reloads,1);
-  assert.match(f.win.location.href,/ytaf_refresh_home=1/);
-  assert.equal(runtime.consumeHomeRefresh(f.win),true);assert.equal(runtime.consumeHomeRefresh(f.win),false);
-  // Reload from the marked address must also work without searchParams.
-  const next=fixture(f.win.location.href,CobaltURL);next.win.location.replace=()=>assert.fail('must reload');
-  next.refresh=runtime.createHomeRefresh(next.doc,next.win,()=>{}).reload;
-  assert.equal(next.refresh(),true);next.frames.shift()();assert.equal(next.reloads,1);
+  assert.equal(f.refresh(),true);f.frames.shift()();assert.equal(f.events.length,1);
+  assert.equal(f.win.location.href,'https://www.youtube.com/tv#/');assert.equal(f.reloads,0);
 });
-test('Home refresh navigates once without History APIs and bypasses startup preference once per document',()=>{
-  const f=fixture();assert.equal(f.refresh(),true);assert.equal(f.refresh(),false);assert.equal(f.frames.length,1);
-  f.frames.shift()();assert.equal(f.reloads,1);assert.equal(new URL(f.win.location.href).searchParams.get('ytaf_refresh_home'),'1');
+test('ordinary startup routing still applies saved preferences even with an obsolete reload marker',()=>{
+  const f=fixture('https://www.youtube.com/tv?ytaf_refresh_home=1#/browse/FEtopics');
   const source=readFileSync(new URL('../src/utils.js',import.meta.url),'utf8');
   const from=source.indexOf('export function handleInitialLaunch'),to=source.indexOf('\n/**',from);
   let preferenceReads=0,selected=0;
-  const context=vm.createContext({window:f.win,consumeHomeRefresh,extractLaunchParams:()=>({}),
+  const context=vm.createContext({window:f.win,extractLaunchParams:()=>({}),
     configRead(){preferenceReads++;return 'subscriptions';},
     STARTUP_PAGE_ENDPOINTS:{subscriptions:{browseId:'FEsubscriptions'}},startupPageApplied:false,startupPageRun:0,
     document:{querySelectorAll:()=>[{__instance:{props:{data:{navigationEndpoint:{browseEndpoint:{browseId:'FEsubscriptions'}}},onSelect:()=>selected++}}}]},console:{info(){}}});
   vm.runInContext(source.slice(from,to).replace('export ', '')+';handleInitialLaunch();', context);
-  assert.equal(preferenceReads,0);
-  vm.runInContext('handleInitialLaunch();',context);assert.equal(preferenceReads,1);assert.equal(selected,1);
-  assert.equal(consumeHomeRefresh(f.win),false);
-  assert.equal(consumeHomeRefresh({location:{href:f.win.location.href}}),true);
+  assert.equal(preferenceReads,1);assert.equal(selected,1);
+  vm.runInContext('handleInitialLaunch();',context);assert.equal(selected,1);
 });
 test('Home refresh is restricted to known Home routes and never interrupts watch or Shorts',()=>{
   for (const href of ['https://www.youtube.com/tv','https://www.youtube.com/tv#/','https://www.youtube.com/tv#/browse/FEwhat_to_watch']) assert.equal(isHomeScreen(fixture(href).doc,fixture(href).win),true);
@@ -55,25 +47,10 @@ test('Home refresh is restricted to known Home routes and never interrupts watch
   }
   for(const type of ['WEB_PAGE_TYPE_WATCH','WEB_PAGE_TYPE_SHORTS']) {const f=fixture();f.classes.add(type);assert.equal(f.refresh(),false);assert.equal(f.frames.length,0);}
 });
-test('navigation during refresh notification cancels reload without writing a marker',()=>{
-  const f=fixture();f.refresh();f.win.location.href='https://www.youtube.com/tv#/watch?v=aaaaaaaaaaa';f.frames.shift()();
-  assert.equal(f.reloads,0);assert.ok(!f.win.location.href.includes('ytaf_refresh_home'));
-  f.win.location.href='https://www.youtube.com/tv#/';assert.equal(f.refresh(),true);
-});
-test('navigation failure leaves the URL and permits another attempt; missing APIs report unavailable',()=>{
-  const f=fixture();f.win.location.replace=()=>{throw Error('failed');};f.refresh();f.frames.shift()();
-  assert.equal(f.win.location.href,'https://www.youtube.com/tv#/');assert.match(f.messages.at(-1)[0],/Could not reload/);assert.equal(f.refresh(),true);
-  const unavailable=fixture();delete unavailable.win.location.replace;assert.equal(unavailable.refresh(),false);assert.match(unavailable.messages[0][0],/unavailable/);
-});
-test('refreshing an already marked Home uses reload because Cobalt ignores identical replace URLs',()=>{
-  const f=fixture('https://www.youtube.com/tv?ytaf_refresh_home=1#/');
-  f.win.location.replace=()=>assert.fail('same URL must use reload');
-  assert.equal(f.refresh(),true);f.frames.shift()();assert.equal(f.reloads,1);
-});
-test('invalid or non-Home refresh markers do not bypass ordinary startup',()=>{
-  for(const href of ['https://www.youtube.com/tv?ytaf_refresh_home=0#/','https://www.youtube.com/tv?ytaf_refresh_home=1#/browse/FEsubscriptions','https://www.youtube.com/tv?ytaf_refresh_home=1&v=aaaaaaaaaaa#/']) {
-    const f=fixture(href);assert.equal(consumeHomeRefresh(f.win),false);assert.equal(f.win.location.href,href);
-  }
+test('navigation during refresh notification cancels the command without replacing the URL',()=>{
+  const f=commandFixture();f.light();f.win.location.href='https://www.youtube.com/tv#/watch?v=aaaaaaaaaaa';f.frames.shift()();
+  assert.equal(f.reloads,0);assert.equal(f.events.length,0);
+  f.win.location.href='https://www.youtube.com/tv#/';assert.equal(f.light(),true);
 });
 test('assigned Home key consumes a complete held gesture once; default playback keys stay inactive on Home',()=>{
   const f=fixture(),calls=[];const handle=createShortcutHandler(f.doc,k=>k==='enableNumericShortcuts'?true:{9:'refresh_home'},action=>calls.push(action));
@@ -100,9 +77,9 @@ test('refresh button ignores the synthetic click following remote activation',()
   f.press('__refresh_home');f.click('__refresh_home');assert.equal(calls,1);
 });
 
-test('Home refresh preserves unrelated parameters and normalizes only its marker without native searchParams',()=>{
-  const f=fixture('https://www.youtube.com/tv?theme=cl&ytaf_refresh_home=0&lang=hu#/',CobaltURL);
-  f.refresh();f.frames.shift()();assert.equal(f.win.location.href,'https://www.youtube.com/tv?theme=cl&lang=hu&ytaf_refresh_home=1#/');
+test('Home refresh preserves every query parameter and rejects encoded watch/search parameters',()=>{
+  const f=commandFixture();f.win.location.href='https://www.youtube.com/tv?theme=cl&lang=hu#/';
+  f.light();f.frames.shift()();assert.equal(f.win.location.href,'https://www.youtube.com/tv?theme=cl&lang=hu#/');
   for(const href of ['https://www.youtube.com/tv?%76=aaaaaaaaaaa#/','https://www.youtube.com/tv?v#/','https://www.youtube.com/tv?%76q=query#/']) {
     const f=fixture(href,CobaltURL);assert.equal(f.refresh(),false);assert.equal(f.frames.length,0);
   }
@@ -191,19 +168,10 @@ test('an ignored Home return times out visibly without reloading',()=>{
   assert.match(homeRefreshReport(f.doc,f.win),/home-return-timeout/);
 });
 
-test('light failures do not rewrite an existing reload marker or bypass startup on another page',()=>{
-  const f=softFixture();f.win.location.href='https://www.youtube.com/tv?ytaf_refresh_home=1#/';
-  const select=f.away.__instance.props.onSelect;
-  f.away.__instance.props.onSelect=()=>{select();f.win.location.href='https://www.youtube.com/tv?ytaf_refresh_home=1#/browse/FElibrary';};
-  f.refresh();f.tick();f.home.__instance=null;f.tick();
-  assert.equal(f.win.location.href,'https://www.youtube.com/tv?ytaf_refresh_home=1#/browse/FElibrary');
-  assert.equal(f.reloads,0);assert.equal(consumeHomeRefresh(f.win),false);
-});
 test('missing guide renderers do not silently turn light refresh into an app reload',()=>{
   const f=fixture();assert.equal(f.light(),false);assert.equal(f.frames.length,0);assert.equal(f.reloads,0);
   assert.match(f.messages.at(-1)[0],/Home control unavailable/);
   assert.match(homeRefreshReport(f.doc,f.win),/home-hook-unavailable/);
-  assert.equal(f.light.reload(),true);f.frames.shift()();assert.equal(f.reloads,1);
 });
 test('route-changing sidebar refresh does not require specific video-card renderers',()=>{
   const f=softFixture();const query=f.doc.querySelectorAll;
@@ -238,9 +206,8 @@ test('callback exceptions do not request a reload, reveal private data or lock f
     f.win.location.href='https://www.youtube.com/tv#/';assert.equal(f.refresh(),true);
   }
 });
-test('both Home actions respect remote eligibility and use separate labels',()=>{
-  assert.ok(shortcutOptions.some(o=>o.value==='reload_home' && /startup logo/.test(o.label)));
-  for(const action of ['refresh_home','reload_home']) {
+test('Home refresh respects remote eligibility',()=>{
+  for(const action of ['refresh_home']) {
     for(const href of ['https://www.youtube.com/tv#/','https://www.youtube.com/tv#/watch?v=aaaaaaaaaaa','https://www.youtube.com/tv#/browse/FEsubscriptions']) {
       const f=fixture(href),calls=[];
       const handle=createShortcutHandler(f.doc,k=>k==='enableNumericShortcuts'?true:{9:action},a=>calls.push(a));
@@ -248,10 +215,6 @@ test('both Home actions respect remote eligibility and use separate labels',()=>
       assert.equal(handle(key()),allowed);assert.deepEqual(calls,allowed?[action]:[]);
     }
   }
-});
-test('explicit reload button also suppresses a trailing synthetic click',()=>{
-  const f=menuFixture();let calls=0;createHomeReloadButton(f.doc,()=>calls++);
-  f.press('__reload_home');f.click('__reload_home');assert.equal(calls,1);
 });
 test('Home diagnostics only contain bounded statuses and counts, not guide metadata or URLs',()=>{
   const f=softFixture();f.home.__instance.props.data.account='secret account';
@@ -279,7 +242,6 @@ test('FEtopics is Home, but its sports/music/live subpages and watch queries are
   for(const href of ['https://www.youtube.com/tv#/browse/FEtopics',
     'https://www.youtube.com/tv?ytaf_refresh_home=1#/browse/FEtopics']) {
     const f=fixture(href,CobaltURL);assert.equal(isHomeScreen(f.doc,f.win),true);
-    assert.equal(f.refresh(),true);f.frames.shift()();assert.equal(f.reloads,1);
   }
   for(const href of ['https://www.youtube.com/tv#/browse/FEtopics_sports',
     'https://www.youtube.com/tv#/browse/FEtopics_music',
@@ -290,10 +252,6 @@ test('FEtopics is Home, but its sports/music/live subpages and watch queries are
     assert.equal(f.light(),false);assert.equal(f.refresh(),false);assert.equal(f.reloads,0);
   }
 });
-test('a full reload of the current Home route skips the saved startup page once',()=>{
-  const f=fixture('https://www.youtube.com/tv?ytaf_refresh_home=1#/browse/FEtopics',CobaltURL);
-  assert.equal(consumeHomeRefresh(f.win),true);assert.equal(consumeHomeRefresh(f.win),false);
-});
 
 function commandFixture() {
   const f=fixture('https://www.youtube.com/tv#/',CobaltURL), events=[], callbacks=new Map();
@@ -302,7 +260,7 @@ function commandFixture() {
   let root={dispatchEvent(event){events.push(event);return true;}};
   f.doc.querySelector=selector=>selector==='ytlr-app'?root:null;
   f.doc.body.dispatchEvent=event=>events.push(event);
-  let closes=0;f.light=createHomeRefresh(f.doc,f.win,(...args)=>f.messages.push(args),()=>closes++);
+  let closes=0;f.light=createHomeRefresh(f.doc,f.win,(...args)=>f.messages.push(args),()=>closes++);f.refresh=f.light;
   return Object.assign(f,{events,callbacks,setRoot(value){root=value;},getCloses:()=>closes});
 }
 test('reference SOFT_RELOAD_PAGE command is sent without sidebar hooks, guide navigation or document reload',()=>{
@@ -342,5 +300,4 @@ test('dispatching the reference event never treats DOM acceptance as confirmed n
   const f=commandFixture();f.light();f.frames.shift()();
   const report=homeRefreshReport(f.doc,f.win);assert.match(report,/soft-command-sent/);
   assert.equal(report.includes('returned-home'),false);assert.equal(f.reloads,0);
-  assert.equal(f.light.reload(),true);f.frames.shift()();assert.equal(f.reloads,1);
 });

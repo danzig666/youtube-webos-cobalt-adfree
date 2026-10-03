@@ -96,6 +96,35 @@ test('remote mapping changes the selected key only and handles duplicate OK even
   assert.equal(stored[1], 'faster');
   assert.equal(stored[0], 'captions');
 });
+test('removed reload assignments stay inactive instead of becoming default playback shortcuts', () => {
+  const doc = {body: {classList: {contains: name => name === 'WEB_PAGE_TYPE_WATCH'}}};
+  for (const number of ['0', '1', '3', '9']) {
+    assert.equal(shortcutAction(number, {[number]: 'reload_home'}), 'none');
+    const handle = createShortcutHandler(doc,
+      key => key === 'enableNumericShortcuts' ? true : {[number]: 'reload_home'},
+      () => assert.fail('removed assignment must not trigger another action'));
+    assert.equal(handle(event('keydown', number, 48 + Number(number))), false);
+  }
+});
+test('saved reload assignments migrate together once while other shortcuts remain unchanged', () => {
+  const original = {0: 'reload_home', 1: 'reload_home', 3: 'reset_speed', 9: 'refresh_home'};
+  let stored = original;
+  const writes = [];
+  const mount = () => {
+    const f = menuFixture();
+    createShortcutSettings(f.doc, f.choices, () => stored, (key, value) => {
+      writes.push({key, value}); stored = value;
+    });
+    return f;
+  };
+  const f = mount();
+  assert.deepEqual(stored, {0: 'none', 1: 'none', 3: 'reset_speed', 9: 'refresh_home'});
+  assert.equal(original[0], 'reload_home');
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].key, 'numericShortcutActions');
+  assert.equal(f.nodes.get('__shortcut_0').textContent.includes('No action'), true);
+  mount(); assert.equal(writes.length, 1);
+});
 function endFixture() {
   let id = 'aaaaaaaaaaa';
   const handlers = {},

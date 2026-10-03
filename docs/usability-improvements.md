@@ -283,3 +283,19 @@ uses a sample YouTube event listener with asynchronous card replacement; it
 proves same-document dispatch and settings/shortcut integration, not current
 C3 command handling. Both the primary command and legacy guide paths retain
 Home-only scope, editing protection and numeric shortcut controls.
+
+### Remove full Home reload (2.6.12)
+
+The LG C3 user confirmed the 2.6.11 `SOFT_RELOAD_PAGE` refresh works and requested
+removing the full-reload action entirely. General and Remote now expose only
+**Refresh Home recommendations**. The full-reload button, shortcut option,
+controller method, Location.replace/reload path, query-marker generation and
+one-shot startup bypass have been removed. Ordinary startup routing continues
+to apply the saved startup page. Earlier sections describe historical releases.
+
+Saved `reload_home` key assignments become **No action**, including keys 0/1/3,
+so an old assignment cannot become a default caption/speed shortcut. Settings
+initialization saves all such changes in one preferences write and preserves
+other mappings. Even before migration (or if a save fails), action resolution
+treats the removed identifier as inactive. The tested soft command, Home-only
+guards and compatibility sidebar path retain their existing behavior.

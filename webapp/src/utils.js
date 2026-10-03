@@ -1,6 +1,5 @@
 // const YT_BASE_URL = new URL('https://www.youtube.com/tv#/');
 import { configRead } from './config.js';
-import { consumeHomeRefresh } from './home-refresh.mjs';
 
 const YT_BASE_URL = new URL('https://www.youtube.com/tv#/');
 const CONTENT_INTENT_REGEX = /^.+(?=Content)/g;
@@ -113,7 +112,6 @@ export function handleRelaunch(params = {}) {
 }
 
 export function handleInitialLaunch(launchParams) {
-  if (consumeHomeRefresh(window)) return;
   const params = launchParams || extractLaunchParams();
   if (params.target !== undefined || params.contentTarget !== undefined) {
     return;
