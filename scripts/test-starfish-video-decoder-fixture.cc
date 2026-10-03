@@ -131,6 +131,8 @@ struct StarfishVideoDecoder {
   bool startup_play_accepted_ = false, rate_failed_ = false;
   bool first_input_logged_ = false, first_feed_logged_ = false;
   std::atomic<bool> shutting_down_{false}, pause_requested_{false}, preroll_frame_sent_{false}, load_completed_{false};
+  std::atomic<SbTime> diagnostic_presentation_us_{-1};
+  std::atomic<uint32_t> diagnostic_presented_frames_{0};
   std::atomic<SbTime> seek_to_time_{0};
   std::atomic<int> playback_rate_millionths_{1000000};
   StarfishPlaybackRate playback_rate_state_;

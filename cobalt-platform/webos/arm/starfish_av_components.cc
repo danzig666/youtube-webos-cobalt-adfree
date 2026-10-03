@@ -232,6 +232,7 @@ struct NativeSession {
   StarfishOpusSessionPlan plan;
   bool window = false, audio_fed = false, video_fed = false;
   bool playing = false, was_loaded = false;
+  bool force_one_x = false;
   StarfishPlaybackRate playback_rate;
   double volume = -1;
   SbTime created = SbTimeGetMonotonicNow(), last_play_attempt = 0;
@@ -439,6 +440,7 @@ class Owner : public player::JobQueue::JobOwner {
     bounds_dirty_ = true;
     error_.clear(); error_sent_ = false;
     diagnostic_applied_rate_ = 0; diagnostic_hdr_ = 0;
+    diagnostic_presentation_us_ = -1; diagnostic_presented_frames_ = 0;
     PublishSnapshotLocked();
     wake_.notify_one();
   }
@@ -491,6 +493,8 @@ class Owner : public player::JobQueue::JobOwner {
     snapshot.video_packets = state_.queued_packets(Stream::kVideo);
     snapshot.video_bytes = state_.queued_bytes(Stream::kVideo);
     snapshot.requested_rate = rate_; snapshot.applied_rate = diagnostic_applied_rate_;
+    snapshot.presentation_us = diagnostic_presentation_us_;
+    snapshot.presented_frames = diagnostic_presented_frames_;
     UpdateMediaSnapshot(snapshot);
   }
   void Record(MediaEventType type, uint64_t generation,
@@ -779,6 +783,21 @@ class Owner : public player::JobQueue::JobOwner {
     std::string hdr_payload;
     {
       Guard guard(mutex_);
+      const uint32_t reset = PlaybackRateResetGeneration();
+      if (reset != rate_reset_generation_) {
+        rate_reset_generation_ = reset;
+        // Native rate 0 can mean buffering/preroll. The DOM supplies actual
+        // user pause intent, allowing an unpaused stalled player to recover.
+        paused_ = (reset & 1) != 0;
+        rate_ = paused_ ? 0 : 1;
+        session.force_one_x = true;
+        session.playback_rate.NativeReset();
+        // Reissue Play after restoring 1x if firmware accepted a rate but stalled.
+        // Preserve a real pause (including rate 0).
+        if (!paused_ && rate_ != 0) {
+          session.playing = false; session.last_play_attempt = 0;
+        }
+      }
       paused = paused_ || rate_ == 0; rate = rate_; volume = volume_;
       hdr_expected = video_hdr_; hdr_payload = hdr_payload_;
     }
@@ -813,8 +832,11 @@ class Owner : public player::JobQueue::JobOwner {
       if (!session.api->setVolume(payload.c_str())) { FailSession(session, "shared volume rejected"); return; }
       session.volume = volume;
     }
-    if (loaded) {
-      if (!session.playback_rate.Request(rate, GetPlaybackRateSupport())) {
+    // Fractional rates must not configure a pipeline before it has presented
+    // its first frame. LOADCOMPLETED/Play acceptance alone is insufficient.
+    if (loaded && (session.force_one_x || rate == 1 ||
+                   (session.playing && session.last_frame >= 0))) {
+      if (!session.playback_rate.Request(session.force_one_x ? 1 : rate, GetPlaybackRateSupport())) {
         FailSession(session, "NativeRateFailed: invalid session rate state", WebOsPlayerError::kNativeRateFailed); return;
       }
       const auto result = session.playback_rate.Apply([&](double value) {
@@ -824,6 +846,7 @@ class Owner : public player::JobQueue::JobOwner {
       if (result == StarfishPlaybackRate::ApplyResult::kFailed) {
         FailSession(session, "NativeRateFailed: shared rate and recovery rejected", WebOsPlayerError::kNativeRateFailed); return;
       }
+      session.force_one_x = false;
       if (result != StarfishPlaybackRate::ApplyResult::kUnchanged) {
         MediaEvent event;
         event.session = session_id_; event.generation = session.generation;
@@ -886,7 +909,10 @@ class Owner : public player::JobQueue::JobOwner {
       if (new_frame) {
         current_ = std::max(current_, frame_ns / 1000 - session.plan.epoch_us);
         have_frame_ = true; frame_time_ = now;
+        diagnostic_presentation_us_ = frame_ns / 1000 - session.plan.epoch_us;
+        ++diagnostic_presented_frames_;
       }
+      PublishSnapshotLocked();
       submit_eos = state_.ReadyToSubmitEos();
     }
     if (submit_eos) {
@@ -992,6 +1018,9 @@ class Owner : public player::JobQueue::JobOwner {
   int width_ = 0, height_ = 0, z_ = 0, x_ = 0, y_ = 0, bounds_width_ = 0, bounds_height_ = 0;
   unsigned video_bits_ = 0;
   double rate_ = 1, volume_ = 1;
+  uint32_t rate_reset_generation_ = PlaybackRateResetGeneration();
+  int64_t diagnostic_presentation_us_ = -1;
+  uint64_t diagnostic_presented_frames_ = 0;
   double diagnostic_applied_rate_ = 0;
   const int diagnostic_channels_;
   int diagnostic_hdr_ = 0, diagnostic_width_ = 0, diagnostic_height_ = 0;

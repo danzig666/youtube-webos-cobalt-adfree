@@ -40,6 +40,46 @@ resume positions and the request for automatic seeking.
   and metadata replacement invalidate deferred work. YouTube's normal
   OK-to-confirm mode remains the default.
 
+## 2.6.3 correction after further C3 feedback
+
+The above describes 2.6.2, which did not resolve the reported TV failures.
+The first host test for early resume stubbed `Seek()` and missed a second failure:
+metadata can precede a seekable MSE range, and the real DOM method clamps a
+bookmark to zero through `TimeRanges::Nearest(empty)`. The new test compiles the
+real getter, setter and Seek, reproduces both the original exception and the
+2.6.2 seek-to-zero, then verifies the corrected pending target across late ranges,
+latest-target replacement, zero cancellation and resource reset. Native retry
+hooks cover ready state, duration changes, time changes and playback progress.
+Local resume uses YouTube's public `seekTo` where available, verifies native frame
+position, retries at most three times and never claims success on setter readback.
+Settings pointer clicks no longer cancel resume; actual manual seeks still do.
+
+Dropdown removal on pointerup permits Cobalt to hit-test later compatibility
+mouse events against underlying switches. Capture consumes the entire release
+sequence and outside dismissal, while a new pointerdown permits a new gesture.
+Tests explicitly retarget mouseup/click to a switch after removing the popup.
+
+The former speed check ignored readyState below 3/seeking and stopped after five
+seconds while retaining a failed preference. Rates are now per-video, cleared on
+startup/navigation, toasted, and watched for actual native progress while
+buffering. SDK acceptance is not confirmation: sustained presentation rate is
+checked too. Failure clears the preference and sends a native 1x reset. The
+reset command atomically carries DOM pause intent so buffering rate 0 can recover
+without unpausing a genuinely paused video. A real shared Step regression covers
+accepted Play with no frames, fractional deferral, one-shot application, reset
+with no new frames, user pause and delayed load completion. The legacy backend
+keeps its independent audio/video clocks at 1x rather than exposing unverified
+fractional playback through the new setting.
+
+Playback has a visible reset action and a selectable Remote reset key. Quick
+Left/Right seeking debounces for 80 ms, with a separate 300 ms mode. Both combine
+rapid taps and apply after the last press without OK.
+
+These changes require a native runtime update. Host/browser/build validation
+cannot establish that the C3 firmware now plays or resumes correctly. A TV retest
+remains necessary; the release does not claim the intermittent controls issue
+is confirmed resolved.
+
 ## Intermittent controls and early account resume
 
 The user clarified that SponsorBlock and the timeline initially work, then can

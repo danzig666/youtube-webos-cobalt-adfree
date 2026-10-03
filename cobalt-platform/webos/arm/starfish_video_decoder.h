@@ -99,6 +99,8 @@ class StarfishVideoDecoder
   std::atomic<int> playback_rate_millionths_{1000000};
   std::atomic<bool> preroll_frame_sent_{false};
   std::atomic<bool> first_frame_presented_{false};
+  std::atomic<SbTime> diagnostic_presentation_us_{-1};
+  std::atomic<uint32_t> diagnostic_presented_frames_{0};
   std::atomic<bool> load_completed_{false};
   std::atomic<bool> reset_in_progress_{false};
   std::atomic<bool> unload_completed_{false};

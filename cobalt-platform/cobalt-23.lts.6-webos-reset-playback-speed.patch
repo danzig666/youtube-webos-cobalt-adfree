@@ -1,0 +1,36 @@
+--- a/cobalt/h5vcc/h5vcc_system.h
++++ b/cobalt/h5vcc/h5vcc_system.h
+@@ -46,6 +46,7 @@
+   std::string GetYtafVideoCapabilitySetting() const;
+   bool SetYtafVideoCapabilitySetting(uint32 value) const;
+   bool EnableYtafPlaybackRates() const;
++  bool ResetYtafPlaybackRate(bool paused) const;
+   std::string GetYtafUiPreferences() const;
+   bool SetYtafUiPreferences(const std::string& value) const;
+   std::string GetYtafMediaReport() const;
+--- a/cobalt/h5vcc/h5vcc_system.idl
++++ b/cobalt/h5vcc/h5vcc_system.idl
+@@ -24,6 +24,7 @@
+   DOMString getYtafVideoCapabilitySetting();
+   boolean setYtafVideoCapabilitySetting(unsigned long value);
+   boolean enableYtafPlaybackRates();
++  boolean resetYtafPlaybackRate(boolean paused);
+   DOMString getYtafUiPreferences();
+   boolean setYtafUiPreferences(DOMString value);
+   DOMString getYtafMediaReport();
+--- a/cobalt/h5vcc/h5vcc_system.cc
++++ b/cobalt/h5vcc/h5vcc_system.cc
+@@ -155,6 +155,13 @@
+ bool H5vccSystem::EnableYtafPlaybackRates() const {
+ #if defined(STARBOARD_WEBOS)
+   return starboard::shared::webos::EnableUserPlaybackRates();
++#else
++  return false;
++#endif
++}
++bool H5vccSystem::ResetYtafPlaybackRate(bool paused) const {
++#if defined(STARBOARD_WEBOS)
++  return starboard::shared::webos::ResetUserPlaybackRate(paused);
+ #else
+   return false;
+ #endif

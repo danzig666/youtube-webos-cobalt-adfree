@@ -43,7 +43,36 @@ test('outside pointer and category close remove the portal without stealing focu
   const root=f.doc.body.children[0], option=root.children[2].children[0].children[1];
   assert.equal(f.choices.contains(option),true);
   f.doc.dispatchEvent({type:'pointerdown',target:option});assert.equal(f.choices.isOpen(),true);
-  f.doc.dispatchEvent({type:'pointerdown',target:f.doc.body});assert.equal(f.choices.isOpen(),false);
+  f.doc.dispatchEvent({type:'pointerdown',target:f.doc.body,preventDefault(){},stopPropagation(){}});assert.equal(f.choices.isOpen(),false);
   f.choices.open('test');f.choices.close(false);
   assert.equal(f.doc.body.children.length,0);assert.deepEqual(f.writes,[]);
+});
+
+test('compatibility mouse events re-targeted under a dismissed popup cannot toggle a switch',()=>{
+  const f=fixture();f.click('test');
+  const option=f.doc.body.children[0].children[2].children[0].children[1];
+  const checkbox=f.doc.createElement('div');let toggles=0;
+  option.listeners.pointerup({button:0,preventDefault(){},stopPropagation(){}});
+  for(const type of ['mousedown','mouseup','click']) {
+    const event={type,target:checkbox,preventDefault(){this.prevented=true;},stopPropagation(){}};
+    f.doc.dispatchEvent(event);if(!event.prevented)toggles++;
+    assert.equal(event.prevented,true,type);
+  }
+  assert.equal(toggles,0);assert.deepEqual(f.writes,['b']);
+  const start={type:'pointerdown',target:checkbox,preventDefault(){this.prevented=true;},stopPropagation(){}};
+  f.doc.dispatchEvent(start);assert.equal(start.prevented,undefined);
+  const click={...start,type:'click'};f.doc.dispatchEvent(click);assert.equal(click.prevented,undefined);
+});
+test('an outside click dismisses the picker without activating its underlying setting',()=>{
+  const f=fixture();f.click('test');
+  for(const type of ['pointerdown','pointerup','mouseup','click']) {
+    const event={type,target:f.doc.body,preventDefault(){this.prevented=true;},stopPropagation(){}};
+    f.doc.dispatchEvent(event);assert.equal(event.prevented,true);
+  }
+  assert.equal(f.choices.isOpen(),false);assert.deepEqual(f.writes,[]);
+});
+test('a callback recovery keeps the restored display instead of showing a rejected speed',()=>{
+  const f=menuFixture();f.choices.add('speed','Speed','1',[{value:'1',label:'Normal'},{value:'2',label:'2x'}],()=>f.choices.setValue('speed','1'));
+  f.choices.open('speed');f.choose('speed','2');assert.match(f.nodes.get('speed').textContent,/Normal/);
+  assert.equal(f.choices.isOpen(),false);
 });

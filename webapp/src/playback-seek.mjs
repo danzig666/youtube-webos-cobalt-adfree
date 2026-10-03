@@ -79,8 +79,7 @@ export function createPlaybackSeek(doc, win, read, preview, notify) {
     consume(event);held.add(code);lastDirection=code;lastPress=now();
     pending={id,video,target};preview(target);
     if (timer !== null) win.clearTimeout(timer);
-    if (read('seekBehavior') === 'immediate') commit();
-    else timer=win.setTimeout(commit,300);
+    timer=win.setTimeout(commit,read('seekBehavior') === 'immediate' ? 80 : 300);
     return true;
   }
   for (const type of ['loadedmetadata','emptied','ytaf-menu-opened','yt-navigate-finish']) doc.addEventListener(type,cancel,true);

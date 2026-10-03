@@ -3,6 +3,9 @@ import './choiceTools.css';
 let choiceTabIndex = 100;
 const choices = {};
 let popup = null, held = null, released = null;
+let releaseGuardUntil = 0;
+
+function guardRelease() { releaseGuardUntil = Date.now() + 750; }
 
 function consume(event) {
   event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation?.();
@@ -17,15 +20,16 @@ function render(control) {
 function setValue(name, value) {
   const entry = choices[name];
   if (!entry || !entry.options.some(option => option.value === value)) return false;
-  entry.value = value; render(entry.control); return true;
+  entry.value = value; entry.revision++; render(entry.control); return true;
 }
 function select(name, value) {
   const entry = choices[name];
   if (!entry || !entry.options.some(option => option.value === value)) return false;
-  const old = entry.value;
+  const old = entry.value, revision = entry.revision;
   if (old !== value && entry.callback?.(value) === false) return false;
   // Callbacks (e.g. sleep timer) can update the displayed value themselves.
-  entry.value = value; render(entry.control);
+  if (entry.revision === revision) entry.value = value;
+  render(entry.control);
   close(); return true;
 }
 function close(restoreFocus = true) {
@@ -73,7 +77,12 @@ function open(name, activationCode = null) {
     function activate(event) {
       consume(event);
       if (event.button !== undefined && event.button !== 0) return;
-      if (popup?.name === name) select(name, option.value);
+      if (popup?.name === name) {
+        // Cobalt can hit-test compatibility mouseup/click again after this
+        // pointerup removes the list. Consume the remainder of that gesture
+        // at document capture, before an underlying switch sees it.
+        guardRelease(); select(name, option.value);
+      }
     }
     node.addEventListener('pointerup', activate);
     node.addEventListener('mouseup', activate);
@@ -81,6 +90,8 @@ function open(name, activationCode = null) {
 
     nodes.push(node); content.appendChild(node);
   });
+  for (const type of ['pointerdown','pointerup','mousedown','mouseup','click'])
+    root.addEventListener(type, consume);
   viewport.appendChild(content); root.appendChild(viewport); (document.body || owner).appendChild(root);
   // Keep the listbox inside the menu, including at 720p. It can scroll independently.
   const panel = owner.getBoundingClientRect?.() || {width: 900, height: 600, left: 0, top: 0};
@@ -126,7 +137,7 @@ function handleKey(event) {
     focusOption();
   } else if (code === 13 || code === 32) {
     const {name, index} = popup;
-    released = code; select(name, choices[name].options[index].value);
+    released = code; guardRelease(); select(name, choices[name].options[index].value);
   } else if ([27,461,8,404,172].includes(code)) {
     released = code; close();
   }
@@ -139,7 +150,7 @@ function add(name, label, value, options, callback = null) {
   control.tabIndex = choiceTabIndex++; control.dataset.ytafControl = 'choice';
   control.setAttribute('role', 'combobox'); control.setAttribute('aria-haspopup', 'listbox');
   control.setAttribute('aria-expanded', 'false'); control.setAttribute('aria-controls', name + '_options');
-  choices[name] = {value, options, callback, label, control}; render(control);
+  choices[name] = {value, options, callback, label, control, revision:0}; render(control);
   wrapper.appendChild(description); wrapper.appendChild(control);
   wrapper.addEventListener('click', event => {
     consume(event);
@@ -149,7 +160,15 @@ function add(name, label, value, options, callback = null) {
   control.addEventListener('blur', () => wrapper.classList.remove('ytaf-focused'));
   return wrapper;
 }
-document.addEventListener('pointerdown', event => {
-  if (popup && !popup.root.contains?.(event.target) && event.target !== popup.control) close(false);
-}, true);
+function guardPointer(event) {
+  // A new pointerdown starts a deliberate gesture. A compatibility mousedown
+  // after pointerup does not: do not let it reopen or toggle another control.
+  if (event.type === 'pointerdown') releaseGuardUntil = 0;
+  if (releaseGuardUntil > Date.now()) { consume(event); return; }
+  if (popup && !popup.root.contains?.(event.target)) {
+    guardRelease(); consume(event); close(false);
+  }
+}
+for (const type of ['pointerdown','pointerup','mousedown','mouseup','click'])
+  document.addEventListener(type, guardPointer, true);
 export const choiceTools = {contains: node => Boolean(popup?.root.contains?.(node)), add, open, close, select, setValue, handleKey, handleWheel, isOpen: () => Boolean(popup)};

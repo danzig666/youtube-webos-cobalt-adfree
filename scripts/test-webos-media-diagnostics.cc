@@ -58,6 +58,7 @@ int main(int argc, char**) {
   snapshot.width = 3840; snapshot.height = 2160; snapshot.bits = 10; snapshot.hdr = 1;
   snapshot.sample_rate = 48000; snapshot.channels = 2; snapshot.video_packets = 12;
   snapshot.applied_rate = 1.25;
+  snapshot.presentation_us = 90000000; snapshot.presented_frames = 100;
   UpdateMediaSnapshot(snapshot);
   auto summary = CopyMediaSnapshotReport();
   assert(summary.find("AV1 3840x2160 10-bit HDR10") != std::string::npos);
@@ -65,6 +66,12 @@ int main(int argc, char**) {
   MediaEvent terminal; terminal.session = 99; terminal.generation = 100;
   terminal.event = MediaEventType::kUnload; RecordMediaEvent(terminal);
   assert(CopyMediaSnapshotReport() == summary);
+  UpdateMediaPresentation(100, 7, 91250000, 175);
+  assert(CopyMediaSnapshotReport().find("Native presentation: 91.25 seconds") != std::string::npos);
+  assert(CopyMediaSnapshotReport().find("Presented frames: 175") != std::string::npos);
+  UpdateMediaPresentation(99, 7, 0, 0); UpdateMediaPresentation(100, 6, 0, 0);
+  assert(CopyMediaSnapshotReport().find("Native presentation: 91.25 seconds") != std::string::npos);
+  summary = CopyMediaSnapshotReport();
   snapshot.generation = 6; snapshot.width = 0; UpdateMediaSnapshot(snapshot);
   assert(CopyMediaSnapshotReport() == summary);
   snapshot.session = 99; snapshot.generation = 100; UpdateMediaSnapshot(snapshot);

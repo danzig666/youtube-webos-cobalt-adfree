@@ -10,6 +10,10 @@ PlaybackRateSupport GetPlaybackRateSupport();
 // Explicit UI requests enable the common rates for this process. Environment
 // policy remains authoritative, including an invalid override failing closed.
 bool EnableUserPlaybackRates();
+// A reset request is consumed on the native worker, including during buffering.
+// It never changes the user's pause state or invokes vendor APIs on the UI thread.
+bool ResetUserPlaybackRate(bool paused);
+uint32_t PlaybackRateResetGeneration();
 bool NormalizePlaybackRate(double requested, PlaybackRateSupport support,
                            double* normalized);
 

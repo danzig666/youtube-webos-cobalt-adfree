@@ -7,7 +7,10 @@
 namespace starboard {
 namespace shared {
 namespace webos {
-namespace { std::atomic<bool> user_playback_rates(false); }
+namespace {
+std::atomic<bool> user_playback_rates(false);
+std::atomic<uint32_t> rate_reset_generation(0);
+}
 PlaybackRateSupport GetPlaybackRateSupport() {
   static const PlaybackRateSupport environment_support = [] {
     const char* value = std::getenv("YTAF_PLAYBACK_RATES");
@@ -26,6 +29,15 @@ bool EnableUserPlaybackRates() {
   user_playback_rates.store(true);
   return GetPlaybackRateSupport() != PlaybackRateSupport::kOneXOnly;
 }
+bool ResetUserPlaybackRate(bool paused) {
+  // Pack pause intent and sequence into one atomic value, so the worker cannot
+  // combine an old request with the pause state of a later request.
+  uint32_t old = rate_reset_generation.load();
+  while (!rate_reset_generation.compare_exchange_weak(
+      old, ((old + 2) & ~uint32_t(1)) | uint32_t(paused))) {}
+  return true;
+}
+uint32_t PlaybackRateResetGeneration() { return rate_reset_generation.load(); }
 bool NormalizePlaybackRate(double rate, PlaybackRateSupport support,
                            double* normalized) {
   if (!normalized || !std::isfinite(rate) || rate < 0 || rate > 2) return false;

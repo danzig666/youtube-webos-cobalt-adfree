@@ -4,6 +4,7 @@ export const shortcutOptions = [
   ['captions', 'Toggle captions'],
   ['slower', 'Slower playback'],
   ['faster', 'Faster playback'],
+  ['reset_speed', 'Reset playback speed to 1×'],
   ['end_stop', 'Stop after video / Continue'],
   ['cancel_timer', 'Cancel sleep timer'],
   ['skip', 'Skip current SponsorBlock segment']

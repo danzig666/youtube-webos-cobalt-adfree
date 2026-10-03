@@ -584,6 +584,7 @@ void StarfishVideoDecoder::Reset() {
   eos_output_ = false;
   preroll_frame_sent_.store(false);
   first_frame_presented_.store(false);
+  diagnostic_presentation_us_.store(-1); diagnostic_presented_frames_.store(0);
   if (decoder_thread_) {
     decoder_thread_->ScheduleAndWait(
         std::bind(&StarfishVideoDecoder::ResetOnDecoderThread, this));
@@ -682,6 +683,8 @@ void StarfishVideoDecoder::PublishSnapshotOnDecoderThread() const {
   snapshot.bits = diagnostic_bits_; snapshot.hdr = diagnostic_hdr_;
   snapshot.requested_rate = playback_rate_millionths_.load() / 1000000.0;
   snapshot.applied_rate = playback_rate_state_.applied_rate();
+  snapshot.presentation_us = diagnostic_presentation_us_.load();
+  snapshot.presented_frames = diagnostic_presented_frames_.load();
   snapshot.video_packets = pending_buffer_ ? 1 : 0;
   snapshot.video_bytes = pending_buffer_ ? pending_buffer_->size() : 0;
   // Audio is owned by the independent legacy decoder; unavailable here.
@@ -713,6 +716,10 @@ void StarfishVideoDecoder::HandlePlayerEvent(int type,
   }
   if (type == PF_EVENT_TYPE_FRAMEREADY) {
     const SbTime frame_time = static_cast<SbTime>(num_value / 1000);
+    diagnostic_presentation_us_.store(frame_time);
+    const uint32_t frames = diagnostic_presented_frames_.fetch_add(1) + 1;
+    UpdateMediaPresentation(diagnostic_session_id_, diagnostic_generation_.load(),
+                            frame_time, frames);
     const SbTime target_time = seek_to_time_.load();
     if (!first_frame_presented_.exchange(true) && decoder_thread_) {
       RecordDiagnostic(MediaEventType::kFirstFrame, frame_time);

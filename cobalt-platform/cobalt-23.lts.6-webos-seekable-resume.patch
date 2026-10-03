@@ -1,0 +1,83 @@
+--- a/cobalt/dom/html_media_element.cc
++++ b/cobalt/dom/html_media_element.cc
+@@ -644,6 +644,9 @@
+     return;
+   }
+   duration_ = duration;
++#if defined(STARBOARD_WEBOS)
++  ApplyWebOsInitialPlaybackPosition();
++#endif
+ 
+   ScheduleOwnEvent(base::Tokens::durationchange());
+ 
+@@ -1060,6 +1063,9 @@
+ }
+ 
+ void HTMLMediaElement::OnPlaybackProgressTimer() {
++#if defined(STARBOARD_WEBOS)
++  ApplyWebOsInitialPlaybackPosition();
++#endif
+   DCHECK(player_);
+   if (!player_) {
+     return;
+@@ -1229,6 +1235,9 @@
+     }
+   }
+ 
++#if defined(STARBOARD_WEBOS)
++  ApplyWebOsInitialPlaybackPosition();
++#endif
+   UpdatePlayState();
+ }
+ 
+@@ -1300,9 +1309,14 @@
+ 
+ #if defined(STARBOARD_WEBOS)
+ void HTMLMediaElement::ApplyWebOsInitialPlaybackPosition() {
++  // Metadata can precede a seekable MSE range. Clearing the request here
++  // previously let TimeRanges::Nearest(empty) turn an account bookmark into 0.
++  if (webos_initial_playback_position_ <= 0 || !player_ ||
++      ready_state_ < WebMediaPlayer::kReadyStateHaveMetadata ||
++      seekable()->length() == 0) return;
+   const float target = webos_initial_playback_position_;
+   webos_initial_playback_position_ = 0;
+-  if (target > 0) Seek(target);
++  Seek(target);
+ }
+ #endif
+ 
+@@ -1348,6 +1362,14 @@
+   // Short circuit seeking to the current time by just firing the events if no
+   // seek is required. Don't skip calling the media engine if we are in poster
+   // mode because a seek should always cancel poster display.
++#if defined(STARBOARD_WEBOS)
++  if (seekable_ranges->length() == 0) {
++    // A normal post-metadata currentTime request can race the first append too.
++    webos_initial_playback_position_ = std::isfinite(time) ? time : 0;
++    seeking_ = false;
++    return;
++  }
++#endif
+   bool no_seek_required = seekable_ranges->length() == 0 || time == now;
+ 
+   // Always notify the media engine of a seek if the source is not closed. This
+@@ -1576,6 +1598,9 @@
+ }
+ 
+ void HTMLMediaElement::TimeChanged(bool eos_played) {
++#if defined(STARBOARD_WEBOS)
++  ApplyWebOsInitialPlaybackPosition();
++#endif
+   DCHECK(player_);
+   if (!player_) {
+     return;
+@@ -1648,6 +1673,9 @@
+     duration_ = player_->GetDuration();
+   }
+ 
++#if defined(STARBOARD_WEBOS)
++  ApplyWebOsInitialPlaybackPosition();
++#endif
+   if (now > duration_) {
+     Seek(static_cast<float>(duration_));
+   }

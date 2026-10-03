@@ -50,8 +50,12 @@ falls back to the existing factory.
 Playback-rate environment policy is process-latched. Unknown devices initially
 accept pause and 1x. In 2.6.2, an explicit custom speed selection or faster/slower
 shortcut calls `h5vcc.system.enableYtafPlaybackRates()` to enable common rates in
-that process before requesting them. The app saves the selected speed and
-reapplies its opt-in on the next launch. Environment overrides take precedence;
+that process before requesting them. Since 2.6.3 the setting is limited to
+shared A/V and the current video, applied only after the first native frame.
+The app clears saved rates on startup and watches actual frame progress, including
+while buffering. Ineffective/rejected/stalled speeds revert to 1x. A native
+`resetYtafPlaybackRate(paused)` request restores 1x and retries Play on the shared
+worker even during buffering; packed atomic state preserves the DOM pause intent. Environment overrides take precedence;
 `YTAF_PLAYBACK_RATES=common` permits 0.5/0.75/1/1.25/1.5/1.75/2x.
 `full-range` is an explicit developer experiment permitting 0.1–2x, rounded to
 millionths. Invalid overrides fail closed to 1x. These overrides require TV

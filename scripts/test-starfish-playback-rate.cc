@@ -19,6 +19,11 @@ int main() {
     assert(GetPlaybackRateSupport() == (value == "full-range" ? PlaybackRateSupport::kFullRange :
       value == "common" ? PlaybackRateSupport::kCommonFractional : PlaybackRateSupport::kOneXOnly));
   }
+  const uint32_t reset = PlaybackRateResetGeneration();
+  assert(ResetUserPlaybackRate(false));
+  assert(PlaybackRateResetGeneration() == reset + 2);
+  assert(ResetUserPlaybackRate(true));
+  assert(PlaybackRateResetGeneration() == reset + 5);
   double normalized = -1;
   for (const auto support : {PlaybackRateSupport::kOneXOnly,
                             PlaybackRateSupport::kCommonFractional,

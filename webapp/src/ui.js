@@ -334,11 +334,21 @@ export function userScriptStartUI() {
   const speedStatus=document.createElement('div');speedStatus.className='ytaf-setting-help';
   playbackSpeed.render=()=>{speedStatus.textContent=playbackSpeed.status;choiceTools.setValue('__playback_speed',configRead('playbackSpeed'));};
   playbackSpeed.render();playbackPreferences.appendChild(speedStatus);
+  const resetSpeed = document.createElement('div');
+  resetSpeed.id='__reset_playback_speed';resetSpeed.tabIndex=902;resetSpeed.className='ytaf-diagnostic-action';
+  resetSpeed.dataset.ytafControl='action';resetSpeed.setAttribute('role','button');
+  resetSpeed.textContent='Reset playback speed to 1×';resetSpeed.__ytafActivate=()=>playbackSpeed.reset();
+  const resetRow=document.createElement('div');resetRow.appendChild(resetSpeed);
+  resetSpeed.addEventListener('click',()=>{if(Number(resetRow.dataset.ytafIgnoreClickUntil||0)<=Date.now())playbackSpeed.reset();});
+  playbackPreferences.appendChild(resetRow);
+  const speedHint=document.createElement('div');speedHint.className='ytaf-setting-help';
+  speedHint.textContent='Custom speed applies to this video only. Each new video starts normally. Unsupported or stalled speeds return to 1× automatically.';
+  playbackPreferences.appendChild(speedHint);
   playbackPreferences.appendChild(checkboxTools.add('__remember_position', 'Remember playback position on this TV',
     configRead('rememberPlaybackPosition'), callbackConfig('rememberPlaybackPosition')));
   playbackPreferences.appendChild(choiceTools.add('__seek_behavior', 'Left / Right seeking', configRead('seekBehavior'), [
     {value:'youtube',label:'YouTube default (OK to confirm)'},
-    {value:'immediate',label:'Immediately'},
+    {value:'immediate',label:'Quickly (80 ms after last press)'},
     {value:'delayed',label:'After a short pause (300 ms)'}
   ], callbackConfig('seekBehavior')));
   const playbackHint = document.createElement('div'); playbackHint.className='ytaf-setting-help';
@@ -625,6 +635,7 @@ export function userScriptStartUI() {
       showNotification(text({on:'subtitleOn',off:'subtitleOff',unavailable:'subtitleUnavailable'}[state] || 'subtitleUnavailable') + (state === 'on' && name ? ` (${name})` : ''), 1800, 'green');
     });
     if (action === 'slower' || action === 'faster') adjustPlaybackRate(action === 'slower' ? -1 : 1);
+    if (action === 'reset_speed') playbackSpeed.reset();
     if (action === 'end_stop') window.__ytafEndStop?.activate();
     if (action === 'cancel_timer') { window.__ytafSleepTimer?.timer.setMinutes(0); showNotification('Sleep timer cancelled.',2000,'green'); }
     if (action === 'skip' && !window.sponsorblock?.skipCurrentSegment()) showNotification('No skippable segment here.',2000,'green');

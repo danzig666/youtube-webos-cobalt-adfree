@@ -233,28 +233,37 @@ excluded. YouTube's own nonzero resume point and explicit timestamp links take
 precedence. Uninstalling the app can remove its saved positions.
 
 **Left / Right seeking** offers **YouTube default (confirm with OK)**,
-**Immediately**, and **After short pause (300 ms)**. Automatic modes use
+**Quickly (80 ms after last press)**, and **After short pause (300 ms)**. Automatic modes use
 10-second steps during playback or on the timeline, preserving arrows in other
-controls. The delayed mode combines repeated presses into one seek; OK applies
+controls. Both automatic modes combine rapid repeated presses into one seek; OK applies
 it early and BACK cancels it. Opening settings or changing videos cancels it.
 
 **Playback speed** offers **YouTube choice** (default) and **0.5× through 2×**.
-Selecting a custom speed, or using a faster/slower shortcut, explicitly enables
-common native rates before requesting the speed. No restart or SSH is needed.
-The selection applies to later videos; the menu distinguishes requested speed
-from native confirmation. Early YouTube rate resets are retried a bounded number
-of times. Native rejection restores 1× with a warning. Firmware acceptance is
-not proof of correct A/V timing; the C3 needs a retest. Developer
-`YTAF_PLAYBACK_RATES` overrides remain authoritative.
+A custom speed applies to the current video only and is attempted after native
+playback begins. Each new video and app launch starts normally; saved custom
+rates from older releases are cleared. Speed changes show a toast. Actual native
+frame progress and speed are monitored, including during buffering. Rejected,
+ineffective or stalled speeds restore 1× and clear the preference.
+**Reset playback speed to 1×** is available in Playback and as a selectable
+Remote key action. Reset reaches the shared native worker even during buffering
+and preserves a user pause. Custom rates are currently restricted to the shared
+A/V backend; legacy playback retains 1× because it has a separate audio clock.
+Firmware support still needs TV confirmation. Developer `YTAF_PLAYBACK_RATES`
+overrides remain authoritative.
 
 Magic Remote option lists close when changing category and accept pointer
-release directly. Custom caption sizes use a persistent text style and a
-250 ms check while enabled, covering Cobalt style writes that bypass mutation
+release directly. The complete pointer/mouse gesture is consumed so dismissal
+cannot toggle switches underneath. An outside click dismisses the list; a second
+click activates the underlying control. Custom caption sizes use a persistent
+text style and a 250 ms check while enabled, covering Cobalt style writes that bypass mutation
 observation. YouTube default removes those changes. See
 [implementation and validation limits](docs/c3-playback-followup.md).
 
-The 2.6.2 runtime also retains early `currentTime` requests until metadata arrives,
-addressing a reproducible lost account-resume request. YouTube's video geometry
+The 2.6.3 runtime retains early `currentTime` requests until an actual seekable
+range exists, including after metadata. Regression tests reproduce the previous
+empty-range clamp to zero using the real DOM seek method. Local resume requests
+retry finitely and report success only once playback reaches the saved position.
+Diagnostics show resume status and actual native presentation timestamps. YouTube's video geometry
 and Cobalt's native text accessor are preserved rather than continuously
 rewritten. GREEN can restore a removed settings node. Diagnostics include app
 media and SponsorBlock state to help investigate intermittent disappearing

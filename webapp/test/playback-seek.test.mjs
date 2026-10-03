@@ -7,10 +7,10 @@ function fixture(mode='delayed') {
   const handler=createPlaybackSeek(f.doc,f.win,f.read,value=>previews.push(value),f.notify);
   return {...f,handler,previews,tap(code){handler(f.key(code));handler(f.key(code,'keyup'));}};
 }
-test('default passes YouTube keys through; immediate seeks in ten-second steps without OK',()=>{
+test('default passes YouTube keys through; quick mode seeks after 80 ms in ten-second steps without OK',()=>{
   const native=fixture('youtube');assert.equal(native.handler(native.key(39)),false);assert.equal(native.video.currentTime,100);
-  const f=fixture('immediate');f.video.paused=true;f.tap(39);assert.equal(f.video.currentTime,110);
-  f.tap(37);assert.equal(f.video.currentTime,100);assert.equal(f.video.paused,true);assert.equal(f.timers.size,0);
+  const f=fixture('immediate');f.video.paused=true;f.tap(39);assert.equal(f.video.currentTime,100);f.advance(80);assert.equal(f.video.currentTime,110);
+  f.tap(37);f.advance(80);assert.equal(f.video.currentTime,100);assert.equal(f.video.paused,true);assert.equal(f.timers.size,0);
 });
 test('short delay accumulates rapid taps and commits only the latest target',()=>{
   const f=fixture();const writes=[];let position=100;
@@ -22,9 +22,9 @@ test('short delay accumulates rapid taps and commits only the latest target',()=
 });
 test('held repeat is bounded and trailing release cannot reach YouTube',()=>{
   const f=fixture('immediate'),first=f.key(39);assert.equal(f.handler(first),true);
-  f.handler(f.key(39));assert.equal(f.video.currentTime,110);f.advance(101);f.handler(f.key(39));assert.equal(f.video.currentTime,120);
+  f.handler(f.key(39));assert.equal(f.video.currentTime,100);f.advance(101);f.handler(f.key(39));f.advance(80);assert.equal(f.video.currentTime,120);
   for(const type of ['keypress','keyup']) {const event=f.key(39,type);assert.equal(f.handler(event),true);assert.equal(event.consumed,true);}
-  f.tap(39);assert.equal(f.video.currentTime,130);
+  f.tap(39);f.advance(80);assert.equal(f.video.currentTime,130);
 });
 test('OK commits pending target while BACK cancels and both releases are consumed',()=>{
   for(const code of [13,461,27,8]) {
@@ -64,5 +64,12 @@ test('seek boundaries include live DVR and gaps; invalid timelines and native er
   assert.equal(seekTarget(video,75),80);assert.equal(seekTarget({...video,readyState:0},50),null);
   assert.equal(seekTarget({...video,seekable:{length:0}},50),null);
   const f=fixture('immediate');Object.defineProperty(f.video,'currentTime',{get:()=>100,set:()=>{throw Error('native');}});
-  assert.doesNotThrow(()=>f.tap(39));assert.equal(f.notifications.length,1);
+  assert.doesNotThrow(()=>{f.tap(39);f.advance(80);});assert.equal(f.notifications.length,1);
+});
+
+test('quick mode coalesces repeated taps into one native seek 80 ms after the last press',()=>{
+  const f=fixture('immediate'),writes=[];
+  Object.defineProperty(f.video,'currentTime',{get:()=>100,set:value=>writes.push(value)});
+  f.tap(39);f.advance(30);f.tap(39);f.advance(30);f.tap(37);f.advance(79);
+  assert.deepEqual(writes,[]);f.advance(1);assert.deepEqual(writes,[110]);
 });

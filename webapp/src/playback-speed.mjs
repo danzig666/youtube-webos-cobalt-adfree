@@ -1,94 +1,127 @@
 import {getCurrentVideoId} from './sponsorblock-channels.mjs';
+import {nativePlaybackState} from './native-playback-state.mjs';
 export const playbackRates = [.5,.75,1,1.25,1.5,1.75,2];
 export function startPlaybackSpeed(doc, win, read, write, notify) {
-  let timer = null, ticket = null, previous = null, failed = null, revision = 0;
-  const api = {status:'Uses YouTube’s playback speed.',render(){},request,adjust};
+  let timer = null, ticket = null, internalWrite = false;
+  const now = () => win.Date?.now?.() ?? Date.now();
+  const api = {status:'Uses YouTube’s playback speed.',render(){},request,adjust,reset};
   function status(text) {api.status=text;api.render();}
+  function save(value) {
+    internalWrite=true;
+    try {write('playbackSpeed',value);} finally {internalWrite=false;}
+  }
   function cancel() {if(timer!==null)win.clearTimeout(timer);timer=null;ticket=null;}
-  function fail(current, text) {
+  function normal() {
+    cancel();save('youtube');
+    const video=doc.querySelector('video');
+    try {if(video){video.defaultPlaybackRate=1;video.playbackRate=1;}} catch (_) {}
+    // DOM SetRate may not reach a preroll/buffering pipeline. This bridge posts
+    // a 1x recovery to the native worker without changing a genuine pause.
+    try {win.h5vcc?.system?.resetYtafPlaybackRate?.(Boolean(video?.paused));} catch (_) {}
+  }
+  function reset() {normal();status('Normal playback speed: 1×');notify(api.status,2500,'green');return true;}
+  function fail(current,text) {
     if(ticket!==current)return;
-    failed={video:current.video,id:current.id,rate:current.rate};
-    cancel();
-    // Keep the selected preference for future videos, but recover this player.
-    try {current.video.playbackRate=1;} catch (_) {}
-    status(text);notify(text,5000,'yellow');
+    normal();status(text);notify(text,5000,'yellow');
   }
   function check(current) {
     timer=null;
-    if(ticket!==current || doc.querySelector('video')!==current.video ||
-        getCurrentVideoId(win,doc,false)!==current.id || read('playbackSpeed')!==String(current.rate)) {cancel();return;}
-    current.checks++;
-    if(Math.abs(Number(current.video.playbackRate)-current.rate)>.001) {
-      if(current.retries++ >= 3) {fail(current,'YouTube reset playback speed. Normal speed restored.');return;}
-      try {current.video.playbackRate=current.rate;} catch (_) {fail(current,'Playback speed could not be changed. Normal speed restored.');return;}
-    }
-    try {
-      const report=win.h5vcc?.system?.getYtafMediaReport?.() || '';
-      const rates=report.match(/Playback rate: requested ([\d.e+-]+)x applied ([\d.e+-]+)x/);
-      // A native report is more useful than the DOM's requested-rate readback.
-      if(rates && !current.video.paused && !current.video.seeking && current.video.readyState>=3 &&
-          !/Current player: [^\n]*\(inactive\)/.test(report)) {
-        const requested=Number(rates[1]),applied=Number(rates[2]);
-        if(applied>0 && Math.abs(requested-current.rate)<.001 && Math.abs(applied-current.rate)<.001) {
-          current.confirmed=true;status(`Native playback speed: ${current.rate}×`);
-        } else if(current.checks>=4 && applied>0) {
+    if(ticket!==current)return;
+    const video=current.video;
+    if(doc.querySelector('video')!==video || getCurrentVideoId(win,doc,false)!==current.id) {normal();return;}
+    if(video.ended) {normal();status('Normal speed restored for the next video.');return;}
+    const time=now(), state=nativePlaybackState(win);
+    if(video.paused) {
+      // Pause is intentional, not a stalled firmware rate. Begin fresh when it resumes.
+      current.lastProgress=time;current.baseline=null;if(!current.applied)current.started=time;
+    } else if(!current.applied) {
+      if(state && !state.shared) {fail(current,'Custom speeds are unavailable in this playback backend. Normal speed restored.');return;}
+      if(state?.shared && state.frames>0 && video.readyState>=3 && !video.seeking) {
+        try {
+          if(win.h5vcc?.system?.enableYtafPlaybackRates?.()!==true) throw Error('rate policy');
+          video.playbackRate=current.rate;
+          current.applied=true;current.started=time;current.lastProgress=time;current.lastState=state;
+          status(`Requested playback speed: ${current.rate}×; checking playback.`);
+        } catch (_) {fail(current,'Playback speed is unavailable. Normal speed restored.');return;}
+      } else if(time-current.started>=10000) {
+        fail(current,'Playback has not started. Normal speed restored.');return;
+      }
+    } else {
+      // Firmware accepting SetPlayRate is not proof of playback. Watch actual
+      // native frame timestamps, including while readyState falls into buffering.
+      if(Math.abs(Number(video.playbackRate)-current.rate)>.001) {
+        fail(current,'YouTube reset playback speed. Normal speed restored.');return;
+      }
+      if(state) {
+        const old=current.lastState;
+        if(old && (old.session!==state.session || old.generation!==state.generation)) {
+          current.baseline=null;
+        }
+        if(state.frames>0 && old && state.session===old.session && state.generation===old.generation &&
+            state.frames>old.frames && state.position>old.position) current.lastProgress=time;
+        current.lastState=state;
+        if(state.applied>0 && time-current.started>=2000 &&
+            (Math.abs(state.requested-current.rate)>.001 || Math.abs(state.applied-current.rate)>.001)) {
           fail(current,'Native player did not apply playback speed. Normal speed restored.');return;
         }
+        if(!video.seeking && Math.abs(state.applied-current.rate)<.001 && state.frames>0) {
+          if(!current.baseline)current.baseline={...state,time};
+          const base=current.baseline, elapsed=(time-base.time)/1000;
+          if(elapsed>=3 && state.frames>base.frames && state.position>base.position) {
+            const measured=(state.position-base.position)/elapsed;
+            if(Math.abs(measured-current.rate)>Math.max(.15,current.rate*.18)) {
+              fail(current,'This TV did not sustain the selected speed. Normal speed restored.');return;
+            }
+            status(`Playback speed: ${current.rate}× (native playback progressing)`);
+            current.baseline={...state,time};
+          }
+        } else current.baseline=null;
       }
-    } catch (_) { /* Reports are unavailable on older runtimes. */ }
-    // Catch early YouTube resets and delayed native recovery, without polling
-    // throughout a whole video or silently fighting subsequent manual choices.
-    if(current.checks<10)timer=win.setTimeout(()=>check(current),500);
-    else if(!current.confirmed)status(`Requested ${current.rate}×; native confirmation unavailable.`);
-  }
-  function apply() {
-    revision++;
-    cancel();
-    const chosen=read('playbackSpeed'), video=doc.querySelector('video'), id=getCurrentVideoId(win,doc,false);
-    if(chosen==='youtube') {
-      if(previous?.video===video && Math.abs(Number(video?.playbackRate)-previous.rate)<.001) {
-        try {video.playbackRate=1;} catch (_) {}
+      if(time-current.lastProgress>=8000) {
+        fail(current,'Playback stalled at the selected speed. Normal speed restored.');return;
       }
-      previous=null;status('Uses YouTube’s playback speed.');return;
     }
-    const rate=Number(chosen);
-    if(!playbackRates.includes(rate)) {status('Invalid speed preference; YouTube controls retained.');return;}
-    if(!video || !id || video.readyState<1) {status(`Selected ${rate}×; waiting for video.`);return;}
-    if(failed?.video===video && failed.id===id && failed.rate===rate)return;
-    try {
-      if(rate!==1 && win.h5vcc?.system?.enableYtafPlaybackRates?.()!==true) {
-        status('Custom speeds require the updated runtime and an enabled native rate policy.');
-        notify(api.status,5000,'yellow');return;
-      }
-      const current={video,id,rate,checks:0,retries:0,confirmed:false};ticket=current;previous=current;
-      video.playbackRate=rate;
-      status(`Requested playback speed: ${rate}×`);
-      timer=win.setTimeout(()=>check(current),500);
-    } catch (_) {
-      cancel();status('Playback speed could not be changed.');notify(api.status,4000,'yellow');
-    }
+    if(ticket===current)timer=win.setTimeout(()=>check(current),500);
   }
   function request(rate) {
     if(!playbackRates.includes(rate))return false;
-    const before = revision;
-    write('playbackSpeed',String(rate));
-    // configWrite dispatches synchronously; independent callers may not.
-    if(revision===before)apply();
-    return true;
+    if(rate===1)return reset();
+    const video=doc.querySelector('video'),id=getCurrentVideoId(win,doc,false);
+    if(!video || !id) {notify('Start a video before changing its speed.',3000,'yellow');return false;}
+    if(ticket?.video===video && ticket.id===id && ticket.rate===rate) {
+      notify(`Playback speed: ${rate}×`,2500,'green');return true;
+    }
+    cancel();save(String(rate));
+    const current={video,id,rate,started:now(),lastProgress:now(),applied:false,baseline:null,lastState:null};
+    ticket=current;
+    status(`Playback speed: ${rate}× (requested for this video)`);notify(api.status,2500,'green');
+    check(current);return true;
   }
   function adjust(direction) {
     const video=doc.querySelector('video');if(!video)return false;
-    const rate=Number(read('playbackSpeed')) || Number(video.playbackRate) || 1;
+    const rate=ticket?.rate || Number(video.playbackRate) || 1;
     const closest=playbackRates.reduce((best,value,index)=>Math.abs(value-rate)<Math.abs(playbackRates[best]-rate)?index:best,0);
     return request(playbackRates[Math.max(0,Math.min(playbackRates.length-1,closest+direction))]);
   }
-  for(const type of ['loadedmetadata','playing'])doc.addEventListener(type,event=>{
-    if(event.target===doc.querySelector('video'))apply();
+  function leave() {
+    if(ticket || read('playbackSpeed')!=='youtube') {normal();status('Normal speed restored for the next video.');}
+  }
+  doc.addEventListener('emptied',event=>{if(!ticket || event.target===ticket.video)leave();},true);
+  doc.addEventListener('loadedmetadata',event=>{
+    if(ticket && (event.target!==ticket.video || getCurrentVideoId(win,doc,false)!==ticket.id))leave();
   },true);
-  doc.addEventListener('emptied',cancel,true);
-  doc.addEventListener('yt-navigate-finish',cancel);
-  win.addEventListener('hashchange',cancel);
-  win.addEventListener('pagehide',cancel);
-  doc.addEventListener('ytaf-config-changed',event=>{if(event.detail?.key==='playbackSpeed'){failed=null;apply();}});
-  apply();return api;
+  doc.addEventListener('yt-navigate-finish',()=>{
+    if(ticket && getCurrentVideoId(win,doc,false)!==ticket.id)leave();
+  });
+  win.addEventListener('hashchange',()=>{if(ticket && getCurrentVideoId(win,doc,false)!==ticket.id)leave();});
+  win.addEventListener('pagehide',leave);
+  doc.addEventListener('ytaf-config-changed',event=>{
+    if(event.detail?.key!=='playbackSpeed' || internalWrite)return;
+    const value=read('playbackSpeed');
+    if(value==='youtube')reset();else if(!request(Number(value)))save('youtube');
+  });
+  // Migrate poisoned persistent rates from older builds. Custom speed is now
+  // an explicit choice for one video, never an automatic startup requirement.
+  if(read('playbackSpeed')!=='youtube') {normal();status('Previous custom speed cleared; normal playback restored.');}
+  return api;
 }

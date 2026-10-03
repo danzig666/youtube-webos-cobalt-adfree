@@ -207,6 +207,14 @@ if ! grep -q 'webos_initial_playback_position_' "$cobalt_root/cobalt/dom/html_me
   git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-initial-playback-position.patch"
   git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-initial-playback-position.patch"
 fi
+if ! grep -q 'ResetYtafPlaybackRate' "$cobalt_root/cobalt/h5vcc/h5vcc_system.h"; then
+  git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-reset-playback-speed.patch"
+  git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-reset-playback-speed.patch"
+fi
+if ! grep -q 'TimeRanges::Nearest(empty)' "$cobalt_root/cobalt/dom/html_media_element.cc"; then
+  git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-seekable-resume.patch"
+  git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-seekable-resume.patch"
+fi
 python3 - "$repo_root" "$platform_target/arm/webos_build_metadata.h" <<'PYMETA'
 from pathlib import Path
 import json, re, subprocess, sys

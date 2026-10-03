@@ -80,3 +80,44 @@ test('metadata cache matches identity and retains confirmed live status over sta
   rememberPlaybackMetadata(f.win,{videoDetails:{videoId:'bad',isLiveContent:false}});
   assert.equal(playbackMetadata(f.win,'bbbbbbbbbbb'),null);
 });
+
+function nativeReport(f,position,frames=1,generation=1) {
+  f.win.h5vcc={system:{getYtafMediaReport:()=>`Current player: Shared Starfish\nSession: 8 generation: ${generation}\nPlayback rate: requested 1x applied 1x\nNative presentation: ${position} seconds\nPresented frames: ${frames}\n`}};
+}
+test('an accepted DOM target does not report resumed until a native frame reaches it',()=>{
+  const f=playbackFixture();f.settings.playbackPositions=[f.bookmark(90)];nativeReport(f,0);
+  const api=start(f);f.media('playing');assert.equal(f.video.currentTime,90);
+  f.video.seeking=true;f.advance(1500);assert.equal(f.notifications.length,0);assert.match(api.status,/waiting/);
+  nativeReport(f,90.2,2,2);f.advance(500);assert.match(api.status,/reached/);
+  assert.match(f.notifications.at(-1)[0],/Resumed/);assert.equal(f.timers.size,0);
+});
+test('YouTube account target is retargeted instead of overwritten by a local bookmark',()=>{
+  const f=playbackFixture();f.settings.playbackPositions=[f.bookmark(90)];f.video.currentTime=120;
+  const seeks=[];f.doc.player={getVideoData:()=>({video_id:'aaaaaaaaaaa'}),seekTo:(time)=>seeks.push(time)};
+  nativeReport(f,0);const api=start(f);f.media('playing');assert.deepEqual(seeks,[120]);
+  nativeReport(f,120.2,4,2);f.advance(500);assert.match(api.status,/reached/);
+  assert.equal(f.notifications.length,0);
+});
+test('ignored resume seek retries finitely and times out without claiming success or losing bookmark',()=>{
+  const f=playbackFixture();f.settings.playbackPositions=[f.bookmark()];nativeReport(f,0);
+  let writes=0;Object.defineProperty(f.video,'currentTime',{get:()=>0,set:()=>writes++});
+  const api=start(f);f.media('playing');f.advance(12000);
+  assert.equal(writes,3);assert.equal(f.timers.size,0);assert.match(api.status,/timed out/);
+  assert.match(f.notifications.at(-1)[0],/Could not confirm/);assert.equal(f.settings.playbackPositions[0].position,90);
+});
+test('clicking a settings control does not cancel pending resume; actual timeline interaction does',()=>{
+  const f=playbackFixture();f.settings.playbackPositions=[f.bookmark()];const api=start(f);
+  f.doc.emit('pointerdown',{target:{closest:()=>null}});f.media('playing');assert.equal(f.video.currentTime,90);
+  f.doc.emit('pointerdown',{target:{closest:()=>({})}});assert.equal(f.timers.size,0);
+  assert.match(api.status,/Manual/);
+});
+test('pending resume cancellation handles navigation, disabling, clearing and page exit',()=>{
+  for(const variant of ['navigate','disable','clear','exit']) {
+    const f=playbackFixture();f.settings.playbackPositions=[f.bookmark()];const api=start(f);f.media('playing');
+    if(variant==='navigate'){f.win.location.href='?v=bbbbbbbbbbb';f.win.emit('hashchange');}
+    if(variant==='disable'){f.settings.rememberPlaybackPosition=false;f.doc.emit('ytaf-config-changed',{detail:{key:'rememberPlaybackPosition'}});}
+    if(variant==='clear')api.clear();if(variant==='exit')f.win.emit('pagehide');
+    const notifications=f.notifications.length;f.advance(20000);assert.equal(f.timers.size,0,variant);
+    assert.equal(f.notifications.length,notifications,variant);
+  }
+});

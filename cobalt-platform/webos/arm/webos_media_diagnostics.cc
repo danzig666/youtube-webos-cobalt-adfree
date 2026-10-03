@@ -150,7 +150,7 @@ std::string CopyMediaSnapshotReport() {
   std::lock_guard<std::mutex> guard(mutex);
   char text[1024];
   std::snprintf(text, sizeof(text),
-      "Current player: %s%s\nSession: %llu generation: %llu\nVideo: %s %dx%d %u-bit %s\nAudio: %s %d Hz %d channels\nPlayback rate: requested %.6gx applied %.6gx\nVideo queue: %llu packets / %llu bytes\nAudio queue: %llu packets / %llu bytes\n",
+      "Current player: %s%s\nSession: %llu generation: %llu\nVideo: %s %dx%d %u-bit %s\nAudio: %s %d Hz %d channels\nPlayback rate: requested %.6gx applied %.6gx\nNative presentation: %.6g seconds\nPresented frames: %llu\nVideo queue: %llu packets / %llu bytes\nAudio queue: %llu packets / %llu bytes\n",
       snapshot.session == 0 ? "unavailable" : snapshot.shared ? "Shared Starfish" : "Legacy Starfish",
       snapshot.session && !snapshot.active ? " (inactive)" : "",
       static_cast<unsigned long long>(snapshot.session), static_cast<unsigned long long>(snapshot.generation),
@@ -158,9 +158,18 @@ std::string CopyMediaSnapshotReport() {
       snapshot.hdr == 0 ? "SDR" : snapshot.hdr == 1 ? "HDR10" : snapshot.hdr == 2 ? "HLG" : "unknown HDR",
       CodecName(snapshot.audio), snapshot.sample_rate, snapshot.channels,
       snapshot.requested_rate, snapshot.applied_rate,
+      snapshot.presentation_us / 1000000.0, static_cast<unsigned long long>(snapshot.presented_frames),
       static_cast<unsigned long long>(snapshot.video_packets), static_cast<unsigned long long>(snapshot.video_bytes),
       static_cast<unsigned long long>(snapshot.audio_packets), static_cast<unsigned long long>(snapshot.audio_bytes));
   return text;
+}
+void UpdateMediaPresentation(uint64_t session, uint64_t generation,
+                             int64_t presentation_us, uint64_t frames) {
+  std::lock_guard<std::mutex> guard(mutex);
+  if (session != snapshot.session || generation != snapshot.generation ||
+      snapshot_terminal) return;
+  snapshot.presentation_us = presentation_us;
+  snapshot.presented_frames = frames;
 }
 std::string CopyMediaDiagnosticEvents() {
   std::lock_guard<std::mutex> guard(mutex);

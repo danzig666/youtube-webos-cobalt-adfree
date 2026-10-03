@@ -59,6 +59,7 @@ function event(type, key, code) {
 test('custom shortcuts preserve defaults, validate saved actions, consume held keys and leave editing alone', () => {
   assert.equal(shortcutAction('0', {}), 'captions');
   assert.equal(shortcutAction('3', {}), 'faster');
+  assert.equal(shortcutAction('2', {2:'reset_speed'}), 'reset_speed');
   assert.equal(shortcutAction('9', { 9: 'arbitrary' }), 'none');
   const calls = [],
     doc = { body: { classList: { contains: () => true } } };

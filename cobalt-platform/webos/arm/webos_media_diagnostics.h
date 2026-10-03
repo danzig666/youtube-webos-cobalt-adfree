@@ -66,8 +66,13 @@ struct MediaSnapshot {
   int hdr = 0; // 0 SDR, 1 HDR10, 2 HLG, 3 unknown.
   uint64_t audio_packets = 0, audio_bytes = 0, video_packets = 0, video_bytes = 0;
   double requested_rate = 1, applied_rate = 1;
+  // Actual FRAMEREADY presentation; a requested seek target is not a frame.
+  int64_t presentation_us = -1;
+  uint64_t presented_frames = 0;
 };
 void UpdateMediaSnapshot(const MediaSnapshot& snapshot);
+void UpdateMediaPresentation(uint64_t session, uint64_t generation,
+                             int64_t presentation_us, uint64_t frames);
 std::string CopyMediaSnapshotReport();
 }  // namespace webos
 }  // namespace shared
