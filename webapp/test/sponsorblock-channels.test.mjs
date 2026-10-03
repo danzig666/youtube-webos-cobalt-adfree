@@ -63,8 +63,9 @@ test('a video change while the menu is open requires reviewing the new channel b
   assert.match(panel.children[1].textContent,/Now watching New creator/);
   f.press('__sponsorblock_channel_toggle');assert.equal(stored[0].id,b);
 });
-function controllerFixture(exclusions=[],known=true, mode=null) {
+function controllerFixture(exclusions=[],known=true, mode=null, initiallyHome=false) {
   const win=windowFor(),requests=[],timers=new Map(),intervals=[];let next=1;
+  if(initiallyHome)win.location.href='https://www.youtube.com/tv';
   if(known)rememberPlayerChannel(win,response(v1,a));
   Object.assign(win,{addEventListener(){},setTimeout(fn){const id=next++;timers.set(id,fn);return id;},clearTimeout:id=>timers.delete(id),
     setInterval:fn=>{intervals.push(fn);return 1;},clearInterval(){},requestAnimationFrame:()=>1,cancelAnimationFrame(){}});
@@ -151,4 +152,31 @@ test('connected SponsorBlock markers work on Cobalt without Node.isConnected',()
   f.controller.markerNodes=[marker];f.controller.markerHost=host;f.controller.progressSegment=host;
   assert.equal(f.controller.findExistingOverlay(host),marker);
   f.doc.documentElement.contains=()=>false;assert.equal(f.controller.findExistingOverlay(host),null);
+});
+
+test('SponsorBlock discovers playback after starting on Home without a video identity',()=>{
+  const f=controllerFixture([],false,null,true);
+  assert.equal(f.requests.length,0);assert.equal(f.intervals.length,1);
+  f.win.location.href=`?v=${v1}`;f.intervals[0]();
+  assert.equal(f.requests.length,1);f.requests[0].respond();
+  f.controller.skipCurrentSegment();assert.equal(f.video.currentTime,20);
+});
+test('transient segment failures retry twice, and config reset invalidates old retries',()=>{
+  const f=controllerFixture();
+  for(let i=0;i<3;i++) {
+    const request=f.requests.at(-1);request.status=503;request.responseText='unavailable';request.onload();
+    if(i<2)f.timers.get(f.controller.fetchRetryTimeout)();
+  }
+  assert.equal(f.requests.length,3);assert.equal(f.controller.fetchRetryTimeout,null);
+  assert.equal(f.controller.fetchStatus,'fetch-error');assert.equal(f.controller.fetchRetries,2);
+  const g=controllerFixture();g.requests[0].status=0;g.requests[0].onerror();
+  const retry=g.timers.get(g.controller.fetchRetryTimeout);g.change([{id:a}]);retry();
+  assert.equal(g.requests.length,1);
+});
+test('poller rebinds when the media element is replaced during the same video',()=>{
+  const f=controllerFixture();f.requests[0].respond();
+  const replacement={...f.video,currentTime:5};const query=f.doc.querySelector;
+  f.doc.querySelector=selector=>selector==='video'?replacement:query(selector);
+  f.intervals[0]();assert.equal(f.controller.video,replacement);
+  f.controller.skipCurrentSegment();assert.equal(replacement.currentTime,20);assert.equal(f.video.currentTime,5);
 });

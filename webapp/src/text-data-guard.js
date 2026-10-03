@@ -8,11 +8,12 @@ function installTextDataGuard() {
   }
 
   try {
-    const descriptor = Object.getOwnPropertyDescriptor(Text.prototype, 'data');
-
-    if (descriptor && descriptor.configurable === false) {
-      console.warn('[ytaf] Text.prototype.data is not configurable, guard skipped');
-      return;
+    // Cobalt 23 already implements CharacterData.data, including layout
+    // invalidation and character-data mutations. Do not replace that inherited
+    // native accessor with synthetic child insertions on every text update.
+    for(let prototype=Text.prototype;prototype;prototype=Object.getPrototypeOf(prototype)) {
+      const descriptor=Object.getOwnPropertyDescriptor(prototype,'data');
+      if(descriptor && ((descriptor.get && descriptor.set) || descriptor.writable))return;
     }
 
     Object.defineProperty(Text.prototype, '__ytafTextDataGuardInstalled', {
@@ -25,15 +26,8 @@ function installTextDataGuard() {
         return this.textContent;
       },
       set(value) {
-        this.textContent = value;
-
-        if (!this.parentNode) {
-          return;
-        }
-
-        const marker = document.createTextNode('');
-        this.parentNode.appendChild(marker);
-        this.parentNode.removeChild(marker);
+        const text=value==null?'':String(value);
+        if(this.textContent!==text)this.textContent=text;
       },
       configurable: true
     });

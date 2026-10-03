@@ -40,6 +40,41 @@ resume positions and the request for automatic seeking.
   and metadata replacement invalidate deferred work. YouTube's normal
   OK-to-confirm mode remains the default.
 
+## Intermittent controls and early account resume
+
+The user clarified that SponsorBlock and the timeline initially work, then can
+stop partway through playback. That is distinct from failure at startup; the
+physical failure is not reproducible without the TV. These additional changes
+address concrete code defects and preserve state for a follow-up report:
+
+- The old global video-style observer forced width/height/left/top, overwriting
+  YouTube's hidden/offscreen geometry during navigation and completion. It is
+  removed: native SDL/Starfish already inhibit the screen saver while playing.
+- The text-data guard replaced Cobalt's inherited native `CharacterData.data`
+  accessor and inserted/removed an empty text node on every write. Cobalt already
+  invalidates layout and reports character-data changes. Preserve its native
+  accessor, and make a fallback for missing accessors idempotent without phantom
+  child mutations. This removes an avoidable source of mutation traffic; it is
+  not proof that mutation traffic caused the C3 failure.
+- GREEN reattaches the same settings node if YouTube removes its parent during
+  rendering, retaining listeners/preferences rather than creating duplicate
+  controllers. Initialization is marked complete only after listeners exist.
+- SponsorBlock starts discovery before an initial video identity is available,
+  rebinds after media-element replacement, and retries transient API failures
+  twice with 10/30-second delays. Navigation/config changes invalidate retries.
+  Features disabled at startup can be initialized once when later enabled.
+- Diagnostics now include media ready/paused/seeking/ended state, position,
+  settings initialization, SponsorBlock fetch status/count/retries/HTTP status,
+  media binding and polling state. No video identities, URLs or response bodies
+  enter those app diagnostics.
+- Cobalt's existing `currentTime` setter raises `INVALID_STATE_ERR` before
+  metadata. The new webOS DOM patch retains the latest finite early position,
+  reports it through the getter, applies it once at metadata and resets it for
+  each resource load. This fixes a reproducible lost-request path that could
+  explain YouTube knowing a bookmark while native playback starts at zero.
+  The local bookmark fallback remains optional and does not replace YouTube's
+  own resume point. Physical account-resume behavior still needs a C3 retest.
+
 ## Storage and boundaries
 
 Only bounded `{id, position, duration, updated}` bookmark records enter the
@@ -52,12 +87,14 @@ Storage failures produce a bounded session warning and throttled retries.
 
 ## Validation
 
-147 web regressions pass, including silent Cobalt CSS replacement, pointer-only
+155 web regressions pass, including silent Cobalt CSS replacement, pointer-only
 selection, duplicate events, popup dismissal, native speed opt-in/confirmation/
 recovery, paused rates, local resume, stale navigation callbacks, live exclusion,
 seek debouncing, held keys, timeline bounds and native failures. Native host
 tests include common/full-range/invalid rate environment overrides and exercise
-the real patch installer twice. Browser checks exercise the actual settings UI
+the real patch installer twice. A host regression compiles actual upstream and
+patched DOM methods, reproducing the lost pre-metadata seek and verifying latest
+request retention, zero cancellation and one-shot dispatch at metadata. Browser checks exercise the actual settings UI
 at 720p and 1080p with sample native APIs, including category switches with a list
 open and repeated caption style overwrites. Synthetic VOD checks cover actual
 UI bookmark storage/restoration, rapid deferred seeks and native speed feedback.

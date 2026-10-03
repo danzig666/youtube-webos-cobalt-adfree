@@ -7,6 +7,7 @@ import './ui.css';
 import { startPlaybackResume } from './playback-resume.mjs';
 import { createPlaybackSeek } from './playback-seek.mjs';
 import { startPlaybackSpeed, playbackRates } from './playback-speed.mjs';
+import { ensureSettingsMounted } from './settings-mount.mjs';
 import { createSettingsSections } from './settings-sections.mjs';
 import { wheelScrollDelta } from './wheel-scroll.mjs';
 import { createMenuBackGuard } from './menu-back-guard.mjs';
@@ -35,10 +36,13 @@ function text(key) {
 }
 
 export function userScriptStartUI() {
+  if (window.__ytafUiInitialized && window.__ytafAttachSettings) {
+    window.__ytafAttachSettings();
+    return;
+  }
   if (window.__ytafUiInitialized && document.querySelector('.ytaf-ui-container')) {
     return;
   }
-  window.__ytafUiInitialized = true;
   console.info('[ytaf] userScriptStartUI() called');
 
   const ARROW_KEY_CODE = { 37: 'left', 38: 'up', 39: 'right', 40: 'down' };
@@ -521,6 +525,7 @@ export function userScriptStartUI() {
   }
 
   function openContainer() {
+    ensureSettingsMounted(document, uiContainer);
     if (typeof window !== 'undefined') window.__ytafSponsorPrompt?.dismiss();
     console.info('Container: Showing & Focusing!');
     latestFocus =
@@ -845,9 +850,8 @@ export function userScriptStartUI() {
     uiContainer.scrollTop = 0;
   }, {capture: true, passive: false});
 
-
-
-
+  window.__ytafAttachSettings = () => ensureSettingsMounted(document, uiContainer);
+  window.__ytafUiInitialized = true;
 }
 
 export function showNotification(text, time = 3000, variant = 'yellow') {

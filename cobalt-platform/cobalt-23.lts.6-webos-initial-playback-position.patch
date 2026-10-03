@@ -1,0 +1,79 @@
+--- a/cobalt/dom/html_media_element.h
++++ b/cobalt/dom/html_media_element.h
+@@ -270,6 +270,11 @@
+ 
+   float volume_;
+   float last_seek_time_;
++#if defined(STARBOARD_WEBOS)
++  // Keep the latest pre-metadata request until this resource becomes seekable.
++  float webos_initial_playback_position_ = 0;
++  void ApplyWebOsInitialPlaybackPosition();
++#endif
+   double previous_progress_time_;
+ 
+   double duration_;
+--- a/cobalt/dom/html_media_element.cc
++++ b/cobalt/dom/html_media_element.cc
+@@ -348,6 +348,11 @@
+ 
+ float HTMLMediaElement::current_time(
+     script::ExceptionState* exception_state) const {
++#if defined(STARBOARD_WEBOS)
++  if (ready_state_ == WebMediaPlayer::kReadyStateHaveNothing) {
++    return webos_initial_playback_position_;
++  }
++#endif
+   if (!player_) {
+     LOG(INFO) << 0 << " (because player is NULL)";
+     return 0;
+@@ -366,6 +372,15 @@
+ void HTMLMediaElement::set_current_time(
+     float time, script::ExceptionState* exception_state) {
+   // 4.8.9.9 Seeking
++#if defined(STARBOARD_WEBOS)
++  // Modern HTML media semantics retain currentTime while HAVE_NOTHING. The
++  // old exception loses an early YouTube resume request before native setup.
++  if (ready_state_ == WebMediaPlayer::kReadyStateHaveNothing) {
++    if (std::isfinite(time)) webos_initial_playback_position_ = std::max(0.f, time);
++    return;
++  }
++  webos_initial_playback_position_ = 0;
++#endif
+ 
+   // 1 - If the media element's readyState is
+   // WebMediaPlayer::kReadyStateHaveNothing, then raise an INVALID_STATE_ERR
+@@ -726,6 +741,9 @@
+ }
+ 
+ void HTMLMediaElement::PrepareForLoad() {
++#if defined(STARBOARD_WEBOS)
++  webos_initial_playback_position_ = 0;
++#endif
+   TRACE_EVENT0("cobalt::dom", "HTMLMediaElement::PrepareForLoad()");
+   // Perform the cleanup required for the resource load algorithm to run.
+   StopPeriodicTimers();
+@@ -1171,6 +1189,9 @@
+ #endif  // SB_HAS(PLAYER_WITH_URL)
+     ScheduleOwnEvent(base::Tokens::durationchange());
+     ScheduleOwnEvent(base::Tokens::loadedmetadata());
++#if defined(STARBOARD_WEBOS)
++    ApplyWebOsInitialPlaybackPosition();
++#endif
+   }
+ 
+   if (ready_state_ >= WebMediaPlayer::kReadyStateHaveCurrentData &&
+@@ -1278,6 +1299,14 @@
+   network_state_ = kNetworkIdle;
+ }
+ 
++#if defined(STARBOARD_WEBOS)
++void HTMLMediaElement::ApplyWebOsInitialPlaybackPosition() {
++  const float target = webos_initial_playback_position_;
++  webos_initial_playback_position_ = 0;
++  if (target > 0) Seek(target);
++}
++#endif
++
+ void HTMLMediaElement::Seek(float time) {
+   LOG(INFO) << "Seek to " << time << ".";
+   // 4.8.9.9 Seeking - continued from set_current_time().

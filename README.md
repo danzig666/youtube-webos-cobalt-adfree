@@ -252,3 +252,10 @@ release directly. Custom caption sizes use a persistent text style and a
 250 ms check while enabled, covering Cobalt style writes that bypass mutation
 observation. YouTube default removes those changes. See
 [implementation and validation limits](docs/c3-playback-followup.md).
+
+The 2.6.2 runtime also retains early `currentTime` requests until metadata arrives,
+addressing a reproducible lost account-resume request. YouTube's video geometry
+and Cobalt's native text accessor are preserved rather than continuously
+rewritten. GREEN can restore a removed settings node. Diagnostics include app
+media and SponsorBlock state to help investigate intermittent disappearing
+controls; that reported physical-TV failure is not confirmed resolved here.

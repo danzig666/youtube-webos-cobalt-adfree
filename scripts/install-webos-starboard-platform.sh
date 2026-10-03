@@ -203,6 +203,10 @@ if ! grep -q 'EnableYtafPlaybackRates' "$cobalt_root/cobalt/h5vcc/h5vcc_system.h
   git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-playback-speed-setting.patch"
   git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-playback-speed-setting.patch"
 fi
+if ! grep -q 'webos_initial_playback_position_' "$cobalt_root/cobalt/dom/html_media_element.h"; then
+  git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-initial-playback-position.patch"
+  git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-initial-playback-position.patch"
+fi
 python3 - "$repo_root" "$platform_target/arm/webos_build_metadata.h" <<'PYMETA'
 from pathlib import Path
 import json, re, subprocess, sys

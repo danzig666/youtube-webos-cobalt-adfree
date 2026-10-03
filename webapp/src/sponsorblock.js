@@ -261,12 +261,17 @@ class SponsorBlockController {
   skipped = {};
   prompted = {};
   pendingPrompt = null;
+  fetchRetryTimeout = null;
+  fetchRetries = 0;
 
   start() {
+    // Start discovery even on Home, before a URL or media element exists.
+    this.startSkipPoller();
     this.syncVideoState();
     this.observePlayerUI();
     window.addEventListener('hashchange', () => this.syncVideoState(), true);
     document.addEventListener('yt-navigate-finish', () => this.syncVideoState(), true);
+    document.addEventListener('loadedmetadata', () => this.syncVideoState(), true);
     this.configChangeHandler = (event) => {
       const key = event?.detail?.key;
       if (key !== 'enableSponsorBlock' && key !== 'sponsorBlockActions' && key !== channelExclusionsKey &&
@@ -284,6 +289,8 @@ class SponsorBlockController {
     this.clearPrompt();
     this.active = false;
     this.requestToken += 1;
+    if(this.fetchRetryTimeout !== null) window.clearTimeout(this.fetchRetryTimeout);
+    this.fetchRetryTimeout = null;
 
     if (this.domObserver) {
       this.domObserver.disconnect();
@@ -354,6 +361,8 @@ class SponsorBlockController {
   reset() {
     this.clearPrompt();
     this.requestToken += 1;
+    if(this.fetchRetryTimeout !== null) window.clearTimeout(this.fetchRetryTimeout);
+    this.fetchRetryTimeout = null;this.fetchRetries = 0;
     this.videoID = null;
     this.segments = [];
     this.skippableCategories = [];
@@ -593,7 +602,10 @@ class SponsorBlockController {
     this.scheduleSkip();
   }
 
-  loadVideo(videoId) {
+  loadVideo(videoId, retry = false) {
+    if(this.fetchRetryTimeout !== null) window.clearTimeout(this.fetchRetryTimeout);
+    this.fetchRetryTimeout = null;
+    if(!retry)this.fetchRetries = 0;
     this.clearPrompt();
     const requestToken = ++this.requestToken;
     this.videoID = videoId;
@@ -629,11 +641,11 @@ class SponsorBlockController {
       videoId
     )}&${categoryParams}&${actionParams}`;
 
-    requestJSON(
+    try { requestJSON(
       this.requestUrl,
       (results, status = 200, body = '') => this.handleSegments(results, status, body, requestToken),
       (err, status = 'n/a', body = '') => this.handleError(err, status, body, requestToken)
-    );
+    ); } catch(err) {this.handleError(err,0,'',requestToken);}
   }
 
   handleSegments(results, status, body, requestToken) {
@@ -660,6 +672,15 @@ class SponsorBlockController {
     this.fetchError = err?.message || String(err);
     this.segments = [];
     console.warn('[SponsorBlock] fetch failed:', err);
+    // Retry only transient failures, bounded per video. A 404/no segments is
+    // handled as a successful empty response and never retried.
+    if(this.fetchRetries < 2 && (status===0 || status==='n/a' || status===429 || status>=500)) {
+      const delay=[10000,30000][this.fetchRetries++];
+      this.fetchRetryTimeout=window.setTimeout(()=>{
+        this.fetchRetryTimeout=null;
+        if(requestToken===this.requestToken && this.playbackAllowed())this.loadVideo(this.videoID,true);
+      },delay);
+    }
   }
 
   drawOverlay() {
