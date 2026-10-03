@@ -140,7 +140,7 @@ export function createHomeRefresh(doc, win, notify, beforeSoftRefresh = () => {}
       // away page's cards to leave; Cobalt clients can keep a constant URL.
       const homeVisible = leftByRoute ? isHomeScreen(doc, win)
         : awayCard ? !visibleCard(doc, awayCard) && firstCard(doc) !== null
-        : firstCard(doc) !== null;
+        : false;
       if (homeVisible) { cancel('returned-home'); return; }
       if (++attempts >= 30) {
         fail('home-return-timeout', 'Light refresh could not confirm the return. Select Home in YouTube’s sidebar.'); return;

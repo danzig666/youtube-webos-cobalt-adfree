@@ -219,6 +219,16 @@ test('light refresh never treats missing cards and an unchanged URL as observed 
   assert.deepEqual(f.calls,['library']);assert.equal(f.reloads,0);
   assert.match(homeRefreshReport(f.doc,f.win),/departure-timeout/);
 });
+test('late loading away cards do not count as a confirmed Home return on constant-URL clients',()=>{
+  const f=softFixture(true), query=f.doc.querySelectorAll, select=f.away.__instance.props.onSelect;
+  let loading=false;
+  f.doc.querySelectorAll=selector=>selector==='ytlr-guide-entry-renderer' || !loading?query(selector):[];
+  f.away.__instance.props.onSelect=()=>{select();loading=true;};
+  // The return is ignored, then the other page finishes loading its cards.
+  f.home.__instance.props.onSelect=()=>{f.calls.push('ignored home');loading=false;};
+  f.refresh();f.tick();f.tick();for(let i=0;i<30;i++)f.tick();
+  assert.equal(f.reloads,0);assert.match(homeRefreshReport(f.doc,f.win),/home-return-timeout/);
+});
 test('callback exceptions do not request a reload, reveal private data or lock further attempts',()=>{
   for(const which of ['away','home']) {
     const f=softFixture();f[which].__instance.props.onSelect=()=>{throw Error('signed secret URL');};
