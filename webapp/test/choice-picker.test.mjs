@@ -21,3 +21,10 @@ test('pointer selects a named option directly and failed saves retain the old va
   f.choices.add('failed','Failure','a',[{value:'a',label:'Old'},{value:'b',label:'New'}],()=>false);
   assert.equal(f.choices.select('failed','b'),false);assert.match(f.nodes.get('failed').textContent,/Old/);
 });
+
+
+test('closing settings with OK consumes the trailing activation release',()=>{
+  const f=menuFixture(),wrapper=f.doc.createElement('div'),node=f.doc.createElement('div');
+  node.id='close';node.dataset.ytafControl='action';node.__ytafActivate=()=>f.setOpen(false);wrapper.appendChild(node);
+  assert.deepEqual(f.press('close'),[true,true,true,true]);
+});

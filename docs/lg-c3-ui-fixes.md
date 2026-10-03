@@ -29,14 +29,15 @@ leave live changes usable and show the existing session-only warning.
 
 ## Validation and limits
 
-120 web tests and native host regressions pass. Browser integration checks at
+122 web tests and native host regressions pass. Browser integration checks at
 1280×720 and 1920×1080 exercise actual UI code: category visibility, QR placement,
 all numeric keys, explicit option selection/cancellation, diagnostics arrows and
 wheel, BACK isolation, persisted toggles across reload, notification expiry and
 close-icon positioning. Caption tests cover real text-style changes/restoration,
 late font-module readiness, silently ignored font changes, and default restoration
 without undoing manual changes. Cobalt-shaped CSS tests cover missing priority
-getters and ignored setProperty priorities; cssText preserves important styling.
+getters, non-iterable DOM lists and ignored setProperty priorities; cssText
+preserves important styling. Caption observation ignores unrelated animations.
 
 Both ARM Gold runtimes and IPKs are built and checked for exact production assets,
 source SHA, manifest/package identity and dependencies. No LG TV is connected

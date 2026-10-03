@@ -6,13 +6,13 @@ import {wheelScrollDelta} from '../src/wheel-scroll.mjs';
 
 // Exercise the actual menu handler with controllable geometry and RAF queues.
 function menu() {
-  let open = true, comments = false, handler;
+  let open = true, handler;
   const cancelled = [], items = [];
   const doc = {activeElement: null, addEventListener(type, fn) {if(type === 'wheel') handler = fn;}};
   const container = {scrollTop: 12, focus() {doc.activeElement = this;}, getBoundingClientRect: () => ({top: 0, bottom: 400})};
   const viewport = {scrollTop: 20, getBoundingClientRect: () => ({top: 100, bottom: 400, height: 300})};
   const content = {style: {}, scrollHeight: 1800, querySelectorAll: () => items};
-  const context = vm.createContext({document: doc, window: {__ytafComments: {isOpen: () => comments}, cancelAnimationFrame: id => cancelled.push(id)}, isContainerOpen: () => open, wheelScrollDelta, menuViewport: viewport, menuContent: content, uiContainer: container});
+  const context = vm.createContext({document: doc, window: {cancelAnimationFrame: id => cancelled.push(id)}, isContainerOpen: () => open, wheelScrollDelta, menuViewport: viewport, menuContent: content, uiContainer: container});
   vm.runInContext('let menuOffset=0, menuScrollFrame=8, directionMoveFrame=9, wheelFocusing=false, currentFocusIndex=-1, lastTabIndex=0;', context);
   for (let i = 0; i < 10; i++) {
     const node = {tabIndex: i + 1, focus() {
@@ -29,7 +29,7 @@ function menu() {
   const start = src.indexOf('  // Own the wheel');
   vm.runInContext(src.slice(start, src.indexOf('}, {capture: true, passive: false});', start) + '}, {capture: true, passive: false});'.length), context);
   return {doc, container, content, viewport, items, cancelled,
-    close: () => {open = false;}, comments: () => {comments = true;},
+    close: () => {open = false;},
     wheel(deltaY, extra = {}) {
       const event = {deltaY, deltaMode: 0, ...extra, preventDefault() {this.prevented = true;}, stopPropagation() {this.stopped = true;}};
       handler(event); return event;

@@ -523,6 +523,7 @@ export function userScriptStartUI() {
     suspendSpatialNavigation();
     applyVisibleContainerStyles();
     document.dispatchEvent(new CustomEvent('ytaf-menu-opened'));
+    if (sections.current() === 'diagnostics') document.dispatchEvent(new CustomEvent('ytaf-diagnostics-opened'));
     menuOffset = 0;
     menuContent.style.top = '0';
     uiContainer.scrollTop = 0;
@@ -620,12 +621,18 @@ export function userScriptStartUI() {
   window.addEventListener('blur', () => handleNumericShortcut.reset());
   const menuBackGuard = createMenuBackGuard(isContainerOpen, closeContainer);
   const eventHandler = (evt) => {
-    if (evt.type === 'keyup' && heldActivationControl) {
+    const activationRelease = evt.type === 'keyup' && heldActivationControl &&
+      (evt.key === 'Enter' || evt.key === ' ' || [13, 32].includes(evt.keyCode || evt.which));
+    if (activationRelease) {
       const wrapper = heldActivationControl.parentElement;
       if (wrapper) wrapper.dataset.ytafIgnoreClickUntil = String(Date.now() + 1000);
       heldActivationControl = null;
     }
     if (typeof choiceTools !== 'undefined' && choiceTools.handleKey?.(evt)) return false;
+    if (activationRelease) {
+      evt.preventDefault(); evt.stopPropagation(); evt.stopImmediatePropagation?.();
+      return false;
+    }
     if (typeof menuBackGuard !== 'undefined' && menuBackGuard(evt)) return false;
     const menuOpen = isContainerOpen();
     if (typeof window !== 'undefined' && window.__ytafPromptRelease?.(evt)) return false;

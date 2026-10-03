@@ -1,7 +1,7 @@
 // YouTube's caption text is often rendered in the DOM even when its TV player
 // container does not expose the IFrame player's getOption/setOption methods.
 export const captionSizeScale = { smallest: .6, small: .8, normal: 1, large: 1.25, extra: 1.5 };
-const windows = '.caption-window, ytlr-caption-window, ytlr-caption-window-renderer';
+const windows = '[class*="caption-window"], ytlr-caption-window, ytlr-caption-window-renderer';
 const segments = '.ytp-caption-segment, .captions-text, .caption-segment, ytlr-caption-segment';
 // Cobalt 23 has setProperty/cssText but does not expose getPropertyPriority.
 function priority(style, key) {
@@ -35,10 +35,10 @@ export function startCaptionSizing(doc, win, read) {
       }
     }
     if (scale === undefined) return 0;
-    const nodes = new Set(doc.querySelectorAll(segments));
-    for (const window of doc.querySelectorAll(windows)) {
+    const nodes = new Set(Array.from(doc.querySelectorAll(segments)));
+    for (const window of Array.from(doc.querySelectorAll(windows))) {
       // Style text leaves too: TV renderers may put an explicit size on children.
-      for (const node of window.querySelectorAll('*')) {
+      for (const node of Array.from(window.querySelectorAll('*'))) {
         if (!node.children.length && node.textContent.trim()) nodes.add(node);
       }
     }
@@ -52,7 +52,7 @@ export function startCaptionSizing(doc, win, read) {
         };
         originals.set(node, value);
       }
-      const pixels = `${originals.get(node).base * scale}px`;
+      const pixels = `${Math.round(originals.get(node).base * scale * 1000) / 1000}px`;
       // Avoid a MutationObserver loop from repeatedly setting the same style.
       if (node.style.getPropertyValue('font-size') !== pixels || priority(node.style, 'font-size') !== 'important') {
         setStyle(node.style, 'font-size', pixels, 'important');
@@ -67,7 +67,21 @@ export function startCaptionSizing(doc, win, read) {
       if (frame !== null) win.cancelAnimationFrame(frame);
       frame = null;
     } else if (!observer && win.MutationObserver && doc.documentElement) {
-      observer = new win.MutationObserver(() => {
+      observer = new win.MutationObserver(records => {
+        const selector = windows + ',' + segments;
+        function captionAncestor(node) {
+          for (let current = node; current; current = current.parentElement) {
+            if (originals.has(current) || current.matches?.(selector)) return true;
+          }
+          return false;
+        }
+        const relevant = Array.from(records).some(record => {
+          if (captionAncestor(record.target)) return true;
+          if (record.type !== 'childList') return false;
+          return Array.from(record.addedNodes).concat(Array.from(record.removedNodes))
+            .some(node => captionAncestor(node) || node.querySelector?.(selector));
+        });
+        if (!relevant) return;
         if (frame !== null) return;
         frame = win.requestAnimationFrame(() => { frame = null; apply(); });
       });
