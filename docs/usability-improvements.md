@@ -171,3 +171,17 @@ missing/failed navigation APIs, one-shot startup bypass and per-key activation.
 Browser integration checks exercise actual reloads and saved mappings on Home
 with History reduced to its Cobalt shape. Physical Home-route/API behavior still
 needs a TV check.
+
+### Cobalt URL compatibility correction (2.6.8)
+
+The 2.6.7 Home guard called URL.searchParams, which Cobalt 23 URLUtils does not
+expose. Its exception was caught as “not Home,” so the numeric action never
+ran; the menu action instead requested going to Home. The original browser
+fixture restricted History but left Chromium’s full URL interface available,
+and therefore missed this failure. The regression now executes the real module
+with Cobalt-shaped URL objects and reproduces the failed Home check before the
+fix. Query checks and the one-shot marker now use the supported URL.search
+attribute; they do not need URLSearchParams or a YouTube-provided polyfill.
+Browser reload checks also remove URL.searchParams. The Location.replace/reload
+path is retained; no guessed guide callback sequence is introduced. Device
+confirmation of the corrected action remains pending.

@@ -1,10 +1,27 @@
 const marker = 'ytaf_refresh_home';
 const consumedLaunches = new WeakSet();
+// Cobalt 23 URLUtils exposes .search but has no .searchParams attribute.
+// Keep this independent of URLSearchParams/polyfills supplied by YouTube.
+function queryPart(part) {
+  const split = part.indexOf('=');
+  try {
+    return [decodeURIComponent((split < 0 ? part : part.slice(0, split)).replace(/\+/g, ' ')),
+      decodeURIComponent((split < 0 ? '' : part.slice(split + 1)).replace(/\+/g, ' '))];
+  } catch (_) { return [null, null]; }
+}
+function queryValue(url, name) {
+  for (const part of url.search.slice(1).split('&')) {
+    const [key, value] = queryPart(part);
+    if (key === name) return value;
+  }
+  return null;
+}
+
 function homeUrl(win) {
   try {
     const url = new URL(win.location.href);
     if (url.origin !== 'https://www.youtube.com' || !/^\/tv\/?$/.test(url.pathname) ||
-        url.searchParams.has('v') || url.searchParams.has('vq') ||
+        queryValue(url, 'v') !== null || queryValue(url, 'vq') !== null ||
         !['', '#', '#/', '#/browse/FEwhat_to_watch'].includes(url.hash)) return null;
     return url;
   } catch (_) { return null; }
@@ -19,7 +36,7 @@ export function isHomeScreen(doc, win) {
 // still applies the saved startup page. The flag disappears on a fresh launch.
 export function consumeHomeRefresh(win) {
   const url = homeUrl(win);
-  if (!url || url.searchParams.get(marker) !== '1' || consumedLaunches.has(win)) return false;
+  if (!url || queryValue(url, marker) !== '1' || consumedLaunches.has(win)) return false;
   consumedLaunches.add(win);
   return true;
 }
@@ -44,8 +61,12 @@ export function createHomeRefresh(doc, win, notify) {
         const url = homeUrl(win);
         // Changing a query forces a full Cobalt navigation. Repeating the
         // same URL with a hash would be ignored by Location.replace.
-        if (url.searchParams.get(marker) === '1') win.location.reload();
-        else { url.searchParams.set(marker, '1'); win.location.replace(url.href); }
+        if (queryValue(url, marker) === '1') win.location.reload();
+        else {
+          const parts = url.search.slice(1).split('&').filter(part => part && queryPart(part)[0] !== marker);
+          parts.push(marker + '=1'); url.search = '?' + parts.join('&');
+          win.location.replace(url.href);
+        }
       } catch (_) {
         pending = false;
         notify('Could not refresh Home. Please try again.', 2200, 'yellow');

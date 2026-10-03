@@ -5,14 +5,32 @@ import vm from 'node:vm';
 import {createHomeRefresh, consumeHomeRefresh, isHomeScreen, createHomeRefreshButton} from '../src/home-refresh.mjs';
 import {createShortcutHandler, shortcutOptions} from '../src/remote-shortcuts.mjs';
 import {menuFixture} from './helpers/menu-fixture.mjs';
-function fixture(href='https://www.youtube.com/tv#/') {
+class CobaltURL extends URL {
+  // Cobalt URLUtils exposes search, but no searchParams attribute.
+  get searchParams() { return undefined; }
+}
+function fixture(href='https://www.youtube.com/tv#/', Url=URL) {
   const frames=[], messages=[];let reloads=0;const classes=new Set();
-  const win={location:{href,replace(url){win.location.href=url;reloads++;},reload(){reloads++;}},history:{length:1},setTimeout(fn,delay){assert.equal(delay,100);frames.push(fn);}};
+  const win={URL:Url,location:{href,replace(url){win.location.href=url;reloads++;},reload(){reloads++;}},history:{length:1},setTimeout(fn,delay){assert.equal(delay,100);frames.push(fn);}};
   const doc={body:{classList:{contains:name=>classes.has(name)}},defaultView:win};
   const refresh=createHomeRefresh(doc,win,(...args)=>messages.push(args));
   return {win,doc,classes,refresh,frames,messages,get reloads(){return reloads;}};
 }
 function key(type='keydown',extra={}) {return {type,key:'9',preventDefault(){this.blocked=true;},stopPropagation(){},...extra};}
+test('native Cobalt URL without searchParams can refresh and bypass startup routing',()=>{
+  const runtime=vm.createContext({URL:CobaltURL});
+  vm.runInContext(readFileSync(new URL('../src/home-refresh.mjs',import.meta.url),'utf8').replace(/export function /g,'function '),runtime);
+  const f=fixture('https://www.youtube.com/tv#/',CobaltURL);
+  f.refresh=runtime.createHomeRefresh(f.doc,f.win,(...args)=>f.messages.push(args));
+  assert.equal(runtime.isHomeScreen(f.doc,f.win),true);
+  assert.equal(f.refresh(),true);f.frames.shift()();assert.equal(f.reloads,1);
+  assert.match(f.win.location.href,/ytaf_refresh_home=1/);
+  assert.equal(runtime.consumeHomeRefresh(f.win),true);assert.equal(runtime.consumeHomeRefresh(f.win),false);
+  // Reload from the marked address must also work without searchParams.
+  const next=fixture(f.win.location.href,CobaltURL);next.win.location.replace=()=>assert.fail('must reload');
+  next.refresh=runtime.createHomeRefresh(next.doc,next.win,()=>{});
+  assert.equal(next.refresh(),true);next.frames.shift()();assert.equal(next.reloads,1);
+});
 test('Home refresh navigates once without History APIs and bypasses startup preference once per document',()=>{
   const f=fixture();assert.equal(f.refresh(),true);assert.equal(f.refresh(),false);assert.equal(f.frames.length,1);
   f.frames.shift()();assert.equal(f.reloads,1);assert.equal(new URL(f.win.location.href).searchParams.get('ytaf_refresh_home'),'1');
@@ -79,4 +97,12 @@ test('Home shortcut respects master switch, menu, editing, modifiers and repeats
 test('refresh button ignores the synthetic click following remote activation',()=>{
   const f=menuFixture();let calls=0;createHomeRefreshButton(f.doc,()=>calls++);
   f.press('__refresh_home');f.click('__refresh_home');assert.equal(calls,1);
+});
+
+test('Home refresh preserves unrelated parameters and normalizes only its marker without native searchParams',()=>{
+  const f=fixture('https://www.youtube.com/tv?theme=cl&ytaf_refresh_home=0&lang=hu#/',CobaltURL);
+  f.refresh();f.frames.shift()();assert.equal(f.win.location.href,'https://www.youtube.com/tv?theme=cl&lang=hu&ytaf_refresh_home=1#/');
+  for(const href of ['https://www.youtube.com/tv?%76=aaaaaaaaaaa#/','https://www.youtube.com/tv?v#/','https://www.youtube.com/tv?%76q=query#/']) {
+    const f=fixture(href,CobaltURL);assert.equal(f.refresh(),false);assert.equal(f.frames.length,0);
+  }
 });
