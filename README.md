@@ -1,10 +1,19 @@
 # YouTube webOS Cobalt AdFree
 
 [![CI](https://github.com/RF1705/youtube-webos-cobalt-adfree/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/RF1705/youtube-webos-cobalt-adfree/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/RF1705/youtube-webos-cobalt-adfree?label=latest%20release)](https://github.com/RF1705/youtube-webos-cobalt-adfree/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/RF1705/youtube-webos-cobalt-adfree/total?label=downloads)](https://github.com/RF1705/youtube-webos-cobalt-adfree/releases)
+[![Latest release](https://img.shields.io/github/v/release/danzig666/youtube-webos-cobalt-adfree?include_prereleases&label=latest%20release)](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases)
+[![Downloads](https://img.shields.io/github/downloads/danzig666/youtube-webos-cobalt-adfree/total?label=downloads)](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases)
 
 Unofficial Cobalt-based YouTube modification for LG webOS TVs with ad blocking and SponsorBlock support.
+
+**Current corrective build: [v2.6.3-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.3-beta.1)**
+
+- [Separate-ID IPK — installs alongside YouTube](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.3-beta.1/com.cobalt.youtube.adfree_2.6.3_arm.ipk)
+- [Original-ID IPK — replaces official YouTube](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.3-beta.1/youtube.leanback.v4_2.6.3_arm.ipk)
+
+Update the same package ID you already use, then fully close and reopen the app.
+This clears old saved custom speeds. C3 playback speed and resume need a retest;
+see the release notes for the native correction and validation limits.
 
 > This project is unofficial and is not affiliated with YouTube, Google, LG or webOS.
 
@@ -25,7 +34,7 @@ Unofficial Cobalt-based YouTube modification for LG webOS TVs with ad blocking a
 - Installable `.ipk` package
 
 The configuration screen can be opened with the **GREEN** button on the LG remote.
-While a video is playing, press **1** to decrease playback speed or **3** to increase it. Press **0** to toggle subtitles.
+While a video is playing, press **1** to decrease playback speed or **3** to increase it. Press **0** to toggle subtitles. **Reset playback speed to 1×** can be assigned to any numeric key under **Remote**.
 
 ### Video quality
 
