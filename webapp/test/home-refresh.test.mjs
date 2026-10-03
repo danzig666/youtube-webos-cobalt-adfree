@@ -108,7 +108,7 @@ test('Home refresh preserves unrelated parameters and normalizes only its marker
   }
 });
 
-function softFixture(constantUrl=false, hideInsteadOfRemove=false) {
+function softFixture(constantUrl=false, hideInsteadOfRemove=false, homeId='FEwhat_to_watch') {
   const f=fixture(), calls=[], events=new Map();
   let currentHome, awayCard=null;
   const guides=[];
@@ -120,9 +120,9 @@ function softFixture(constantUrl=false, hideInsteadOfRemove=false) {
   function setGuide(id,select) {
     const node={__instance:{props:{data:{navigationEndpoint:{browseEndpoint:{browseId:id}}},onSelect:select}}};guides.push(node);return node;
   }
-  const home=setGuide('FEwhat_to_watch',()=>{
+  const home=setGuide(homeId,()=>{
     calls.push('home');if(awayCard)hide(awayCard);currentHome=card();cards.push(currentHome);
-    if(!constantUrl)f.win.location.href='https://www.youtube.com/tv#/';
+    if(!constantUrl)f.win.location.href=homeId==='FEtopics'?'https://www.youtube.com/tv#/browse/FEtopics':'https://www.youtube.com/tv#/';
   });
   const away=setGuide('FElibrary',()=>{
     calls.push('library');hide(currentHome);awayCard=card();cards.push(awayCard);
@@ -264,4 +264,83 @@ test('a cancelled request cannot run after a later Home refresh has started',()=
   const f=softFixture();f.refresh();f.events.get('keydown')({key:'ArrowRight'});
   f.refresh();f.tick();assert.deepEqual(f.calls,[]);f.tick();f.tick();f.tick();
   assert.deepEqual(f.calls,['library','home']);assert.equal(f.reloads,0);
+});
+
+// FEtopics + WHAT_TO_WATCH is already in shorts-response-filter.test.mjs's
+// YouTube guide fixture and in TizenTube's Home startup command.
+test('the current FEtopics Home entry refreshes without requiring the obsolete FEwhat_to_watch entry',()=>{
+  const f=softFixture(false,false,'FEtopics');
+  assert.equal(f.refresh(),true);f.tick();f.tick();f.tick();
+  assert.deepEqual(f.calls,['library','home']);assert.equal(f.reloads,0);
+  assert.equal(isHomeScreen(f.doc,f.win),true);
+  assert.match(homeRefreshReport(f.doc,f.win),/light \/ returned-home/);
+});
+test('FEtopics is Home, but its sports/music/live subpages and watch queries are not',()=>{
+  for(const href of ['https://www.youtube.com/tv#/browse/FEtopics',
+    'https://www.youtube.com/tv?ytaf_refresh_home=1#/browse/FEtopics']) {
+    const f=fixture(href,CobaltURL);assert.equal(isHomeScreen(f.doc,f.win),true);
+    assert.equal(f.refresh(),true);f.frames.shift()();assert.equal(f.reloads,1);
+  }
+  for(const href of ['https://www.youtube.com/tv#/browse/FEtopics_sports',
+    'https://www.youtube.com/tv#/browse/FEtopics_music',
+    'https://www.youtube.com/tv#/browse/FEtopics_live',
+    'https://www.youtube.com/tv?v=aaaaaaaaaaa#/browse/FEtopics',
+    'https://www.youtube.com/tv?vq=test#/browse/FEtopics']) {
+    const f=fixture(href);assert.equal(isHomeScreen(f.doc,f.win),false);
+    assert.equal(f.light(),false);assert.equal(f.refresh(),false);assert.equal(f.reloads,0);
+  }
+});
+test('a full reload of the current Home route skips the saved startup page once',()=>{
+  const f=fixture('https://www.youtube.com/tv?ytaf_refresh_home=1#/browse/FEtopics',CobaltURL);
+  assert.equal(consumeHomeRefresh(f.win),true);assert.equal(consumeHomeRefresh(f.win),false);
+});
+
+function commandFixture() {
+  const f=fixture('https://www.youtube.com/tv#/',CobaltURL), events=[], callbacks=new Map();
+  f.win.CustomEvent=class {constructor(type,options){this.type=type;Object.assign(this,options);}};
+  f.win.addEventListener=(type,fn)=>callbacks.set(type,fn);
+  let root={dispatchEvent(event){events.push(event);return true;}};
+  f.doc.querySelector=selector=>selector==='ytlr-app'?root:null;
+  f.doc.body.dispatchEvent=event=>events.push(event);
+  let closes=0;f.light=createHomeRefresh(f.doc,f.win,(...args)=>f.messages.push(args),()=>closes++);
+  return Object.assign(f,{events,callbacks,setRoot(value){root=value;},getCloses:()=>closes});
+}
+test('reference SOFT_RELOAD_PAGE command is sent without sidebar hooks, guide navigation or document reload',()=>{
+  const f=commandFixture();assert.equal(f.light(),true);assert.equal(f.light(),false);
+  assert.equal(f.events.length,0);f.frames.shift()();
+  assert.equal(f.getCloses(),1);assert.equal(f.reloads,0);assert.equal(f.events.length,1);
+  const event=f.events[0];assert.equal(event.type,'innertube-command');
+  assert.equal(event.bubbles,true);assert.equal(event.cancelable,false);assert.equal(event.composed,true);
+  assert.deepEqual(event.detail,{clickTrackingParams:'',signalServiceEndpoint:{signal:'CLIENT_SIGNAL',actions:[{
+    clickTrackingParams:'',signalAction:{signal:'SOFT_RELOAD_PAGE'},commandMetadata:{webCommandMetadata:{clientAction:true}}
+  }]}});
+  assert.match(homeRefreshReport(f.doc,f.win),/light \/ soft-command-sent/);
+  assert.equal(f.win.location.href,'https://www.youtube.com/tv#/');
+  assert.equal(f.light(),true);
+});
+test('the soft command uses the current app root at dispatch time and the reference body fallback',()=>{
+  const f=commandFixture(),events=[];f.light();f.setRoot({dispatchEvent:event=>events.push(event)});f.frames.shift()();
+  assert.equal(f.events.length,0);assert.equal(events.length,1);
+  f.setRoot(null);f.light();f.frames.shift()();assert.equal(f.events.length,1);assert.equal(f.reloads,0);
+});
+test('soft command exceptions expose a fixed status, release the action and never request full reload',()=>{
+  const f=commandFixture();f.setRoot({dispatchEvent(){throw Error('signed secret URL');}});
+  f.light();f.frames.shift()();assert.equal(f.reloads,0);
+  assert.match(homeRefreshReport(f.doc,f.win),/soft-command-failed/);
+  assert.equal(f.messages.flat().join('').includes('secret'),false);
+  assert.equal(f.light(),true);
+});
+test('soft command navigation races and cancellation never interrupt Watch or an unrelated page',()=>{
+  for(const change of [f=>f.classes.add('WEB_PAGE_TYPE_WATCH'),f=>f.classes.add('WEB_PAGE_TYPE_SHORTS'),
+    f=>f.win.location.href='https://www.youtube.com/tv#/browse/FEsubscriptions',
+    f=>f.callbacks.get('keydown')({key:'ArrowRight'})]) {
+    const f=commandFixture();f.light();change(f);f.frames.shift()();
+    assert.equal(f.events.length,0);assert.equal(f.reloads,0);
+  }
+});
+test('dispatching the reference event never treats DOM acceptance as confirmed new recommendations',()=>{
+  const f=commandFixture();f.light();f.frames.shift()();
+  const report=homeRefreshReport(f.doc,f.win);assert.match(report,/soft-command-sent/);
+  assert.equal(report.includes('returned-home'),false);assert.equal(f.reloads,0);
+  assert.equal(f.light.reload(),true);f.frames.shift()();assert.equal(f.reloads,1);
 });

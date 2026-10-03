@@ -239,3 +239,47 @@ return observation does not prove YouTube fetched different recommendations.
 Light refresh is still unconfirmed on the C3; YouTube's own callback behavior
 cannot be guaranteed to avoid navigation. Tests prove the app itself never
 requests a reload from any light failure path.
+
+### Current Home endpoint correction (2.6.11)
+
+The C3 report shows 10 guide renderers, usable Library/Subscriptions callbacks
+and a visible video card, but no Home callback matching the old lookup. This
+rules out an absent sidebar and failed away-page transition as the immediate
+blocker. The Home lookup accepted only `FEwhat_to_watch`; the repository's own
+YouTube guide fixture in `shorts-response-filter.test.mjs` identifies Home as
+`FEtopics` with the `WHAT_TO_WATCH` icon. [TizenTube's Home startup command](https://github.com/reisxd/TizenTube/blob/9dd70a717bdfa5282077004adcd0303069dcd6e5/mods/ui/settings.js#L622)
+uses the same `FEtopics` endpoint.
+
+Home lookup and route validation now accept both `FEtopics` and the older
+`FEwhat_to_watch`. Matching is exact: sports/music/live topic routes are not
+Home. The fresh Home callback after departure is resolved through the same
+aliases; a full reload on `FEtopics` still bypasses startup routing once.
+
+Regressions for current Home selection, the Home route and startup bypass all
+failed before this correction and pass after it. Browser checks use `FEtopics`
+for the Home renderer and return route, preserving Cobalt-shaped URL/History.
+They still cannot prove the C3's precise endpoint or callback behavior. The
+existing light/reload separation is retained; light failures never request
+Location.replace/reload. Device confirmation of the correction remains pending.
+
+The user then identified a working implementation in [NicholasBly/youtube-webos](https://github.com/NicholasBly/youtube-webos/blob/78a374a32774b92a2094e1cda8db4da0d83540d4/src/ui.js#L1067).
+Its `refreshPageLogic` dispatches a bubbling, non-cancelable `innertube-command`
+CustomEvent on `ytlr-app` (or body), with a `CLIENT_SIGNAL` service endpoint whose
+action is `SOFT_RELOAD_PAGE`. This GPL-3.0 reference now supplies our preferred
+Home-refresh path. It does not require a guide callback or a Library round trip,
+replace/reload Location, or install/patch YouTube's internal command resolver.
+
+The menu closes before dispatch; the Home/player guard is checked again after
+the notification delay. A fresh root is read at dispatch time. Diagnostics
+records `soft-command-sent`, which means only DOM event dispatch completed,
+not that YouTube acknowledged or fetched different recommendations. Command
+construction/dispatch failures remain visible and never request a full reload.
+The corrected sidebar path is used only when the event API/target is unavailable,
+not automatically after an ignored event. Full reload remains explicit.
+
+Host tests check the exact reference payload, bubbling, body fallback, changed
+root, failure privacy, duplicate presses and cancellation. Browser integration
+uses a sample YouTube event listener with asynchronous card replacement; it
+proves same-document dispatch and settings/shortcut integration, not current
+C3 command handling. Both the primary command and legacy guide paths retain
+Home-only scope, editing protection and numeric shortcut controls.
