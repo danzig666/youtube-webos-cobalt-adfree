@@ -6,15 +6,15 @@
 
 Unofficial Cobalt-based YouTube modification for LG webOS TVs with ad blocking and SponsorBlock support.
 
-**Current corrective build: [v2.6.4-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.4-beta.1)**
+**Current corrective build: [v2.6.5-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.5-beta.1)**
 
-- [Separate-ID IPK — installs alongside YouTube](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.4-beta.1/com.cobalt.youtube.adfree_2.6.4_arm.ipk)
-- [Original-ID IPK — replaces official YouTube](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.4-beta.1/youtube.leanback.v4_2.6.4_arm.ipk)
+- [Separate-ID IPK — installs alongside YouTube](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.5-beta.1/com.cobalt.youtube.adfree_2.6.5_arm.ipk)
+- [Original-ID IPK — replaces official YouTube](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.5-beta.1/youtube.leanback.v4_2.6.5_arm.ipk)
 
 Update the same package ID you already use, then fully close and reopen the app.
-This build corrects caption-size changes and repeated Magic Remote dropdown
-clicks, adds black caption backing and a black outline for custom sizes, and
-retains the 2.6.3 playback fixes. Physical C3 validation still needs a retest;
+This build fixes Cobalt caption styles not activating and Magic Remote cursor
+selection, retains black caption backing/outline, and shows measured size feedback.
+It includes the 2.6.3 playback fixes. Physical C3 validation still needs a retest;
 see the release notes for checks and limits.
 
 > This project is unofficial and is not affiliated with YouTube, Google, LG or webOS.
@@ -267,7 +267,10 @@ release directly. The complete pointer/mouse gesture is consumed so dismissal
 cannot toggle switches underneath. An outside click dismisses the list; a second
 click activates the underlying control. Repeated clicks on the opener and mixed
 Enter/mouse activation leave the list open; the next deliberate gesture selects
-an option without a one-second wait. Custom caption size has one stylesheet
+an option without a one-second wait. Visible options accept click/release directly,
+and their settings-owned popup explicitly accepts pointer input. Caption styles
+are filled before insertion and replaced on changes for Cobalt 23. Custom caption
+size has one stylesheet
 owner and a stable baseline across cue/window replacement. Caption text has a
 black backing, with a black outline at custom sizes. YouTube default removes
 app font-size, line-height and outline rules while retaining the black backing.
