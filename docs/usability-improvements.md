@@ -374,3 +374,28 @@ test reproduces the old embedded-font rejection and verifies the local-font
 layout. The actual C3 page policy has not been captured, so this is a verified
 loading fix rather than proof of the TV's previous fallback cause. Font files
 and their OFL license are included in both IPKs and native content artifacts.
+
+### Clock visibility and Home watch progress (2.6.16)
+
+The clock now sets its essential size, position, text styling and stacking
+inline, above ordinary YouTube overlays and below the GREEN settings menu.
+Its enabled state can recover after removal or body replacement, including
+when DOM observation is unavailable. General and Diagnostics expose clock
+status. It remains off by default; **Always** includes playback, while
+**While browsing** hides it on the player. Browser checks cannot establish
+the exact reason the previous clock was absent on the user's C3.
+
+The user reports that Library shows saved account progress while cached Home
+thumbnails do not update after returning from playback. A transient snapshot
+of confirmed playback updates only matching thumbnail progress bars on return.
+It preserves the feed, card order, selection and scroll position, without page
+refresh commands, navigation, account requests or changes to the resume policy.
+The snapshot is not a new persistent watch-history store.
+
+Progress matching uses the video's identity and actual thumbnail, including
+TV thumbnails implemented as CSS background images. Pending seek targets,
+ads, unknown metadata, live/DVR and Shorts are excluded. Bounded retries cover
+delayed cards; recycled card identities cannot retain the previous overlay.
+Thumbnail progress status is available in Diagnostics. The displayed bar
+reflects playback in this app, while YouTube remains responsible for account
+history. Clock and thumbnail rendering still require device validation.
