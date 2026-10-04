@@ -102,7 +102,7 @@ int RunWebOsLgCapabilityProbe(bool config) {
   const auto register_app = reinterpret_cast<bool (*)(const char*,const char*,void**,LunaError*)>(dlsym(luna,"LSRegisterApplicationService"));
   const auto unregister = reinterpret_cast<bool (*)(void*,LunaError*)>(dlsym(luna,"LSUnregister"));
   const auto attach = reinterpret_cast<bool (*)(void*,void*,LunaError*)>(dlsym(luna,"LSGmainContextAttach"));
-  const auto call = reinterpret_cast<bool (*)(void*,const char*,const char*,const char*,bool (*)(void*,void*,void*),void*,unsigned long*,LunaError*)>(dlsym(luna,"LSCallFromApplicationOneReply"));
+  const auto call = reinterpret_cast<bool (*)(void*,const char*,const char*,bool (*)(void*,void*,void*),void*,unsigned long*,LunaError*)>(dlsym(luna,"LSCallOneReply"));
   const auto payload = reinterpret_cast<const char* (*)(void*)>(dlsym(luna,"LSMessageGetPayload"));
   const auto context_new = reinterpret_cast<void* (*)()>(dlsym(glib,"g_main_context_new"));
   const auto context_unref = reinterpret_cast<void (*)(void*)>(dlsym(glib,"g_main_context_unref"));
@@ -119,8 +119,10 @@ int RunWebOsLgCapabilityProbe(bool config) {
   else if (!attach(handle, context, &error)) report = LunaFailure("attach", "failed", error.error_code);
   else {
     unsigned long token = 0;
-    if (!call(handle, config ? ConfigUri() : SystemUri(), config ? ConfigParameters() : SystemParameters(), YTAF_APP_ID, OnLunaReply, &reply, &token, &error))
-      report = LunaFailure("call", "failed", error.error_code);
+    // Forwarding applicationID via LSCallFromApplication requires a privileged
+    // proxy (-1031 on C3). Use the registered client’s ordinary identity.
+    if (!call(handle, config ? ConfigUri() : SystemUri(), config ? ConfigParameters() : SystemParameters(), OnLunaReply, &reply, &token, &error))
+      report = LunaFailure("call", (error.error_code == -1027 || error.error_code == -1031 || error.error_code == -1032) ? "permission-denied" : "failed", error.error_code);
     else {
       const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(2000);
       while (!reply.received && std::chrono::steady_clock::now() < deadline) { iterate(context, 0); usleep(10000); }

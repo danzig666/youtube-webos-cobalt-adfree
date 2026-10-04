@@ -4,7 +4,7 @@ Open **GREEN → Diagnostics → Run capability test**. The result appears at th
 of the existing scrolling report. Read it with the Magic Remote wheel or ↑/↓.
 Results remain available when returning to Diagnostics; rerun to replace them.
 The test changes no playback or capability settings and does not load a decoder.
-It requires the 2.6.20 native runtime, not just an updated injected script.
+It requires the 2.6.21 native runtime, not just an updated injected script.
 
 The report separates three sources:
 
@@ -21,7 +21,10 @@ The report separates three sources:
   Version 2.6.20 uses optional LS2/GLib symbols directly in an isolated child.
   Legacy `LSRegisterPubPriv` registers on the public bus; unified-bus firmware
   uses `LSRegisterApplicationService` with the app’s own ID. Calls use
-  `LSCallFromApplicationOneReply` with that same ID. These signatures are
+  the ordinary `LSCallOneReply` under the registered client’s identity.
+  C3 reported `-1031` for `LSCallFromApplicationOneReply` in 2.6.20: LS2 only
+  permits app-ID forwarding for privileged proxies, even when forwarding the
+  app’s own ID. Version 2.6.21 removes that forwarding; no privilege is requested. These signatures are
   verified in the SDK and the [Open webOS public headers](https://github.com/openwebos/luna-service2/blob/master/include/public/luna-service2/lunaservice.h).
   It never retries a denied request using another identity or bus. Only missing
   libraries/symbols permit the `luna-send-pub` fallback.

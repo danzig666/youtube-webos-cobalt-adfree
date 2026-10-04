@@ -85,8 +85,8 @@ bool LSRegisterApplicationService(const char* name,const char* app,void** out,Er
 #endif
 bool LSUnregister(void* handle,Error*){delete static_cast<Handle*>(handle);return true;}
 bool LSGmainContextAttach(void* handle,void* context,Error*){static_cast<Handle*>(handle)->context=static_cast<Context*>(context);return true;}
-bool LSCallFromApplicationOneReply(void* handle,const char* uri,const char* params,const char* app,Callback callback,void* user,unsigned long* token,Error* e){
- assert(!std::strcmp(app,"com.cobalt.youtube.adfree"));assert(std::strstr(params,"configNames")||std::strstr(params,"keys"));
+bool LSCallOneReply(void* handle,const char* uri,const char* params,Callback callback,void* user,unsigned long* token,Error* e){
+ assert(std::strstr(params,"configNames")||std::strstr(params,"keys"));
  if(!std::strcmp(scenario(),"call-failed")){e->error_code=-1027;return false;}
  auto* c=static_cast<Handle*>(handle)->context;c->callback=callback;c->user=user;*token=1;
  c->payload=std::strstr(uri,"getConfigs")?"{\"returnValue\":true,\"configs\":{\"tv.hw.panelResolution\":\"UD\",\"tv.model.supportHDR\":true}}":"{\"returnValue\":true,\"modelName\":\"OLED55C3\",\"sdkVersion\":\"8.3.0\",\"UHD\":\"true\"}";
@@ -94,6 +94,8 @@ bool LSCallFromApplicationOneReply(void* handle,const char* uri,const char* para
  if(!std::strcmp(scenario(),"empty")) c->payload="";
  return true;
 }
+// This models the real LS2 privilege gate that failed on C3 in 2.6.20.
+bool LSCallFromApplicationOneReply(void*,const char*,const char*,const char*,Callback,void*,unsigned long*,Error* e){e->error_code=-1031;return false;}
 const char* LSMessageGetPayload(void* message){return static_cast<Context*>(message)->payload;}
 void* g_main_context_new(){return new Context{};}
 void g_main_context_unref(void* context){delete static_cast<Context*>(context);}
