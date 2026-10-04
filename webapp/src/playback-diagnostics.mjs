@@ -1,4 +1,12 @@
 import { homeRefreshReport } from './home-refresh.mjs';
+function clockReport(win) {
+  try {
+    const clock=win.__ytafCornerClock, details=clock?.report?.();
+    if (!details) return `Clock: ${clock?.status || 'not initialized'}`;
+    return [`Clock: ${details.mode} / ${details.status}; mounted: ${Boolean(details.mounted)}; observer: ${details.observer}`,
+      details.mounted ? `Clock display: ${details.display || 'unknown'} / ${details.visibility || 'unknown'}; bounds: ${details.bounds || 'unavailable'}; layer: ${details.zIndex || 'unknown'}` : 'Clock display: not mounted'].join('\n');
+  } catch (_) { return 'Clock: diagnostic status unavailable'; }
+}
 export function readPlaybackReport(win) {
   try {
     const report = win.h5vcc?.system?.getYtafMediaReport?.();
@@ -17,6 +25,8 @@ export function frontendPlaybackReport(doc,win) {
     video ? `Position: ${number(video.currentTime)} / ${number(video.duration)} seconds` : 'Position: unavailable',
     `Resume: ${win.__ytafResume?.status || 'not initialized'}`,
     `Local fallback: ${win.__ytafResume?.localStatus || 'not initialized'}`,
+    clockReport(win),
+    `Thumbnail progress: ${win.__ytafThumbnailProgress?.status || 'not initialized'}`,
     `Settings initialized: ${Boolean(win.__ytafUiInitialized)}`,
     `SponsorBlock: ${sponsor ? statuses.includes(sponsor.fetchStatus)?sponsor.fetchStatus:'unknown' : 'not initialized'}`,
     `SponsorBlock segments: ${Array.isArray(sponsor?.segments)?sponsor.segments.length:0}; retries: ${number(sponsor?.fetchRetries)}`,

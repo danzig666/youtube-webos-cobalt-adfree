@@ -25,3 +25,16 @@ test('app playback diagnostics expose actionable state without identities, respo
   assert.match(report,/SponsorBlock: fetch-error/);assert.match(report,/HTTP status: 503/);
   assert.match(report,/media binding: true/);assert.equal(report.includes('secret'),false);
 });
+test('clock geometry and thumbnail progress status are visible without serializing unrelated fields',()=>{
+  const doc={querySelector:()=>null};
+  const win={__ytafCornerClock:{report:()=>({mode:'always',status:'mounted',mounted:true,
+    observer:'active',display:'block',visibility:'visible',bounds:'1200,20,82,34',zIndex:'2147483646',
+    account:'secret',url:'signed secret URL'})},__ytafThumbnailProgress:{status:'Thumbnail progress updated.'}};
+  const report=frontendPlaybackReport(doc,win);
+  assert.match(report,/Clock: always \/ mounted/);
+  assert.match(report,/bounds: 1200,20,82,34; layer: 2147483646/);
+  assert.match(report,/Thumbnail progress: Thumbnail progress updated/);
+  assert.equal(report.includes('secret'),false);
+  win.__ytafCornerClock.report=()=>{throw Error('unavailable');};
+  assert.match(frontendPlaybackReport(doc,win),/Clock: diagnostic status unavailable/);
+});

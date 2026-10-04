@@ -19,6 +19,7 @@ import { createCaptionSettings } from './caption-preferences.mjs';
 import { createDeArrowSettings } from './dearrow.mjs';
 import { createShortcutHandler, createShortcutSettings } from './remote-shortcuts.mjs';
 import { createHomeRefresh, createHomeRefreshButton } from './home-refresh.mjs';
+import { startThumbnailProgress } from './thumbnail-progress.mjs';
 import { createEndStopPanel } from './stop-after-video.mjs';
 import { createVideoCapabilitySetting } from './video-capability-setting.mjs';
 import { createPlaybackDiagnostics } from './playback-diagnostics.mjs';
@@ -50,6 +51,8 @@ export function userScriptStartUI() {
   }
   console.info('[ytaf] userScriptStartUI() called');
   installCornerClock(document, window, configRead);
+  if (!window.__ytafThumbnailProgress)
+    window.__ytafThumbnailProgress = startThumbnailProgress(document, window);
 
   const ARROW_KEY_CODE = { 37: 'left', 38: 'up', 39: 'right', 40: 'down' };
   let lastGreenKeyAt = 0;
@@ -335,6 +338,18 @@ export function userScriptStartUI() {
     {value:'browsing',label:'While browsing'},
     {value:'always',label:'Always'}
   ], callbackConfig('clockDisplay')));
+  const clockStatus=document.createElement('div');clockStatus.className='ytaf-setting-help';
+  clockStatus.id='__clock_status';
+  function renderClockStatus() {
+    const labels={off:'Clock is off.',mounted:'Clock is on in the upper-right corner.',
+      'browsing-hidden':'Clock is hidden during playback in browsing mode.',
+      background:'Clock is paused while the app is in the background.',
+      'waiting-for-body':'Clock will appear when the page is ready.',destroyed:'Clock is stopped.'};
+    clockStatus.textContent=(labels[window.__ytafCornerClock?.status] || 'Clock is starting.') +
+      (configRead('clockDisplay')==='always' ? ' Uses the TV’s local time.' : ' Choose Always to show it during videos too.');
+  }
+  renderClockStatus();document.addEventListener('ytaf-config-changed',renderClockStatus);
+  uiContainer.appendChild(clockStatus);
   const videoQuality = createVideoCapabilitySetting(document, window, choiceTools);
   videoQuality.dataset.ytafSection = 'playback';
   uiContainer.appendChild(videoQuality);
@@ -459,6 +474,7 @@ export function userScriptStartUI() {
     currentFocusIndex = -1;
     // A category can be changed by pointer while a hidden setting had focus.
     sections.currentButton().focus();
+    renderClockStatus();
     renderResumeStatus();
     if (sections.current() === 'diagnostics') document.dispatchEvent(new CustomEvent('ytaf-diagnostics-opened'));
   });
@@ -564,6 +580,7 @@ export function userScriptStartUI() {
 
   function openContainer() {
     ensureSettingsMounted(document, uiContainer);
+    renderClockStatus();
     renderResumeStatus();
     if (typeof window !== 'undefined') window.__ytafSponsorPrompt?.dismiss();
     console.info('Container: Showing & Focusing!');

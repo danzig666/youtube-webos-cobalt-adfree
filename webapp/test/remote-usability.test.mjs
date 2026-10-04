@@ -51,7 +51,7 @@ test('opening settings restores the previous menu item and a closed menu cannot 
   const items=[1,103].map(tabIndex=>({tabIndex,focus(){focused=tabIndex;}}));
   const context=vm.createContext({lastTabIndex:103, currentFocusIndex:-1,
     sections:{current:()=> 'general',currentButton:()=>items[0]},
-    ensureSettingsMounted(){},renderResumeStatus(){},
+    ensureSettingsMounted(){},renderResumeStatus(){},renderClockStatus(){},
     uiContainer:{style:{},querySelectorAll:()=>items},menuContent:{style:{}},
     divTitle:{},document:{activeElement:null,dispatchEvent(){}},CustomEvent:class{},
     queueMenuItemScroll(){},console:{info(){}},suspendSpatialNavigation(){},applyVisibleContainerStyles(){},
