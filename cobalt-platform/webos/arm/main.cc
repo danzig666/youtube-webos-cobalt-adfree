@@ -9,6 +9,7 @@
 
 #include <unistd.h>
 
+#include "starboard/webos/arm/webos_capability_test.h"
 #include "starboard/configuration.h"
 #include "starboard/shared/signal/crash_signals.h"
 #include "starboard/shared/signal/debug_signals.h"
@@ -17,6 +18,9 @@
 #include "starboard/webos/arm/application_sdl.h"
 
 extern "C" SB_EXPORT_PLATFORM int main(int argc, char** argv) {
+  if (argc == 2 && std::strcmp(argv[1], "--ytaf-capability-probe") == 0)
+    return starboard::shared::webos::RunWebOsCapabilityProbe();
+
   // webOS exposes its system PulseAudio server here.  XDG_RUNTIME_DIR points
   // at the compositor runtime owned by root, so libpulse cannot discover the
   // socket automatically and would otherwise fall back to the incompatible

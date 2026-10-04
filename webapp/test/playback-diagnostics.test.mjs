@@ -11,7 +11,7 @@ test('report remains bounded, complete, and literal in a single scrolling textbo
   assert.equal(output.textContent.endsWith(report),true);
   assert.equal(output.getAttribute('role'),'textbox');
   assert.equal(output.dataset.ytafControl,'reader');
-  assert.equal(panel.children.length,2);
+  assert.equal(panel.children.length,3);
   assert.equal([...f.nodes.keys()].some(key=>/copy|next|previous|refresh/.test(key)),false);
   report='latest session'; f.doc.dispatchEvent({type:'ytaf-diagnostics-opened'});
   assert.equal(output.textContent.endsWith(report),true);

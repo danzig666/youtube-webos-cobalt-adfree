@@ -1,0 +1,53 @@
+--- a/cobalt/h5vcc/h5vcc_system.h
++++ b/cobalt/h5vcc/h5vcc_system.h
+@@ -49,6 +49,8 @@
+   bool ResetYtafPlaybackRate(bool paused) const;
+   std::string GetYtafUiPreferences() const;
+   bool SetYtafUiPreferences(const std::string& value) const;
++  bool StartYtafCapabilityTest() const;
++  std::string GetYtafCapabilityTestReport() const;
+   std::string GetYtafMediaReport() const;
+   void RequestYtafMediaReportCopy() const;
+   int32 GetYtafMediaReportCopyStatus() const;
+--- a/cobalt/h5vcc/h5vcc_system.cc
++++ b/cobalt/h5vcc/h5vcc_system.cc
+@@ -21,6 +21,7 @@
+ #include "starboard/system.h"
+ #if defined(STARBOARD_WEBOS)
+ #include "starboard/webos/arm/webos_media_report.h"
++#include "starboard/webos/arm/webos_capability_test.h"
+ #include "starboard/webos/arm/webos_media_capabilities.h"
+ #include "starboard/webos/arm/webos_ui_preferences.h"
+ #include "starboard/webos/arm/starfish_playback_rate.h"
+@@ -171,6 +172,20 @@
+   return starboard::shared::webos::SaveUiPreferences(value);
+ #else
+   return false;
++#endif
++}
++bool H5vccSystem::StartYtafCapabilityTest() const {
++#if defined(STARBOARD_WEBOS)
++  return starboard::shared::webos::StartWebOsCapabilityTest();
++#else
++  return false;
++#endif
++}
++std::string H5vccSystem::GetYtafCapabilityTestReport() const {
++#if defined(STARBOARD_WEBOS)
++  return starboard::shared::webos::GetWebOsCapabilityTestReport();
++#else
++  return "{\"state\":\"unavailable\"}";
+ #endif
+ }
+ std::string H5vccSystem::GetYtafMediaReport() const {
+--- a/cobalt/h5vcc/h5vcc_system.idl
++++ b/cobalt/h5vcc/h5vcc_system.idl
+@@ -27,6 +27,8 @@
+   boolean resetYtafPlaybackRate(boolean paused);
+   DOMString getYtafUiPreferences();
+   boolean setYtafUiPreferences(DOMString value);
++  boolean startYtafCapabilityTest();
++  DOMString getYtafCapabilityTestReport();
+   DOMString getYtafMediaReport();
+   void requestYtafMediaReportCopy();
+   long getYtafMediaReportCopyStatus();

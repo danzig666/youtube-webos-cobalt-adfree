@@ -215,6 +215,12 @@ if ! grep -q 'Preserve the original target before duration clamping' "$cobalt_ro
   git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-seekable-resume.patch"
   git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-seekable-resume.patch"
 fi
+
+if ! grep -q "StartYtafCapabilityTest" "$cobalt_root/cobalt/h5vcc/h5vcc_system.cc"; then
+  git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-capability-test.patch"
+  git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-capability-test.patch"
+fi
+
 python3 - "$repo_root" "$platform_target/arm/webos_build_metadata.h" <<'PYMETA'
 from pathlib import Path
 import json, re, subprocess, sys

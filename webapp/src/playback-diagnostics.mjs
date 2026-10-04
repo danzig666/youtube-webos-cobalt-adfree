@@ -1,3 +1,4 @@
+import { createCapabilityTest } from './capability-test.mjs';
 import { homeRefreshReport } from './home-refresh.mjs';
 function clockReport(win) {
   try {
@@ -43,8 +44,21 @@ export function createPlaybackDiagnostics(doc, win) {
   output.className = 'ytaf-diagnostics-report'; output.dataset.ytafControl = 'reader';
   output.setAttribute('role', 'textbox'); output.setAttribute('aria-readonly', 'true');
   output.setAttribute('aria-multiline', 'true'); output.setAttribute('aria-label', 'Playback diagnostics');
-  function refresh() { output.textContent = (frontendPlaybackReport(doc,win)+'\n\n'+homeRefreshReport(doc,win)+'\n\n'+readPlaybackReport(win)).slice(0,65536); }
+  const actionRow = doc.createElement('div');
+  const button = doc.createElement('div');
+  button.id = '__run_capability_test'; button.tabIndex = 990;
+  button.className = 'ytaf-diagnostic-action'; button.dataset.ytafControl = 'action';
+  button.setAttribute('role','button'); button.textContent = 'Run capability test';
+  const test = createCapabilityTest(doc,win,refresh);
+  button.__ytafActivate = () => test.run();
+  button.addEventListener('click', () => {
+    if (Number(actionRow.dataset.ytafIgnoreClickUntil || 0) <= Date.now()) test.run();
+  });
+  actionRow.appendChild(button);
+  function refresh() {
+    button.setAttribute('aria-disabled',String(test.running()));
+    output.textContent = ((test.report() ? test.report()+'\n\n' : '')+frontendPlaybackReport(doc,win)+'\n\n'+homeRefreshReport(doc,win)+'\n\n'+readPlaybackReport(win)).slice(0,65536); }
   doc.addEventListener('ytaf-diagnostics-opened', refresh);
-  panel.appendChild(hint); panel.appendChild(output); refresh();
+  panel.appendChild(actionRow); panel.appendChild(hint); panel.appendChild(output); refresh();
   return panel;
 }
