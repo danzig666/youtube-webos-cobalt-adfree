@@ -51,13 +51,16 @@ export function startPlaybackResume(doc, win, read, save, notify) {
     if (session) session.pending = null;
   }
   function cancelTimers() { cancelFallback(); cancelRestore(); }
-  function eligible(video, id) {
-    if (!doc.body?.classList.contains('WEB_PAGE_TYPE_WATCH') || !video ||
-        video.readyState < 1 || !Number.isFinite(video.duration) || video.duration <= 20) return false;
+  function eligible(video, id, beforeMetadata = false) {
+    if (!doc.body?.classList.contains('WEB_PAGE_TYPE_WATCH') ||
+        doc.body.classList.contains('WEB_PAGE_TYPE_SHORTS') || !video ||
+        (video.readyState < 1 && !beforeMetadata)) return false;
     const data = playbackMetadata(win, id);
+    const duration = beforeMetadata && video.readyState === 0 ? data?.duration : video.duration;
+    if (!Number.isFinite(duration) || duration <= 20) return false;
     // Finite duration alone does not establish VOD (live DVR can be finite).
     if (!data || data.live !== false) return false;
-    if (data.duration && Math.abs(data.duration - video.duration) > Math.max(2, video.duration * .001)) return false;
+    if (data.duration && Math.abs(data.duration - duration) > Math.max(2, duration * .001)) return false;
     try {
       if (video.seekable?.length && video.seekable.start(0) > 1) return false;
       const currentPlayer = player(), playerId = currentPlayer?.getVideoData?.()?.video_id;
@@ -77,6 +80,12 @@ export function startPlaybackResume(doc, win, read, save, notify) {
   function nativeAtTarget(state, target) {
     return state && state.frames > 0 && Math.abs(state.position - target) <= 3;
   }
+  function nativeProgress(current, state) {
+    const first = current.initialNative;
+    return state && state.frames > 0 && (!first || state.session !== first.session ||
+      state.generation !== first.generation ||
+      (state.frames > first.frames && (!current.early || first.frames === 0)));
+  }
   function completeRestore(current) {
     cancelRestore();
     session.localAttempted = true;
@@ -92,7 +101,7 @@ export function startPlaybackResume(doc, win, read, save, notify) {
       const currentPlayer = player();
       // Use the existing YouTube seek API when exposed so its MSE state follows
       // the native seek. This never creates or sends an account-history request.
-      if (currentPlayer?.getVideoData?.()?.video_id === current.id && typeof currentPlayer.seekTo === 'function')
+      if (!current.preload && currentPlayer?.getVideoData?.()?.video_id === current.id && typeof currentPlayer.seekTo === 'function')
         currentPlayer.seekTo(current.target, true);
       else current.video.currentTime = current.target;
     } catch (_) { /* Retried within the same bounded confirmation window. */ }
@@ -104,8 +113,16 @@ export function startPlaybackResume(doc, win, read, save, notify) {
     if (restoreTimer !== null) win.clearTimeout(restoreTimer);
     restoreTimer = null;
     if (session?.pending !== current || current.video !== doc.querySelector('video') ||
-        current.id !== getCurrentVideoId(win, doc, false) || !eligible(current.video, current.id)) {
+        current.id !== getCurrentVideoId(win, doc, false) ||
+        !eligible(current.video, current.id, current.preload && current.video.readyState === 0)) {
       cancelRestore(); return;
+    }
+    // A HAVE_NOTHING request is retained by Cobalt until the source is ready.
+    // Metadata events start confirmation; no polling/retry can seek an old source.
+    if (current.preload && current.video.readyState < 1) return;
+    if (current.preload) { current.preload = false; current.started = now(); }
+    if (current.source === 'recent' && Math.abs(current.duration - current.video.duration) > Math.max(2, current.video.duration * .001)) {
+      cancelRestore(); restoreStatus = 'Saved position does not match this video’s duration.'; return;
     }
     const video = current.video, state = nativePlaybackState(win), domPosition = Number(video.currentTime);
     // A delayed account position can arrive after the TV fallback was issued.
@@ -116,19 +133,18 @@ export function startPlaybackResume(doc, win, read, save, notify) {
     if (Number.isFinite(domPosition) && domPosition > 3 &&
         Math.abs(domPosition - current.target) > ordinaryProgress &&
         Math.abs(domPosition - current.initialPosition) > ordinaryProgress) {
+      const sourceConfirmed = !current.early || nativeProgress(current, state);
       current.target = domPosition; current.source = 'youtube';
       current.initialNative = state;
+      if (sourceConfirmed) current.early = false;
       current.lastAttempt = now() - 2000;
-      if (!video.seeking && nativeAtTarget(state, domPosition)) { completeRestore(current); return; }
+      if (sourceConfirmed && !video.seeking && nativeAtTarget(state, domPosition)) { completeRestore(current); return; }
     }
     const position = state && state.frames > 0 ? state.position : domPosition;
     const atTarget = Number.isFinite(position) && position >= current.target - 2 && position <= current.target + 15;
-    const first = current.initialNative;
-    const nativeProgress = state && state.frames > 0 && (!first || state.session !== first.session ||
-      state.generation !== first.generation || state.frames > first.frames);
     // The DOM setter can echo the requested target before a single frame has
     // reached it. Require a native frame, or advancing completed DOM playback.
-    if (atTarget && (state ? nativeProgress : !hasNativeReport() && !video.seeking && position > current.target + .1)) {
+    if (atTarget && (state ? nativeProgress(current, state) : !hasNativeReport() && !video.seeking && position > current.target + .1)) {
       completeRestore(current); return;
     }
     if (now() - current.started >= 12000) {
@@ -141,16 +157,29 @@ export function startPlaybackResume(doc, win, read, save, notify) {
         (!state || state.frames === 0 || !atTarget)) issueRestore(current);
     restoreTimer = win.setTimeout(() => checkRestore(current), 500);
   }
-  function beginRestore(target, source) {
+  function beginRestore(target, source, preload = false) {
     cancelFallback();
     if (session.restoreAttempts >= 3) return;
-    const current = {id: session.id, video: session.video, target, source,
+    const current = {id: session.id, video: session.video, target, source, preload, early: preload || session.video.readyState < 2,
+      duration: preload ? playbackMetadata(win, session.id)?.duration : session.video.duration,
       initialPosition: Number(session.video.currentTime), initialNative: nativePlaybackState(win),
       started: now(), lastAttempt: now(), attempts: 0};
     session.pending = current; session.sample = null;
-    if (source === 'local') session.localAttempted = true;
+    if (source === 'local' || source === 'recent') session.localAttempted = true;
     issueRestore(current);
-    restoreTimer = win.setTimeout(() => checkRestore(current), 500);
+    if (!preload) restoreTimer = win.setTimeout(() => checkRestore(current), 500);
+  }
+  function prepareRecentResume(video, id, preload = false) {
+    const saved = session.recent, position = Number(video.currentTime);
+    const duration = preload ? playbackMetadata(win, id)?.duration : video.duration;
+    if (!saved || session.pending || session.manual || session.failed || session.localAttempted ||
+        hasExplicitStart(win.location) || video.seeking || !Number.isFinite(position) ||
+        !Number.isFinite(duration) || Math.abs(saved.duration - duration) > Math.max(2, duration * .001)) return false;
+    // currentTime can already contain YouTube's queued account/URL target.
+    // A different nonzero target takes priority over the cached visit.
+    if (position > 3 && Math.abs(position - saved.position) > 3) return false;
+    beginRestore(saved.position, 'recent', preload);
+    return true;
   }
   function persist(force = false) {
     if (!localEnabled() || !session?.sample || session.pending || session.failed) return;
@@ -182,7 +211,8 @@ export function startPlaybackResume(doc, win, read, save, notify) {
     const video = doc.querySelector('video'), id = getCurrentVideoId(win, doc, false);
     if (event?.target && event.target !== video) return;
     if (!id || !video) return;
-    if (event?.type === 'loadedmetadata') {
+    const loading = event?.type === 'loadstart' && video.readyState === 0;
+    if (loading || event?.type === 'loadedmetadata') {
       // The player can announce its new source before the TV URL updates. Keep
       // that event's identity; merely changing getVideoData later is not proof
       // that the reused video element has stopped presenting its old source.
@@ -190,26 +220,53 @@ export function startPlaybackResume(doc, win, read, save, notify) {
       try { loadedId = player()?.getVideoData?.()?.video_id || id; } catch (_) {}
       loadedSources.set(video, loadedId);
     }
-    if (!session || session.id !== id || session.video !== video) {
+    if (loading || !session || session.id !== id || session.video !== video) {
       persist(true); cancelTimers();
       session = {id, video, recent: recentPosition(id), manual: false, sample: null, pending: null, started: null,
         localAttempted: false, restoreAttempts: 0, failed: false};
-      waitingForMetadata = !initial && event?.type !== 'loadedmetadata';
+      waitingForMetadata = !initial && (event?.type !== 'loadedmetadata' || loadedSources.get(video) !== id);
       const previous = positions().find(item => item.id === id);
       localSaveStatus = previous ? `Saved on this TV at ${timeLabel(previous.position)}.`
         : 'No playback position saved on this TV for this video.';
       restoreStatus = 'Waiting for YouTube’s resume position.';
     }
-    if (event?.type === 'loadedmetadata') waitingForMetadata = false;
-    if (!eligible(video, id)) return;
+    if (loading) {
+      // loadstart follows Cobalt's resource reset. Only an exact player identity
+      // and confirmed VOD metadata may seed this source before its first frame.
+      if (matchesPlayer(id) && loadedSources.get(video) === id && eligible(video, id, true))
+        prepareRecentResume(video, id, true);
+      return;
+    }
+    if (event?.type === 'loadedmetadata' && loadedSources.get(video) === id) waitingForMetadata = false;
+    if (!eligible(video, id)) {
+      if (event?.type === 'loadedmetadata' && session.pending) {
+        cancelRestore(); restoreStatus = 'Resume skipped: this source is not eligible.';
+      }
+      return;
+    }
     // In the TV SPA, loadedmetadata can precede its URL change. Matching the
     // current player's identity to the captured source event establishes the
     // new source even when a second loadedmetadata event will never arrive.
     if (waitingForMetadata && matchesPlayer(id) && loadedSources.get(video) === id) waitingForMetadata = false;
     if (waitingForMetadata) return;
-    // Metadata can arrive while a reused element still exposes the previous
-    // visit's time. Wait for a playback event before treating it as a new target.
-    if (event?.type === 'loadedmetadata') { session.sample = null; return; }
+    if (event?.type === 'loadedmetadata') {
+      session.sample = null;
+      if (session.pending) {
+        const current = session.pending;
+        // If the page reset the early request, retarget before playing instead
+        // of waiting for the normal retry interval after its first frame.
+        if (current.preload && Math.abs(current.duration - video.duration) <= Math.max(2, video.duration * .001) &&
+            !video.seeking && Number(video.currentTime) <= 3) {
+          current.preload = false; current.started = now(); issueRestore(current);
+        }
+        checkRestore(current);
+      } else {
+        // Never reinterpret a reused element's old time as a new account target.
+        // Use the confirmed cache here, or defer to actual playback events.
+        prepareRecentResume(video, id);
+      }
+      return;
+    }
     if (session.started === null && ['playing', 'timeupdate'].includes(event?.type)) session.started = now();
     if (session.pending) { checkRestore(session.pending); return; }
     const domPosition = Number(video.currentTime), state = nativePlaybackState(win);
@@ -229,7 +286,11 @@ export function startPlaybackResume(doc, win, read, save, notify) {
         const recent = session.recent;
         const saved = recent || (localEnabled() ? positions().find(item => item.id === id) : null);
         if (saved && Math.abs(saved.duration - video.duration) <= Math.max(2, video.duration * .001)) {
-          if (session.started === null || video.seeking) return;
+          if (video.seeking) return;
+          if (recent && ['loadeddata', 'canplay', 'playing', 'timeupdate'].includes(event?.type)) {
+            beginRestore(saved.position, 'recent'); return;
+          }
+          if (session.started === null) return;
           const remaining = 1500 - (now() - session.started);
           if (remaining > 0) {
             if (fallbackTimer === null) fallbackTimer = win.setTimeout(() => {
@@ -278,7 +339,7 @@ export function startPlaybackResume(doc, win, read, save, notify) {
       notify(saved ? 'Saved playback positions cleared.' : 'Could not clear saved playback positions.', 3500, saved ? 'green' : 'yellow');
     }
   };
-  for (const type of ['loadedmetadata', 'playing', 'timeupdate', 'pause', 'seeked', 'ended'])
+  for (const type of ['loadstart', 'loadedmetadata', 'loadeddata', 'canplay', 'playing', 'timeupdate', 'pause', 'seeked', 'ended'])
     doc.addEventListener(type, event => observe(event), true);
   doc.addEventListener('emptied', event => {
     if (event.target !== session?.video) return;

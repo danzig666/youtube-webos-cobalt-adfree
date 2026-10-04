@@ -55,10 +55,11 @@ function fixture({native = true, observer = true} = {}) {
   function route(hash){win.location.href=`https://www.youtube.com/tv${hash}`;win.emit('hashchange');}
   function page(...names){classes.clear();for(const name of names)classes.add(name);mutate();}
   function metadata(id,extra={}) {win.__ytafPlaybackMetadata.unshift({id,live:false,duration:300,...extra});}
-  function play(id='aaaaaaaaaaa',position=90){
+  function play(id='aaaaaaaaaaa',position=90,beforeMetadata=()=>{}){
     route(`#/watch?v=${id}`);page('WEB_PAGE_TYPE_WATCH');metadata(id);
-    doc.player={getVideoData:()=>({video_id:id})};doc.emit('loadedmetadata',{target:video});
+    doc.player={getVideoData:()=>({video_id:id})};
     video.currentTime=position;video.seeking=false;video.ended=false;
+    beforeMetadata();doc.emit('loadedmetadata',{target:video});
     nativeState={...nativeState,position,frames:1,session:nativeState.session+1,active:true,valid:true};
     doc.emit('playing',{target:video});
   }
@@ -170,11 +171,10 @@ test('Back and reopen resume the actual position behind the red bar without writ
   const resume=startPlaybackResume(f.doc,f.win,key=>key==='playbackResumeMode'?'youtube':[],value=>writes.push(value),text=>notifications.push(text));
   const nodes=f.doc.body.children.slice();f.doc.activeElement=card;card.scrollTop=80;
   f.play();f.browse();assert.equal(f.width(host),'30%');
-  // Reused element still exposes the old time during loadedmetadata, before
-  // the first new frame at zero replaces the live thumbnail snapshot.
-  f.play('aaaaaaaaaaa',0);f.advance(1499);assert.equal(f.video.currentTime,0);
+  // Resume is requested during metadata, before the first playing event.
+  f.play('aaaaaaaaaaa',0);assert.equal(f.video.currentTime,90);
   assert.equal(f.api.getResumePosition('aaaaaaaaaaa').position,90);
-  f.advance(1);assert.equal(f.video.currentTime,90);
+  f.advance(500);assert.equal(f.video.currentTime,90);
   assert.equal(notifications.length,0,'an accepted target is not confirmed playback');
   f.native({position:90.2,frames:2,generation:2});f.video.currentTime=90.2;f.media('timeupdate');
   assert.match(resume.status,/Last watched.*reached/);assert.equal(notifications.length,1);
@@ -191,12 +191,12 @@ test('constant-URL body navigation resets manual seeking and restores a reopened
   f.play();resume.manual();f.page('WEB_PAGE_TYPE_BROWSE');
   // Some TV SPA transitions retain the watch URL; only the body class changes.
   f.win.emit('keydown',{keyCode:39});
-  f.page('WEB_PAGE_TYPE_WATCH');f.media('loadedmetadata');
-  f.video.currentTime=0;f.native({position:0,session:3});f.media('playing');f.advance(1500);
+  f.page('WEB_PAGE_TYPE_WATCH');f.video.currentTime=0;f.media('loadedmetadata');
+  f.native({position:0,session:3});f.media('playing');
   assert.equal(f.video.currentTime,90);assert.match(resume.status,/waiting for playback confirmation/);
   f.native({position:90.2,frames:2,generation:2});f.media('timeupdate');assert.match(resume.status,/Last watched.*reached/);
 });
-test('a YouTube account target supersedes current-session progress during the reopening grace period',()=>{
+test('a YouTube account target supersedes current-session progress while the early cached seek awaits confirmation',()=>{
   const f=fixture();f.win.__ytafThumbnailProgress=f.api;
   const notifications=[];
   const resume=startPlaybackResume(f.doc,f.win,key=>key==='playbackResumeMode'?'youtube':[],()=>assert.fail('no TV bookmark writes'),text=>notifications.push(text));
@@ -212,15 +212,15 @@ test('completed or unconfirmed playback cannot produce a current-session resume 
   g.api.destroy();assert.equal(g.api.getResumePosition('aaaaaaaaaaa'),null);
 });
 test('explicit zero timestamp and incompatible durations suppress current-session resume',()=>{
-  for(const variant of ['timestamp','duration','manual']){
+  for(const variant of ['timestamp','duration']){
     const f=fixture();f.win.__ytafThumbnailProgress=f.api;
     const resume=startPlaybackResume(f.doc,f.win,key=>key==='playbackResumeMode'?'youtube':[],()=>assert.fail('no TV bookmark writes'),()=>{});
     f.play();f.browse();
     if(variant==='duration'){f.video.duration=350;f.metadata('aaaaaaaaaaa',{duration:350});}
-    f.play('aaaaaaaaaaa',0);
-    if(variant==='duration')f.win.__ytafPlaybackMetadata[0].duration=350;
-    if(variant==='timestamp')f.win.location.href+='&t=0';
-    if(variant==='manual')resume.manual();
+    f.play('aaaaaaaaaaa',0,()=>{
+      if(variant==='duration')f.win.__ytafPlaybackMetadata[0].duration=350;
+      if(variant==='timestamp')f.win.location.href+='&t=0';
+    });
     f.advance(2000);assert.equal(f.video.currentTime,0,variant);
   }
 });

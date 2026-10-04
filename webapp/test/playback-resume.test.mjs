@@ -262,3 +262,109 @@ test('changing resume mode during navigation cannot bypass source identity check
   f.video.currentTime=35;nativeReport(f,35,2,2);f.media('pause');
   assert.equal(f.writes.at(-1)[0].id,'bbbbbbbbbbb');assert.equal(f.writes.at(-1)[0].position,35);
 });
+
+
+function recentFixture() {
+  const f=playbackFixture();f.settings.playbackResumeMode='youtube';
+  f.win.__ytafThumbnailProgress={getResumePosition:id=>id==='aaaaaaaaaaa'?f.bookmark(90):null};
+  f.doc.player={getVideoData:()=>({video_id:'aaaaaaaaaaa'})};
+  return f;
+}
+test('confirmed cache queues during loadstart before metadata and first playback, without a grace delay',()=>{
+  const f=recentFixture();f.video.readyState=0;f.video.duration=NaN;nativeReport(f,0,0);
+  let position=0;const requests=[];
+  Object.defineProperty(f.video,'currentTime',{get:()=>position,set:value=>{position=value;requests.push({value,ready:f.video.readyState});}});
+  f.doc.player.seekTo=()=>assert.fail('pre-metadata must use Cobalt’s retained initial currentTime');
+  const api=start(f);f.media('loadstart');
+  assert.deepEqual(requests,[{value:90,ready:0}]);assert.equal(f.timers.size,0);
+  f.advance(20000);assert.equal(requests.length,1,'network loading does not consume retry/confirmation timeout');
+  f.video.readyState=1;f.video.duration=300;f.media('loadedmetadata');
+  assert.deepEqual(requests,[{value:90,ready:0}]);assert.equal(f.notifications.length,0);
+  nativeReport(f,90.2,1,2);f.video.readyState=4;f.media('playing');
+  assert.match(api.status,/Last watched.*reached/);assert.equal(f.notifications.length,1);
+  assert.equal(f.writes.length,0);assert.equal(f.timers.size,0);
+});
+test('metadata is an immediate fallback when loadstart had no matching player identity',()=>{
+  const f=recentFixture();const api=start(f);f.video.readyState=0;f.video.duration=NaN;
+  f.doc.player={getVideoData:()=>({video_id:'bbbbbbbbbbb'})};f.media('loadstart');assert.equal(f.video.currentTime,0);
+  f.doc.player={getVideoData:()=>({video_id:'aaaaaaaaaaa'})};f.video.readyState=1;f.video.duration=300;
+  f.media('loadedmetadata');assert.equal(f.video.currentTime,90);assert.match(api.status,/waiting for playback confirmation/);
+});
+test('queued account positions, explicit timestamps, live/unknown data and ads suppress early cache injection',()=>{
+  for(const variant of ['account','timestamp','live','unknown','ad','duration']) {
+    const f=recentFixture();f.video.readyState=0;f.video.duration=NaN;
+    if(variant==='account')f.video.currentTime=120;
+    if(variant==='timestamp')f.win.location.href+='&t=0';
+    if(variant==='live')f.win.__ytafPlaybackMetadata[0].live=true;
+    if(variant==='unknown')f.win.__ytafPlaybackMetadata[0].live=null;
+    if(variant==='ad')f.doc.player.getAdState=()=>1;
+    if(variant==='duration')f.win.__ytafPlaybackMetadata[0].duration=350;
+    start(f);f.media('loadstart');assert.equal(f.video.currentTime,variant==='account'?120:0,variant);
+    assert.equal(f.timers.size,0,variant);
+  }
+});
+test('late YouTube targets replace a queued cache target before the first native frame',()=>{
+  const f=recentFixture();f.video.readyState=0;f.video.duration=NaN;nativeReport(f,0,0);
+  const api=start(f);f.media('loadstart');assert.equal(f.video.currentTime,90);
+  f.video.currentTime=120;f.video.readyState=1;f.video.duration=300;f.media('loadedmetadata');
+  assert.equal(f.video.currentTime,120);
+  nativeReport(f,120.2,1,2);f.media('playing');assert.match(api.status,/YouTube.*reached/);
+  assert.equal(f.notifications.length,0);
+});
+test('a page reset of the pre-metadata request is repaired at metadata rather than after playing',()=>{
+  const f=recentFixture();f.video.readyState=0;f.video.duration=NaN;nativeReport(f,0,0);
+  start(f);f.media('loadstart');assert.equal(f.video.currentTime,90);
+  f.video.currentTime=0;f.video.readyState=1;f.video.duration=300;f.media('loadedmetadata');
+  assert.equal(f.video.currentTime,90);
+});
+test('old native frames cannot confirm an early target for a new source',()=>{
+  const f=recentFixture();nativeReport(f,90,10,1);const api=start(f);
+  f.video.readyState=0;f.video.duration=NaN;f.media('loadstart');
+  f.video.readyState=1;f.video.duration=300;nativeReport(f,90.1,11,1);f.media('loadedmetadata');
+  assert.equal(f.notifications.length,0);assert.match(api.status,/waiting/);
+  nativeReport(f,90.2,1,2);f.media('playing');assert.match(api.status,/reached/);
+});
+test('manual seek and navigation cancel pre-metadata resume without later retries',()=>{
+  for(const action of ['manual','navigate','emptied']){
+    const f=recentFixture();f.video.readyState=0;f.video.duration=NaN;const api=start(f);f.media('loadstart');
+    if(action==='manual'){api.manual();f.video.currentTime=30;}
+    if(action==='navigate'){f.win.location.href='https://www.youtube.com/tv#/';f.doc.body.classList.contains=()=>false;f.win.emit('hashchange');}
+    if(action==='emptied')f.media('emptied');
+    f.advance(30000);assert.equal(f.notifications.length,0,action);assert.equal(f.timers.size,0,action);
+    if(action==='manual'){f.video.readyState=1;f.video.duration=300;f.media('loadedmetadata');f.media('playing');assert.equal(f.video.currentTime,30);}
+  }
+});
+
+test('the first frame in an initially empty native generation confirms an early cached target',()=>{
+  const f=recentFixture();f.video.readyState=0;f.video.duration=NaN;nativeReport(f,0,0,1);
+  const api=start(f);f.media('loadstart');f.video.readyState=1;f.video.duration=300;f.media('loadedmetadata');
+  nativeReport(f,90.2,1,1);f.media('playing');assert.match(api.status,/Last watched.*reached/);
+  assert.equal(f.notifications.length,1);assert.equal(f.timers.size,0);
+});
+test('late account retargeting cannot confirm frames from the outgoing native source',()=>{
+  const f=recentFixture();f.video.readyState=0;f.video.duration=NaN;nativeReport(f,120,10,1);
+  const api=start(f);f.media('loadstart');f.video.currentTime=120;
+  f.video.readyState=1;f.video.duration=300;nativeReport(f,120.1,11,1);f.media('loadedmetadata');
+  assert.match(api.status,/waiting/);assert.equal(f.notifications.length,0);
+  nativeReport(f,120.2,1,2);f.media('playing');assert.match(api.status,/YouTube.*reached/);
+});
+test('metadata invalidating an early cached source cancels retries and pending confirmation',()=>{
+  for(const variant of ['live','ad','duration']){
+    const f=recentFixture();f.video.readyState=0;f.video.duration=NaN;const api=start(f);f.media('loadstart');
+    f.video.readyState=1;f.video.duration=300;
+    if(variant==='live')f.win.__ytafPlaybackMetadata[0].live=true;
+    if(variant==='ad')f.doc.player.getAdState=()=>1;
+    if(variant==='duration'){f.video.duration=350;f.win.__ytafPlaybackMetadata[0].duration=350;}
+    f.media('loadedmetadata');f.advance(15000);assert.equal(f.timers.size,0,variant);
+    assert.equal(f.notifications.length,0,variant);assert.match(api.status,/not eligible|does not match/,variant);
+  }
+});
+
+test('an old player metadata event cannot authorize early resume after only its identity changes',()=>{
+  const f=recentFixture();f.video.readyState=0;f.video.duration=NaN;
+  f.doc.player={getVideoData:()=>({video_id:'bbbbbbbbbbb'})};start(f);f.media('loadstart');
+  f.video.readyState=1;f.video.duration=300;f.media('loadedmetadata');
+  f.doc.player={getVideoData:()=>({video_id:'aaaaaaaaaaa'})};f.media('playing');
+  assert.equal(f.video.currentTime,0);assert.equal(f.timers.size,0);
+  f.media('loadedmetadata');assert.equal(f.video.currentTime,90);
+});
