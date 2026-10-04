@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {startThumbnailProgress} from '../src/thumbnail-progress.mjs';
+import {startPlaybackResume} from '../src/playback-resume.mjs';
 
 function fixture({native = true, observer = true} = {}) {
   let clock = 10000, sequence = 0, scans = 0, disconnected = 0;
   const timers = new Map(), classes = new Set(), observations = [];
-  let callback = null;
+  const observers = [];
   function emitter(value = {}) {
     const listeners = new Map();
     value.addEventListener = (type, fn) => { if(!listeners.has(type))listeners.set(type,new Set());listeners.get(type).add(fn); };
@@ -38,13 +39,16 @@ function fixture({native = true, observer = true} = {}) {
   if(native)win.h5vcc={system:{getYtafMediaReport:()=>nativeState.valid
     ?`Current player: Shared Starfish${nativeState.active?'':' (inactive)'}\nSession: ${nativeState.session} generation: ${nativeState.generation}\nPlayback rate: requested 1x applied 1x\nNative presentation: ${nativeState.position} seconds\nPresented frames: ${nativeState.frames}\n`:'unavailable'}};
   if(observer)win.MutationObserver=class {
-    constructor(fn){callback=fn;} observe(target,options){observations.push({target,options});}
-    disconnect(){disconnected++;observations.length=0;}
+    constructor(fn){this.callback=fn;observers.push(this);} observe(target,options){observations.push({target,options,owner:this});}
+    disconnect(){disconnected++;for(let i=observations.length-1;i>=0;i--)if(observations[i].owner===this)observations.splice(i,1);}
   };
   function mutate(type='attributes',target=doc.body,attributeName='class') {
-    const applies=observations.some(({target:watched,options})=>(watched===target||(options.subtree&&watched.contains(target)))&&
-      (type==='attributes'?options.attributes&&options.attributeFilter.includes(attributeName):options[type]));
-    if(applies)callback([{type,target,attributeName}]);
+    for(const observer of observers){
+      const applies=observations.some(({target:watched,options,owner})=>owner===observer&&
+        (watched===target||(options.subtree&&watched.contains(target)))&&
+        (type==='attributes'?options.attributes&&options.attributeFilter.includes(attributeName):options[type]));
+      if(applies)observer.callback([{type,target,attributeName}]);
+    }
   }
   const api=startThumbnailProgress(doc,win);
   function advance(ms){const end=clock+ms;let count=0;for(;;){const next=[...timers].filter(([,v])=>v.at<=end).sort((a,b)=>a[1].at-b[1].at)[0];if(!next)break;assert.ok(++count<100,'bounded retries');clock=next[1].at;timers.delete(next[0]);next[1].fn();}clock=end;}
@@ -157,4 +161,66 @@ test('destroy removes overlays and event subscriptions and discards ephemeral da
   const f=fixture(),{host}=f.thumbnail();f.play();f.browse();f.api.destroy();
   assert.equal(f.width(host),undefined);assert.equal(f.observations.length,0);assert.equal(f.timers.size,0);
   f.play();f.browse();f.advance(3000);assert.equal(f.width(host),undefined);assert.match(f.api.status,/stopped/);
+});
+
+
+test('Back and reopen resume the actual position behind the red bar without writing TV bookmarks or refreshing the feed',()=>{
+  const f=fixture(),{card,host}=f.thumbnail();f.win.__ytafThumbnailProgress=f.api;
+  const notifications=[],writes=[];
+  const resume=startPlaybackResume(f.doc,f.win,key=>key==='playbackResumeMode'?'youtube':[],value=>writes.push(value),text=>notifications.push(text));
+  const nodes=f.doc.body.children.slice();f.doc.activeElement=card;card.scrollTop=80;
+  f.play();f.browse();assert.equal(f.width(host),'30%');
+  // Reused element still exposes the old time during loadedmetadata, before
+  // the first new frame at zero replaces the live thumbnail snapshot.
+  f.play('aaaaaaaaaaa',0);f.advance(1499);assert.equal(f.video.currentTime,0);
+  assert.equal(f.api.getResumePosition('aaaaaaaaaaa').position,90);
+  f.advance(1);assert.equal(f.video.currentTime,90);
+  assert.equal(notifications.length,0,'an accepted target is not confirmed playback');
+  f.native({position:90.2,frames:2,generation:2});f.video.currentTime=90.2;f.media('timeupdate');
+  assert.match(resume.status,/Last watched.*reached/);assert.equal(notifications.length,1);
+  f.video.currentTime=100;f.native({position:100,frames:8});f.media('timeupdate');
+  f.browse();f.play('aaaaaaaaaaa',0);f.advance(1500);assert.equal(f.video.currentTime,100,'a quick third visit uses updated progress, not the previous frozen launch');
+  f.native({position:100.2,frames:9,generation:3});f.video.currentTime=100.2;f.media('timeupdate');
+  f.browse();assert.equal(writes.length,0,'YouTube mode never writes durable TV bookmarks');
+  assert.deepEqual(f.doc.body.children,nodes);assert.equal(f.doc.activeElement,card);assert.equal(card.scrollTop,80);
+  assert.equal(f.api.getResumePosition('bbbbbbbbbbb'),null);
+});
+test('constant-URL body navigation resets manual seeking and restores a reopened video',()=>{
+  const f=fixture();f.win.__ytafThumbnailProgress=f.api;
+  const resume=startPlaybackResume(f.doc,f.win,key=>key==='playbackResumeMode'?'youtube':[],()=>assert.fail('no TV bookmark writes'),()=>{});
+  f.play();resume.manual();f.page('WEB_PAGE_TYPE_BROWSE');
+  // Some TV SPA transitions retain the watch URL; only the body class changes.
+  f.win.emit('keydown',{keyCode:39});
+  f.page('WEB_PAGE_TYPE_WATCH');f.media('loadedmetadata');
+  f.video.currentTime=0;f.native({position:0,session:3});f.media('playing');f.advance(1500);
+  assert.equal(f.video.currentTime,90);assert.match(resume.status,/waiting for playback confirmation/);
+  f.native({position:90.2,frames:2,generation:2});f.media('timeupdate');assert.match(resume.status,/Last watched.*reached/);
+});
+test('a YouTube account target supersedes current-session progress during the reopening grace period',()=>{
+  const f=fixture();f.win.__ytafThumbnailProgress=f.api;
+  const notifications=[];
+  const resume=startPlaybackResume(f.doc,f.win,key=>key==='playbackResumeMode'?'youtube':[],()=>assert.fail('no TV bookmark writes'),text=>notifications.push(text));
+  f.play();f.browse();f.play('aaaaaaaaaaa',0);f.advance(1000);
+  f.video.currentTime=120;f.native({position:120,frames:3});f.media('timeupdate');f.advance(1000);
+  assert.equal(f.video.currentTime,120);assert.equal(notifications.length,0);assert.match(resume.status,/YouTube/);
+});
+test('completed or unconfirmed playback cannot produce a current-session resume target',()=>{
+  const f=fixture();f.play('aaaaaaaaaaa',299.5);f.video.currentTime=300;f.video.ended=true;
+  f.native({active:false});f.media('ended');f.browse();assert.equal(f.api.getResumePosition('aaaaaaaaaaa'),null);
+  const g=fixture();g.play('aaaaaaaaaaa',0);g.video.currentTime=90;g.media('timeupdate');g.browse();
+  assert.equal(g.api.getResumePosition('aaaaaaaaaaa'),null);
+  g.api.destroy();assert.equal(g.api.getResumePosition('aaaaaaaaaaa'),null);
+});
+test('explicit zero timestamp and incompatible durations suppress current-session resume',()=>{
+  for(const variant of ['timestamp','duration','manual']){
+    const f=fixture();f.win.__ytafThumbnailProgress=f.api;
+    const resume=startPlaybackResume(f.doc,f.win,key=>key==='playbackResumeMode'?'youtube':[],()=>assert.fail('no TV bookmark writes'),()=>{});
+    f.play();f.browse();
+    if(variant==='duration'){f.video.duration=350;f.metadata('aaaaaaaaaaa',{duration:350});}
+    f.play('aaaaaaaaaaa',0);
+    if(variant==='duration')f.win.__ytafPlaybackMetadata[0].duration=350;
+    if(variant==='timestamp')f.win.location.href+='&t=0';
+    if(variant==='manual')resume.manual();
+    f.advance(2000);assert.equal(f.video.currentTime,0,variant);
+  }
 });

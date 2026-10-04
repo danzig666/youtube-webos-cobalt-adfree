@@ -3,14 +3,16 @@ import {playbackMetadata} from './playback-metadata.mjs';
 import {nativePlaybackState} from './native-playback-state.mjs';
 import {createThumbnailProgressView} from './thumbnail-progress-view.mjs';
 
-// Display-only progress for cards already in YouTube's feed. This cache lives
-// in this document and neither saves history nor asks YouTube to replace cards.
+// Confirmed progress for cards already in YouTube's feed and same-session
+// resume. This cache lives in this document; it neither saves account history
+// nor asks YouTube to replace cards.
 export function startThumbnailProgress(doc, win) {
   const view = createThumbnailProgressView(doc, win), snapshots = [], loadedSources = new WeakMap();
   const subscriptions = [], returnDelays = [0, 250, 600, 1200, 2500];
   let source = null, observer = null, timer = null, retries = 0, mutationTimer = null;
   let status = 'Waiting for confirmed playback.', destroyed = false, wasBrowsing = false;
   let backgrounded = false, observedBody = null;
+  let launchResume = null;
   const now = () => win.Date?.now?.() ?? Date.now();
   const watch = () => doc.body?.classList?.contains('WEB_PAGE_TYPE_WATCH') &&
     !doc.body.classList.contains('WEB_PAGE_TYPE_SHORTS');
@@ -22,6 +24,13 @@ export function startThumbnailProgress(doc, win) {
     try { return typeof win.h5vcc?.system?.getYtafMediaReport === 'function'; } catch (_) { return true; }
   }
   function sameDuration(a, b) { return Math.abs(a - b) <= Math.max(2, b * .001); }
+  function resumable(sample) {
+    return sample && !sample.ended && sample.position >= 5 && sample.position < sample.duration - 10;
+  }
+  function captureResume(id) {
+    const sample = snapshots.find(item => item.id === id);
+    launchResume = resumable(sample) ? {...sample, expires: now() + 15000} : null;
+  }
   function eligible(video, id) {
     if (!watch() || !video || video.readyState < 1 || video.seeking ||
         !Number.isFinite(video.duration) || video.duration <= 20) return false;
@@ -35,6 +44,7 @@ export function startThumbnailProgress(doc, win) {
     return true;
   }
   function remember(snapshot) {
+    if (snapshot.ended && launchResume?.id === snapshot.id) launchResume = null;
     const index = snapshots.findIndex(item => item.id === snapshot.id);
     if (index >= 0) snapshots.splice(index, 1);
     snapshots.unshift(snapshot);
@@ -52,6 +62,9 @@ export function startThumbnailProgress(doc, win) {
       let loadedId = id;
       try { loadedId = player()?.getVideoData?.()?.video_id || id; } catch (_) {}
       loadedSources.set(video, loadedId);
+      // Freeze the previous visit before initial frames at zero replace the
+      // thumbnail snapshot. Resume and the red bar must use the same position.
+      captureResume(loadedId);
       if (source?.video === video) { source.domObservation = null; source.confirmedEnd = null; }
       return;
     }
@@ -70,7 +83,10 @@ export function startThumbnailProgress(doc, win) {
       if (source && nativeBridge() && !state) return;
       if (source && state && source.native &&
           state.session === source.native.session && state.generation === source.native.generation) return;
+      captureResume(id);
       source = {id, video, sample: null, confirmedEnd: null, domObservation: null, native: null, played: false};
+    } else if (state && source.native && state.session !== source.native.session) {
+      captureResume(id);
     }
     if (['playing', 'timeupdate'].includes(event.type)) source.played = true;
     if (!source.played) return;
@@ -145,6 +161,7 @@ export function startThumbnailProgress(doc, win) {
       // Remove transient rails before the player or Shorts can inherit cards.
       if (wasBrowsing) { observer?.disconnect(); view.clear(); }
     } else if (!wasBrowsing && snapshots.length) {
+      launchResume = null;
       cancelTimers(); retry();
     }
     wasBrowsing = currentBrowsing;
@@ -189,8 +206,13 @@ export function startThumbnailProgress(doc, win) {
   navigation();
   return {
     get status() { return status; },
+    getResumePosition(id) {
+      const sample = launchResume?.id === id && launchResume.expires >= now()
+        ? launchResume : snapshots.find(item => item.id === id);
+      return resumable(sample) ? {id: sample.id, position: sample.position, duration: sample.duration} : null;
+    },
     destroy() {
-      destroyed = true; cancelTimers(); observer?.disconnect(); view.clear(); snapshots.length = 0; source = null;
+      destroyed = true; cancelTimers(); observer?.disconnect(); view.clear(); snapshots.length = 0; source = null; launchResume = null;
       for (const [target, type, callback, capture] of subscriptions) target.removeEventListener?.(type, callback, capture);
       status = 'Thumbnail progress stopped.';
     }

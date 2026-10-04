@@ -29,6 +29,14 @@ export function startPlaybackResume(doc, win, read, save, notify) {
   const localEnabled = () => read('playbackResumeMode') === 'youtube-local';
   const player = () => doc.getElementById?.('ytlr-player__player-container-player') || doc.querySelector('.html5-video-player');
   const positions = () => normalizePlaybackPositions(read('playbackPositions'), now());
+  function recentPosition(id) {
+    try {
+      const value = win.__ytafThumbnailProgress?.getResumePosition?.(id);
+      if (value?.id === id && Number.isFinite(value.position) && Number.isFinite(value.duration) &&
+          value.position >= 5 && value.position < value.duration - 10) return {...value};
+    } catch (_) { /* Older injected UI has no current-session snapshot. */ }
+    return null;
+  }
   function timeLabel(seconds) {
     const value = Math.floor(seconds), hours = Math.floor(value / 3600);
     return (hours ? `${hours}:` : '') + `${String(Math.floor(value / 60) % 60).padStart(hours ? 2 : 1, '0')}:${String(value % 60).padStart(2, '0')}`;
@@ -72,8 +80,10 @@ export function startPlaybackResume(doc, win, read, save, notify) {
   function completeRestore(current) {
     cancelRestore();
     session.localAttempted = true;
-    restoreStatus = current.source === 'local' ? 'TV playback position reached.' : 'YouTube playback position reached.';
+    restoreStatus = current.source === 'recent' ? 'Last watched playback position reached.'
+      : current.source === 'local' ? 'TV playback position reached.' : 'YouTube playback position reached.';
     if (current.source === 'local') notify('Resumed from the position saved on this TV.', 2500, 'green');
+    if (current.source === 'recent') notify('Resumed from your last watched position.', 2500, 'green');
   }
   function issueRestore(current) {
     current.attempts++; current.lastAttempt = now();
@@ -86,8 +96,8 @@ export function startPlaybackResume(doc, win, read, save, notify) {
         currentPlayer.seekTo(current.target, true);
       else current.video.currentTime = current.target;
     } catch (_) { /* Retried within the same bounded confirmation window. */ }
-    restoreStatus = current.source === 'local'
-      ? 'Seeking to the TV position; waiting for playback confirmation.'
+    restoreStatus = current.source === 'local' || current.source === 'recent'
+      ? 'Seeking to the last watched position; waiting for playback confirmation.'
       : 'Seeking to the YouTube position; waiting for playback confirmation.';
   }
   function checkRestore(current) {
@@ -182,7 +192,7 @@ export function startPlaybackResume(doc, win, read, save, notify) {
     }
     if (!session || session.id !== id || session.video !== video) {
       persist(true); cancelTimers();
-      session = {id, video, manual: false, sample: null, pending: null, started: null,
+      session = {id, video, recent: recentPosition(id), manual: false, sample: null, pending: null, started: null,
         localAttempted: false, restoreAttempts: 0, failed: false};
       waitingForMetadata = !initial && event?.type !== 'loadedmetadata';
       const previous = positions().find(item => item.id === id);
@@ -197,6 +207,9 @@ export function startPlaybackResume(doc, win, read, save, notify) {
     // new source even when a second loadedmetadata event will never arrive.
     if (waitingForMetadata && matchesPlayer(id) && loadedSources.get(video) === id) waitingForMetadata = false;
     if (waitingForMetadata) return;
+    // Metadata can arrive while a reused element still exposes the previous
+    // visit's time. Wait for a playback event before treating it as a new target.
+    if (event?.type === 'loadedmetadata') { session.sample = null; return; }
     if (session.started === null && ['playing', 'timeupdate'].includes(event?.type)) session.started = now();
     if (session.pending) { checkRestore(session.pending); return; }
     const domPosition = Number(video.currentTime), state = nativePlaybackState(win);
@@ -212,8 +225,9 @@ export function startPlaybackResume(doc, win, read, save, notify) {
           beginRestore(domPosition, 'youtube'); return;
         }
         restoreStatus = 'YouTube manages playback history and resume.';
-      } else if (localEnabled() && !session.localAttempted && !hasExplicitStart(win.location)) {
-        const saved = positions().find(item => item.id === id);
+      } else if (!session.localAttempted && !hasExplicitStart(win.location)) {
+        const recent = session.recent;
+        const saved = recent || (localEnabled() ? positions().find(item => item.id === id) : null);
         if (saved && Math.abs(saved.duration - video.duration) <= Math.max(2, video.duration * .001)) {
           if (session.started === null || video.seeking) return;
           const remaining = 1500 - (now() - session.started);
@@ -224,7 +238,7 @@ export function startPlaybackResume(doc, win, read, save, notify) {
             }, remaining);
             return;
           }
-          beginRestore(saved.position, 'local'); return;
+          beginRestore(saved.position, recent ? 'recent' : 'local'); return;
         }
       }
     }
@@ -242,7 +256,9 @@ export function startPlaybackResume(doc, win, read, save, notify) {
   function navigation() {
     const id = getCurrentVideoId(win, doc, false);
     if (session && (id !== session.id || !doc.body?.classList.contains('WEB_PAGE_TYPE_WATCH'))) {
-      persist(true); cancelTimers(); session = null; waitingForMetadata = true;
+      persist(true); cancelTimers();
+      if (loadedSources.get(session.video) === session.id) loadedSources.delete(session.video);
+      session = null; waitingForMetadata = true;
     }
   }
   const api = {
@@ -275,6 +291,7 @@ export function startPlaybackResume(doc, win, read, save, notify) {
   win.addEventListener('beforeunload', api.flush);
   win.addEventListener('blur', api.flush);
   win.addEventListener('keydown', event => {
+    if (!doc.body?.classList.contains('WEB_PAGE_TYPE_WATCH')) return;
     if (event.target?.closest?.('.ytaf-ui-container, .ytaf-choice-popup')) return;
     if ([37, 39, 36, 35].includes(event.keyCode) || ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) api.manual();
   }, true);
@@ -290,6 +307,20 @@ export function startPlaybackResume(doc, win, read, save, notify) {
     }
     observe(null);
   });
+  let pageObserver = null, observedBody = null;
+  function observePage() {
+    if (!pageObserver || observedBody === doc.body) return;
+    pageObserver.disconnect();
+    if (doc.documentElement) pageObserver.observe(doc.documentElement, {childList: true});
+    if (doc.body) pageObserver.observe(doc.body, {attributes: true, attributeFilter: ['class']});
+    observedBody = doc.body;
+  }
+  if (typeof win.MutationObserver === 'function') {
+    try {
+      pageObserver = new win.MutationObserver(() => { navigation(); observePage(); });
+      observePage();
+    } catch (_) { pageObserver?.disconnect(); pageObserver = null; }
+  }
   observe(null, true);
   return api;
 }
