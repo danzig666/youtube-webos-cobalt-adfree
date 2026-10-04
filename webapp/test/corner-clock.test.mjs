@@ -137,7 +137,7 @@ test('clock supplies visible upper-right geometry without stylesheet rules and a
   assert.equal(controller.status,'mounted');
   assert.equal(node.style.position,'fixed');assert.equal(node.style.display,'block');
   assert.equal(node.style.visibility,'visible');assert.equal(node.style.opacity,'1');
-  assert.equal(node.style.top,'36px');assert.equal(node.style.right,'64px');
+  assert.equal(node.style.top,'14px');assert.equal(node.style.right,'64px');
   assert.equal(node.style.width,'82px');assert.equal(node.style.height,'26px');
   assert.equal(node.style.zIndex,'2147483647');assert.equal(node.style.pointerEvents,'none');
   assert.equal(node.style.backgroundColor,'transparent');assert.equal(node.style.color,'#fff');
@@ -145,7 +145,7 @@ test('clock supplies visible upper-right geometry without stylesheet rules and a
   // Simulate external styling being overwritten, and a changed TV viewport.
   node.style.display='none';node.style.opacity='0';
   f.win.innerWidth=1920;f.win.innerHeight=1080;f.win.emit('resize');
-  assert.equal(node.style.top,'54px');assert.equal(node.style.right,'96px');
+  assert.equal(node.style.top,'22px');assert.equal(node.style.right,'96px');
   assert.equal(node.style.width,'123px');assert.equal(node.style.height,'39px');
   assert.equal(node.style.display,'block');assert.equal(node.style.opacity,'1');
   assert.equal(f.timers.size,1);
@@ -185,8 +185,8 @@ test('OLED clock shifts a few pixels every three minutes without drifting outsid
   const f=fixture();f.set('controls');installCornerClock(f.doc,f.win,f.read);
   const node=f.clock(), initial=[node.style.top,node.style.right];
   f.advance(179999);assert.deepEqual([node.style.top,node.style.right],initial);
-  f.advance(1);assert.deepEqual([node.style.top,node.style.right],['39px','65px']);
-  f.advance(180000);assert.deepEqual([node.style.top,node.style.right],['42px','67px']);
+  f.advance(1);assert.deepEqual([node.style.top,node.style.right],['11px','65px']);
+  f.advance(180000);assert.deepEqual([node.style.top,node.style.right],['8px','67px']);
   f.advance(6*180000);assert.deepEqual([node.style.top,node.style.right],initial);
   assert.equal(node.style.backgroundColor,'transparent');assert.equal(f.timers.size,1);
 });

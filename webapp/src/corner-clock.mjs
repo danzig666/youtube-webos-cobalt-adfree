@@ -53,9 +53,11 @@ export function installCornerClock(doc, win, read) {
     const scale = height / 720;
     // The menu already supplies its essential appearance inline. Do the same
     // for the clock: a removed/replaced stylesheet must not make it invisible.
+    // Keep the clock above YouTube’s logo band. Shift upward for OLED relief,
+    // so the periodic movement never brings it back down into that band.
     const style = {
       position: 'fixed', display: 'block', visibility: 'visible', opacity: '1',
-      top: `${Math.round(height * .05 + shift[0] * scale)}px`, right: `${Math.round(width * .05 + shift[1] * scale)}px`,
+      top: `${Math.round(height * .02 - shift[0] * scale)}px`, right: `${Math.round(width * .05 + shift[1] * scale)}px`,
       bottom: 'auto', left: 'auto', width: `${Math.round(size * 4.1)}px`,
       height: `${Math.round(size * 1.3)}px`, boxSizing: 'border-box', margin: '0',
       zIndex: '2147483647', pointerEvents: 'none', color: '#fff',
