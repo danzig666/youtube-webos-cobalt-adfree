@@ -56,7 +56,7 @@ if ! grep -aFq "$package_id" "$build_dir/cobalt"; then
   exit 5
 fi
 
-for asset in adblockMain.js adblockMain.css adblockPreload.js; do
+for asset in adblockMain.js adblockMain.css adblockPreload.js fonts/Inter-Regular.woff2 fonts/Inter-SemiBold.woff2; do
   if [[ ! -s "$webapp_output/$asset" ]]; then
     echo "Missing current web asset: $webapp_output/$asset" >&2
     echo "Run make docker-make.npm before packaging." >&2
@@ -88,6 +88,9 @@ rm -rf "$adblock_target"/*
 cp -p "$webapp_output/adblockMain.js" "$adblock_target/adblockMain.js"
 cp -p "$webapp_output/adblockMain.css" "$adblock_target/adblockMain.css"
 cp -p "$webapp_output/adblockPreload.js" "$adblock_target/adblockPreload.js"
+mkdir -p "$adblock_target/fonts"
+cp -p "$webapp_output/fonts/Inter-Regular.woff2" "$adblock_target/fonts/Inter-Regular.woff2"
+cp -p "$webapp_output/fonts/Inter-SemiBold.woff2" "$adblock_target/fonts/Inter-SemiBold.woff2"
 
 # Development-only resources are not needed by the TV application. Leaving
 # them out saves roughly 8 MB installed without removing runtime fonts or ICU.
@@ -116,7 +119,9 @@ find "$package_root" -type f -exec chmod 644 {} +
 chmod 755 "$package_root/cobalt"
 
 # Final guard on the exact package tree, not only the source/output directories.
-test -s "$adblock_target/adblockPreload.js"
+for asset in adblockPreload.js fonts/Inter-Regular.woff2 fonts/Inter-SemiBold.woff2; do
+  test -s "$adblock_target/$asset"
+done
 grep -Fq '__shorts' "$adblock_target/adblockMain.js"
 grep -Fq '__ytafPreloadExecuted' "$adblock_target/adblockPreload.js"
 

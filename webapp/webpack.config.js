@@ -79,9 +79,11 @@ module.exports = (env) => {
             }
           },
           {
-            // IPKs ship the injected CSS only; keep offline fonts inside it.
+            // Keep fonts beside the local stylesheet: data URLs are subject to
+            // YouTube font-src CSP in Cobalt, while packaged file assets are local.
             test: /\.woff2$/i,
-            type: "asset/inline"
+            type: "asset/resource",
+            generator: { filename: "fonts/[name][ext]" }
           },
           {
             test: /\.css$/i,

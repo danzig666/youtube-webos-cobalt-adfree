@@ -87,7 +87,7 @@ if ! grep -aFq '/web/adblock/adblockPreload.js' "$cobalt_binary"; then
   echo "Refusing to use a stale binary." >&2
   exit 6
 fi
-for asset in adblockMain.js adblockMain.css adblockPreload.js; do
+for asset in adblockMain.js adblockMain.css adblockPreload.js fonts/Inter-Regular.woff2 fonts/Inter-SemiBold.woff2; do
   if [[ ! -s "$adblock_output/$asset" ]]; then
     echo "Starterless Cobalt output is missing current web asset: $adblock_output/$asset" >&2
     exit 7

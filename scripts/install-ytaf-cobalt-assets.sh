@@ -15,7 +15,7 @@ if ! git -C "$cobalt_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 2
 fi
 
-for asset in adblockMain.js adblockMain.css adblockPreload.js; do
+for asset in adblockMain.js adblockMain.css adblockPreload.js fonts/Inter-Regular.woff2 fonts/Inter-SemiBold.woff2; do
   if [[ ! -s "$webapp_output/$asset" ]]; then
     echo "Missing built web asset: $webapp_output/$asset" >&2
     echo "Build the webapp before compiling starterless Cobalt." >&2
@@ -58,8 +58,26 @@ if ! git -C "$cobalt_root" apply --reverse --check "$dearrow_patch" 2>/dev/null;
   git -C "$cobalt_root" apply "$dearrow_patch"
 fi
 
-mkdir -p "$content_target"
-for asset in adblockMain.js adblockMain.css adblockPreload.js; do
+# Register local fonts in existing checkouts as well as fresh base integrations.
+# Keep the original sources list unchanged so the preload patch stays applicable.
+python3 - "$content_build" <<'PY_GN'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+source = path.read_text()
+fonts = ['fonts/Inter-Regular.woff2', 'fonts/Inter-SemiBold.woff2']
+missing = [font for font in fonts if '"' + font + '"' not in source]
+if missing:
+    marker = '  outputs = ['
+    if source.count(marker) != 1:
+        raise SystemExit('Cannot locate the YTAF GN content output target')
+    entries = ''.join('    "' + font + '",\n' for font in missing)
+    source = source.replace(marker, '  sources += [\n' + entries + '  ]\n\n' + marker)
+    path.write_text(source)
+PY_GN
+
+mkdir -p "$content_target/fonts"
+for asset in adblockMain.js adblockMain.css adblockPreload.js fonts/Inter-Regular.woff2 fonts/Inter-SemiBold.woff2; do
   cp -p "$webapp_output/$asset" "$content_target/$asset"
 done
 

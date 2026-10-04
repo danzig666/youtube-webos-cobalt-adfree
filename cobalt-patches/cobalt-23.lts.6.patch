@@ -16,13 +16,18 @@ new file mode 100644
 index 000000000..7ea7d955
 --- /dev/null
 +++ b/cobalt/adblock/content/BUILD.gn
-@@ -0,0 +1,10 @@
+@@ -0,0 +1,15 @@
 +copy("copy_adblock_web_files") {
 +  install_content = true
 +
 +  sources = [
 +    "adblockMain.js",
 +    "adblockMain.css",
++  ]
++
++  sources += [
++    "fonts/Inter-Regular.woff2",
++    "fonts/Inter-SemiBold.woff2",
 +  ]
 +
 +  outputs = [ "$sb_static_contents_output_data_dir/web/adblock/{{source_target_relative}}" ]

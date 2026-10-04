@@ -9,5 +9,5 @@ Regular SHA-256: d612f1212b452af07f1a5defb2b672e76a91f7139e7499fa48bb9b2b985c22d
 SemiBold SHA-256: 152261291c938aa5aad6a56d52b47ffcb893d1c0387e76d7f270a7382ff786d5
 
 SIL Open Font License 1.1: see OFL.txt. A preserved CSS comment in inter.css
-includes the full license in the packaged, offline CSS alongside embedded fonts.
+includes the full license in the packaged, offline CSS alongside local font files.
 The CSS-only family alias YTAF Inter avoids collisions with YouTube fonts.
