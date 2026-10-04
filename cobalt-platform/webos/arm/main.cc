@@ -21,6 +21,11 @@ extern "C" SB_EXPORT_PLATFORM int main(int argc, char** argv) {
   if (argc == 2 && std::strcmp(argv[1], "--ytaf-capability-probe") == 0)
     return starboard::shared::webos::RunWebOsCapabilityProbe();
 
+  if (argc == 2 && std::strcmp(argv[1], "--ytaf-lg-config-probe") == 0)
+    return starboard::shared::webos::RunWebOsLgCapabilityProbe(true);
+  if (argc == 2 && std::strcmp(argv[1], "--ytaf-lg-system-probe") == 0)
+    return starboard::shared::webos::RunWebOsLgCapabilityProbe(false);
+
   // webOS exposes its system PulseAudio server here.  XDG_RUNTIME_DIR points
   // at the compositor runtime owned by root, so libpulse cannot discover the
   // socket automatically and would otherwise fall back to the incompatible

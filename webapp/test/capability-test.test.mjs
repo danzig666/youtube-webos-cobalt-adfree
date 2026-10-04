@@ -18,7 +18,7 @@ test('hardware evidence distinguishes explicit false, unknown, and independent d
 test('denied, malformed, unavailable and false service responses cannot imply unsupported hardware',()=>{
  for (const config of [{status:'timeout'}, {status:'unavailable'}, {status:'ok',body:'bad'},part({returnValue:false,configs:{'tv.model.supportHDR':true}})]) {
   const report=capabilityHardwareReport(hardware({config,system:{status:'unavailable'},decoder:{status:'failed'}}));
-  assert.match(report,/HDR10 flag.*unknown/);assert.match(report,/Panel interpretation: unknown/);
+  assert.match(report,/HDR10 flag.*unknown/);assert.match(report,/no panel capability inferred/);
   assert.match(report,/decoder limits unknown/);
  }
 });
@@ -28,7 +28,7 @@ test('only allowlisted bounded hardware values are displayed; response bodies an
   cookies:'private cookie',account:'private account','tv.model.supportHDR':'bogus'
  }}),decoder:{status:'ok',body:'VP9=99999,2160,60\nsecret URL\n'}}));
  assert.equal(/secret|private|XXX/.test(report),false);assert.match(report,/VP9: unknown/);
- assert.match(report,/Model: unknown/);assert.match(report,/HDR10 flag.*unknown/);
+ assert.equal(report.includes('Model:'),false);assert.match(report,/HDR10 flag.*unknown/);
 });
 test('Cobalt probes are read-only, labeled as policy, and work when APIs are absent',()=>{
  const doc={createElement:()=>({canPlayType:()=> 'probably'})};let calls=0;
@@ -61,4 +61,35 @@ test('native job timeout is bounded and users can retry',()=>{
 test('older native runtime produces an actionable message and policy report without throwing',()=>{
  const f=menuFixture();const controller=createCapabilityTest(f.doc,{},()=>{});controller.run();
  assert.match(controller.report(),/requires the updated native/);assert.equal(controller.running(),false);
+});
+test('numbered and log-prefixed CLI replies parse without exposing unrelated text',()=>{
+ for (const prefix of ['1: ','INFO init {"message":"secret signed URL"}\n','\uFEFF']) {
+  const report=capabilityHardwareReport(hardware({config:{...part({configs:{'tv.hw.panelResolution':'UD','tv.model.supportHDR':true}}),body:prefix+JSON.stringify({returnValue:true,configs:{'tv.hw.panelResolution':'UD','tv.model.supportHDR':true}})+'\nINFO done secret',backend:'cli'}}));
+  assert.match(report,/Panel interpretation: 4K UHD/);assert.match(report,/HDR10 flag.*yes/);
+  assert.match(report,/answered \[CLI\]/);assert.equal(report.includes('secret'),false);
+ }
+});
+test('direct LS2 envelope reports hardware or an explicit registration failure',()=>{
+ const config={status:'ok',backend:'ls2',body:JSON.stringify({ytafLuna:{stage:'reply'},payload:JSON.stringify({returnValue:true,configs:{'tv.model.supportHDR':true}})})};
+ assert.match(capabilityHardwareReport(hardware({config})),/HDR10 flag.*yes/);
+ config.body=JSON.stringify({ytafLuna:{stage:'register',reason:'permission-denied',code:-1027},account:'secret'});
+ const report=capabilityHardwareReport(hardware({config}));
+ assert.match(report,/register: permission denied \(code -1027\) \[direct LS2\]/);
+ assert.match(report,/HDR10 flag.*unknown/);assert.equal(report.includes('secret'),false);
+});
+test('empty, usage, malformed, ambiguous and denied responses explain failure without raw output',()=>{
+ for (const [body,expected] of [['',/empty reply \(0 characters\)/],['luna-send-pub uri message\n -h help',/incompatible CLI options/],
+  ['secret signed URL',/unrecognized reply \(17 characters\)/],['{"returnValue":true} {"returnValue":false}',/result ambiguous/],
+  [JSON.stringify({returnValue:false,errorCode:-1,errorText:'Permission denied for https://secret?token=private'}),/permission denied \(code -1\)/]]) {
+  const report=capabilityHardwareReport(hardware({config:{status:'ok',body},system:{status:'unavailable'}}));
+  assert.match(report,expected);assert.match(report,/HDR10 flag.*unknown/);assert.equal(/secret|private/.test(report),false);
+ }
+});
+test('braces and escaped quotes inside payload strings do not break framed reply parsing',()=>{
+ const body='1: '+JSON.stringify({returnValue:true,configs:{'tv.model.supportHDR':true},unrelated:'escaped "quoted { braces }" and \\slashes'});
+ assert.match(capabilityHardwareReport(hardware({config:{status:'ok',body}})),/HDR10 flag.*yes/);
+});
+test('identical Starfish limits are labeled as a possible shared ceiling',()=>{
+ const report=capabilityHardwareReport(hardware({decoder:{status:'ok',body:'H264=4096,2304,60\nVP9=4096,2304,60\nAV1=4096,2304,60\n'}}));
+ assert.match(report,/not panel resolution or playback validation/);assert.match(report,/shared firmware ceiling/);
 });

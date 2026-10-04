@@ -5,5 +5,6 @@ namespace starboard { namespace shared { namespace webos {
 bool StartWebOsCapabilityTest();
 std::string GetWebOsCapabilityTestReport();
 int RunWebOsCapabilityProbe();
+int RunWebOsLgCapabilityProbe(bool config);
 }}}
 #endif
