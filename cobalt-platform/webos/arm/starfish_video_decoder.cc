@@ -94,8 +94,8 @@ const char* HdrType(SbMediaTransferId transfer) {
   }
 }
 
-bool IsFiniteAndPositive(float value) {
-  return std::isfinite(value) && value > 0.0f;
+bool IsFiniteAndPositive(float value, float maximum) {
+  return std::isfinite(value) && value > 0.0f && value <= maximum;
 }
 
 int ScaleAndRound(float value, float scale) {
@@ -121,24 +121,28 @@ std::string BuildHdrInfoPayload(const SbMediaColorMetadata& metadata) {
 
   const SbMediaMasteringMetadata& mastering = metadata.mastering_metadata;
   const bool has_primaries =
-      IsFiniteAndPositive(mastering.primary_r_chromaticity_x) &&
-      IsFiniteAndPositive(mastering.primary_r_chromaticity_y) &&
-      IsFiniteAndPositive(mastering.primary_g_chromaticity_x) &&
-      IsFiniteAndPositive(mastering.primary_g_chromaticity_y) &&
-      IsFiniteAndPositive(mastering.primary_b_chromaticity_x) &&
-      IsFiniteAndPositive(mastering.primary_b_chromaticity_y) &&
-      IsFiniteAndPositive(mastering.white_point_chromaticity_x) &&
-      IsFiniteAndPositive(mastering.white_point_chromaticity_y);
+      IsFiniteAndPositive(mastering.primary_r_chromaticity_x, 1.0f) &&
+      IsFiniteAndPositive(mastering.primary_r_chromaticity_y, 1.0f) &&
+      IsFiniteAndPositive(mastering.primary_g_chromaticity_x, 1.0f) &&
+      IsFiniteAndPositive(mastering.primary_g_chromaticity_y, 1.0f) &&
+      IsFiniteAndPositive(mastering.primary_b_chromaticity_x, 1.0f) &&
+      IsFiniteAndPositive(mastering.primary_b_chromaticity_y, 1.0f) &&
+      IsFiniteAndPositive(mastering.white_point_chromaticity_x, 1.0f) &&
+      IsFiniteAndPositive(mastering.white_point_chromaticity_y, 1.0f);
   const bool has_luminance =
       std::isfinite(mastering.luminance_min) &&
       mastering.luminance_min >= 0.0f &&
-      IsFiniteAndPositive(mastering.luminance_max);
+      IsFiniteAndPositive(mastering.luminance_max, 9999.99f) &&
+      mastering.luminance_min <= mastering.luminance_max;
+  // CTA-861 light levels are 16-bit values. Bound every field before native
+  // integer conversion; finite malformed metadata can still overflow lround.
+  const bool has_cll = metadata.max_cll > 0 && metadata.max_cll <= 65535;
+  const bool has_fall = metadata.max_fall > 0 && metadata.max_fall <= 65535;
 
   // webOS TVs are known to crash when setHdrInfo() is called without any SEI
   // data. If the container supplies no mastering or light-level information,
   // leave HDR detection to the elementary stream instead.
-  if (!has_primaries && !has_luminance && metadata.max_cll == 0 &&
-      metadata.max_fall == 0) {
+  if (!has_primaries && !has_luminance && !has_cll && !has_fall) {
     return std::string();
   }
 
@@ -169,11 +173,11 @@ std::string BuildHdrInfoPayload(const SbMediaColorMetadata& metadata) {
     AppendJsonInteger(&sei, &has_sei_value, "maxDisplayMasteringLuminance",
                       ScaleAndRound(mastering.luminance_max, 10000));
   }
-  if (metadata.max_cll > 0) {
+  if (has_cll) {
     AppendJsonInteger(&sei, &has_sei_value, "maxContentLightLevel",
                       static_cast<int>(metadata.max_cll));
   }
-  if (metadata.max_fall > 0) {
+  if (has_fall) {
     AppendJsonInteger(&sei, &has_sei_value, "maxPicAverageLightLevel",
                       static_cast<int>(metadata.max_fall));
   }
@@ -571,8 +575,8 @@ void StarfishVideoDecoder::WriteEndOfStream() {
 void StarfishVideoDecoder::WriteEndOfStreamOnDecoderThread() {
   RecordDiagnostic(MediaEventType::kInputEos);
   SB_DCHECK(decoder_thread_->BelongsToCurrentThread());
-  if (!pipeline_loaded_ || !media_api_->pushEOS()) {
-    eos_output_ = true;
+  if ((!pipeline_loaded_ || !media_api_->pushEOS()) &&
+      !eos_output_.exchange(true)) {
     Schedule(std::bind(decoder_status_cb_, kBufferFull,
                        VideoFrame::CreateEOSFrame()));
   }
@@ -753,8 +757,7 @@ void StarfishVideoDecoder::HandlePlayerEvent(int type,
           std::bind(&StarfishVideoDecoder::RetryPendingBuffer, this));
     }
   } else if ((type == PF_EVENT_TYPE_STR_STATE_UPDATE__ENDOFSTREAM) &&
-             !eos_output_) {
-    eos_output_ = true;
+             !eos_output_.exchange(true)) {
     RecordDiagnostic(MediaEventType::kNativeEos);
     Schedule(std::bind(decoder_status_cb_, kBufferFull,
                        VideoFrame::CreateEOSFrame()));

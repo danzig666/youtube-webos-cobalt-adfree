@@ -17,6 +17,8 @@ methods = '\n'.join(helper.method(source, signature) for signature in (
     'void StarfishVideoDecoder::ApplyPlaybackStateOnDecoderThread(',
     'void StarfishVideoDecoder::EnsurePlayingOnDecoderThread(',
     'void StarfishVideoDecoder::OnLoadCompletedOnDecoderThread(',
+    'void StarfishVideoDecoder::HandlePlayerEvent(',
+    'void StarfishVideoDecoder::WriteEndOfStreamOnDecoderThread(',
     'void StarfishVideoDecoder::Reset(',
     'void StarfishVideoDecoder::ResetOnDecoderThread(',
     'AdaptiveVideoCapabilities GetAdaptiveVideoCapabilities(',
@@ -27,12 +29,12 @@ with tempfile.TemporaryDirectory(prefix='ytaf-legacy-') as temp:
     cpp, binary = Path(temp) / 'test.cc', Path(temp) / 'test'
     cpp.write_text(fixture.replace('// INSERT_REAL_METHODS', methods))
     subprocess.run([os.environ.get('CXX', 'c++'), '-std=c++14', '-Wall', '-Wextra', '-Werror',
-                    '-fsanitize=undefined,float-cast-overflow', '-fno-sanitize-recover=all',
+                    '-pthread', '-fsanitize=undefined,float-cast-overflow', '-fno-sanitize-recover=all',
                     '-I' + str(root / 'cobalt-platform/webos/arm'), str(cpp),
                     str(root / 'cobalt-platform/webos/arm/starfish_playback_rate.cc'),
                     '-o', str(binary)], check=True)
     failed = []
-    for scenario in ('configuration', 'timestamp', 'rate_startup', 'seek', 'frame_rate'):
+    for scenario in ('configuration', 'timestamp', 'rate_startup', 'seek', 'frame_rate', 'eos'):
         result = subprocess.run([str(binary), scenario])
         if result.returncode:
             failed.append(scenario)

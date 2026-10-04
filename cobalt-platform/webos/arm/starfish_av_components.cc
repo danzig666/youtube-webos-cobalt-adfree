@@ -107,8 +107,8 @@ bool IsVideoConfigurationSupported(SbMediaVideoCodec codec,
   return info.frame_width > 0 && info.frame_height > 0;
 }
 
-bool IsFiniteAndPositive(float value) {
-  return std::isfinite(value) && value > 0.0f;
+bool IsFiniteAndPositive(float value, float maximum) {
+  return std::isfinite(value) && value > 0.0f && value <= maximum;
 }
 
 int ScaleAndRound(float value, float scale) {
@@ -132,19 +132,23 @@ std::string BuildHdrInfoPayload(const SbMediaColorMetadata& metadata) {
 
   const SbMediaMasteringMetadata& mastering = metadata.mastering_metadata;
   const bool has_primaries =
-      IsFiniteAndPositive(mastering.primary_r_chromaticity_x) &&
-      IsFiniteAndPositive(mastering.primary_r_chromaticity_y) &&
-      IsFiniteAndPositive(mastering.primary_g_chromaticity_x) &&
-      IsFiniteAndPositive(mastering.primary_g_chromaticity_y) &&
-      IsFiniteAndPositive(mastering.primary_b_chromaticity_x) &&
-      IsFiniteAndPositive(mastering.primary_b_chromaticity_y) &&
-      IsFiniteAndPositive(mastering.white_point_chromaticity_x) &&
-      IsFiniteAndPositive(mastering.white_point_chromaticity_y);
+      IsFiniteAndPositive(mastering.primary_r_chromaticity_x, 1.0f) &&
+      IsFiniteAndPositive(mastering.primary_r_chromaticity_y, 1.0f) &&
+      IsFiniteAndPositive(mastering.primary_g_chromaticity_x, 1.0f) &&
+      IsFiniteAndPositive(mastering.primary_g_chromaticity_y, 1.0f) &&
+      IsFiniteAndPositive(mastering.primary_b_chromaticity_x, 1.0f) &&
+      IsFiniteAndPositive(mastering.primary_b_chromaticity_y, 1.0f) &&
+      IsFiniteAndPositive(mastering.white_point_chromaticity_x, 1.0f) &&
+      IsFiniteAndPositive(mastering.white_point_chromaticity_y, 1.0f);
   const bool has_luminance = std::isfinite(mastering.luminance_min) &&
       mastering.luminance_min >= 0.0f &&
-      IsFiniteAndPositive(mastering.luminance_max);
-  if (!has_primaries && !has_luminance && metadata.max_cll == 0 &&
-      metadata.max_fall == 0) return std::string();
+      IsFiniteAndPositive(mastering.luminance_max, 9999.99f) &&
+      mastering.luminance_min <= mastering.luminance_max;
+  // CTA-861 light levels are 16-bit values. Bound every field before native
+  // integer conversion; finite malformed metadata can still overflow lround.
+  const bool has_cll = metadata.max_cll > 0 && metadata.max_cll <= 65535;
+  const bool has_fall = metadata.max_fall > 0 && metadata.max_fall <= 65535;
+  if (!has_primaries && !has_luminance && !has_cll && !has_fall) return std::string();
 
   std::ostringstream sei;
   bool has_sei_value = false;
@@ -172,10 +176,10 @@ std::string BuildHdrInfoPayload(const SbMediaColorMetadata& metadata) {
     AppendJsonInteger(&sei, &has_sei_value, "maxDisplayMasteringLuminance",
                       ScaleAndRound(mastering.luminance_max, 10000));
   }
-  if (metadata.max_cll > 0)
+  if (has_cll)
     AppendJsonInteger(&sei, &has_sei_value, "maxContentLightLevel",
                       static_cast<int>(metadata.max_cll));
-  if (metadata.max_fall > 0)
+  if (has_fall)
     AppendJsonInteger(&sei, &has_sei_value, "maxPicAverageLightLevel",
                       static_cast<int>(metadata.max_fall));
 

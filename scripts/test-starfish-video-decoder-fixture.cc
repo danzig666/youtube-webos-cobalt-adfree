@@ -14,6 +14,8 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <thread>
+#include <vector>
 #include "starfish_playback_rate.h"
 #include "webos_build_metadata.h"
 #include "webos_media_diagnostics.h"
@@ -22,6 +24,9 @@ using SbTime = int64_t;
 constexpr int kSbTimeMillisecond = 1000, kSbTimeSecond = 1000000;
 constexpr int kSbMediaTransferIdSmpteSt2084 = 16, kSbMediaTransferIdAribStdB67 = 18;
 constexpr int kNeedMoreInput = 1, kBufferFull = 2;
+enum { PF_EVENT_TYPE_STR_STATE_UPDATE__UNLOADCOMPLETED, PF_EVENT_TYPE_FRAMEREADY,
+  PF_EVENT_TYPE_STR_STATE_UPDATE__LOADCOMPLETED, PF_EVENT_TYPE_INT_NEED_DATA,
+  PF_EVENT_TYPE_STR_STATE_UPDATE__ENDOFSTREAM, PF_EVENT_TYPE_INT_ERROR, PF_EVENT_TYPE_STR_ERROR };
 #define SB_DCHECK(value) assert(value)
 #define SB_LOG(level) std::ostringstream()
 template<class T> using scoped_refptr = std::shared_ptr<T>;
@@ -39,7 +44,13 @@ struct InputBuffer {
   const void* data() const { return this; }
   int size() const { return 10; }
 };
-struct VideoFrame {};
+struct VideoFrame {
+  bool eos = false;
+  explicit VideoFrame(SbTime = 0) {}
+  static scoped_refptr<VideoFrame> CreateEOSFrame() {
+    auto frame = std::make_shared<VideoFrame>(); frame->eos = true; return frame;
+  }
+};
 struct Thread { bool BelongsToCurrentThread() const { return true; }
   template<class F> void Schedule(F, int = 0) {}
   template<class F> void ScheduleAndWait(F job) { job(); } };
@@ -51,7 +62,9 @@ struct ApplicationSdl {
 };
 struct Api {
   int feeds = 0, rates = 0, plays = 0;
-  bool loaded = false, reject_rate = false, flush_ok = true;
+  bool loaded = false, reject_rate = false, flush_ok = true, push_eos_ok = true;
+  std::function<void()> on_eos;
+  bool pushEOS() { if (on_eos) on_eos(); return push_eos_ok; }
   void notifyForeground() {}
   template<class F> bool Load(const char* payload, F, void*) {
     assert(std::string(payload).find(std::string("\"appId\":\"") + YTAF_APP_ID + "\"") != std::string::npos);
@@ -97,6 +110,7 @@ std::string FormatString(const char* format, ...) {
 }
 namespace starboard { namespace shared { namespace webos {
 void RecordMediaEvent(MediaEvent) {}
+void UpdateMediaPresentation(uint64_t, uint64_t, int64_t, uint64_t) {}
 }}}
 struct StarfishVideoDecoder {
   INITIALIZE_RESULT InitializePipeline(const SbMediaVideoSampleInfo&);
@@ -104,6 +118,9 @@ struct StarfishVideoDecoder {
   void ApplyPlaybackStateOnDecoderThread();
   void EnsurePlayingOnDecoderThread(const char*, bool);
   void OnLoadCompletedOnDecoderThread();
+  void HandlePlayerEvent(int, int64_t, const char*);
+  void WriteEndOfStreamOnDecoderThread();
+  void SignalUnloadCompleted() {}
   void Reset();
   void ResetOnDecoderThread();
   bool BelongsToCurrentThread() const { return true; }
@@ -114,12 +131,13 @@ struct StarfishVideoDecoder {
   void ReportError(const std::string&) { ++errors; }
   static void PlayerCallback(int, int64_t, const char*, void*) {}
   void RetryPendingBuffer() {}
-  template<class F> void Schedule(F) {}
+  template<class F> void Schedule(F job) { job(); }
   Thread thread; Thread* decoder_thread_ = &thread;
   std::unique_ptr<Api> media_api_{new Api};
   Api& api = *media_api_;
   Mutex pipeline_state_mutex_; Condition pipeline_state_condition_;
-  bool stream_ended_ = false, eos_output_ = false;
+  bool stream_ended_ = false;
+  std::atomic<bool> eos_output_{false};
   std::atomic<bool> first_frame_presented_{false}, reset_in_progress_{false}, unload_completed_{false};
   std::string last_hdr_payload_;
   int codec_ = 1, errors = 0, video_width_ = 0, video_height_ = 0;
@@ -199,5 +217,27 @@ int main(int argc, char** argv) {
   } else if (scenario == "frame_rate") {
     packet->info.max_video_capabilities = "video/webm; framerate=1e30";
     assert(GetAdaptiveVideoCapabilities(1, packet->info).frame_rate == 60);
+  } else if (scenario == "eos") {
+    std::atomic<int> outputs{0};
+    decoder.decoder_status_cb_ = [&](int, scoped_refptr<VideoFrame> frame) {
+      if (frame && frame->eos) ++outputs;
+    };
+    decoder.pipeline_loaded_ = true;
+    decoder.api.push_eos_ok = false;
+    decoder.api.on_eos = [&] {
+      decoder.HandlePlayerEvent(PF_EVENT_TYPE_STR_STATE_UPDATE__ENDOFSTREAM, 0, nullptr);
+    };
+    // A callback can arrive before the native call returns failure. Both paths
+    // must agree that EOS has already been delivered.
+    decoder.WriteEndOfStreamOnDecoderThread();
+    assert(outputs == 1);
+    decoder.Reset();
+    outputs = 0;
+    std::vector<std::thread> callbacks;
+    for (int i = 0; i < 16; ++i) callbacks.emplace_back([&] {
+      decoder.HandlePlayerEvent(PF_EVENT_TYPE_STR_STATE_UPDATE__ENDOFSTREAM, 0, nullptr);
+    });
+    for (auto& callback : callbacks) callback.join();
+    assert(outputs == 1);
   } else { return 2; }
 }

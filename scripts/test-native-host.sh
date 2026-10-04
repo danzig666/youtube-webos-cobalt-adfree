@@ -51,6 +51,7 @@ bash "$repo_root/scripts/test-webos-media-capabilities.sh" "$cobalt_root"
 python3 "$repo_root/scripts/test-external-video-seek.py" --require-fixed "$cobalt_root"
 python3 "$repo_root/scripts/test-webos-initial-seek.py" "$cobalt_root"
 python3 "$repo_root/scripts/test-cobalt-ui-semantics.py" "$cobalt_root"
+python3 "$repo_root/scripts/test-starfish-hdr-metadata.py"
 python3 "$repo_root/scripts/test-starfish-video-decoder.py"
 python3 "$repo_root/scripts/test-starfish-shared-rate.py"
 echo 'All native host regressions passed (no webOS SDK required).'

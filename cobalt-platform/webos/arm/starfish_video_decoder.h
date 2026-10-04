@@ -83,7 +83,8 @@ class StarfishVideoDecoder
   bool pipeline_loaded_ = false;
   bool exported_window_acquired_ = false;
   bool stream_ended_ = false;
-  bool eos_output_ = false;
+  // Firmware callbacks and the decoder thread can complete EOS concurrently.
+  std::atomic<bool> eos_output_{false};
   int video_width_ = 0;
   int video_height_ = 0;
   std::string last_hdr_payload_;
