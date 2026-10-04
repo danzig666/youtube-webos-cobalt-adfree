@@ -18,7 +18,7 @@ function fixture() {
     });
   }
   function element() {
-    return {parentNode: null, children: [], textContent: '', attributes: {}, watch: false,
+    return {parentNode: null, children: [], textContent: '', attributes: {}, style: {}, watch: false,
       classList: {contains(name) {return name === 'WEB_PAGE_TYPE_WATCH' && this.node.watch;}},
       setAttribute(key, value) {this.attributes[key] = value;},
       appendChild(child) {
@@ -112,4 +112,53 @@ test('disable and destroy remove the clock and cancel every scheduled callback',
   queued();f.set('always');f.win.emit('pageshow');f.doc.emit('visibilitychange');
   assert.equal(f.doc.body.children.length,0);assert.equal(f.timers.size,0);
   assert.equal(f.observers[0].targets.length,0);assert.equal(f.win.__ytafCornerClock,undefined);
+});
+
+test('clock supplies visible upper-right geometry without stylesheet rules and adapts to resize', () => {
+  const f=fixture();f.settings.clockDisplay='always';
+  f.win.innerWidth=1280;f.win.innerHeight=720;
+  const controller=installCornerClock(f.doc,f.win,f.read), node=f.doc.body.children[0];
+  assert.equal(controller.status,'mounted');
+  assert.equal(node.style.position,'fixed');assert.equal(node.style.display,'block');
+  assert.equal(node.style.visibility,'visible');assert.equal(node.style.opacity,'1');
+  assert.equal(node.style.top,'36px');assert.equal(node.style.right,'64px');
+  assert.equal(node.style.width,'82px');assert.equal(node.style.height,'34px');
+  assert.equal(node.style.zIndex,'2147483646');assert.equal(node.style.pointerEvents,'none');
+  // Simulate external styling being overwritten, and a changed TV viewport.
+  node.style.display='none';node.style.opacity='0';
+  f.win.innerWidth=1920;f.win.innerHeight=1080;f.win.emit('resize');
+  assert.equal(node.style.top,'54px');assert.equal(node.style.right,'96px');
+  assert.equal(node.style.width,'123px');assert.equal(node.style.height,'51px');
+  assert.equal(node.style.display,'block');assert.equal(node.style.opacity,'1');
+  assert.equal(f.timers.size,1);
+});
+
+test('partial or missing MutationObserver cannot block clock startup or removed-node recovery', () => {
+  for (const broken of [undefined, class {observe() {throw new TypeError('unsupported options');} disconnect() {}}]) {
+    const f=fixture();f.win.MutationObserver=broken;f.settings.clockDisplay='always';
+    const controller=installCornerClock(f.doc,f.win,f.read);
+    assert.equal(controller.status,'mounted');assert.equal(controller.report().observer,'fallback');
+    const node=f.doc.body.children[0];f.doc.body.removeChild(node);
+    f.advance(1000);
+    assert.equal(f.doc.body.children[0],node);assert.equal(f.timers.size,1);
+    f.doc.body.watch=true;f.set('browsing');
+    assert.equal(controller.status,'browsing-hidden');assert.equal(f.doc.body.children.length,0);
+    f.doc.body.watch=false;f.advance(1000);
+    assert.equal(controller.status,'mounted');assert.equal(f.doc.body.children[0],node);
+    f.set('off');assert.equal(controller.status,'off');assert.equal(f.timers.size,0);
+    f.advance(3000);assert.equal(f.doc.body.children.length,0);
+  }
+});
+
+test('enabled clock retries a missing startup body and exposes bounded diagnostic states', () => {
+  const f=fixture();f.doc.body=null;f.settings.clockDisplay='always';
+  const controller=installCornerClock(f.doc,f.win,f.read);
+  assert.equal(controller.status,'waiting-for-body');assert.equal(f.timers.size,1);
+  f.doc.body=f.body();f.advance(1000);
+  assert.equal(controller.status,'mounted');
+  assert.deepEqual(controller.report(),{mode:'always',status:'mounted',mounted:true,observer:'active',time:'09:08'});
+  f.doc.hidden=true;f.doc.emit('visibilitychange');
+  assert.equal(controller.status,'background');assert.equal(f.timers.size,0);
+  f.doc.hidden=false;f.win.emit('pageshow');assert.equal(controller.status,'mounted');
+  controller.destroy();assert.equal(controller.status,'destroyed');assert.equal(f.timers.size,0);
 });

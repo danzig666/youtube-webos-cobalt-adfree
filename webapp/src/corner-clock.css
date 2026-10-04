@@ -1,16 +1,18 @@
 .ytaf-corner-clock {
   position: fixed;
-  top: 2.8vh;
-  right: 2.8vw;
-  z-index: 9990;
+  display: block;
+  visibility: visible;
+  top: 54px;
+  right: 96px;
+  z-index: 2147483646;
   pointer-events: none;
   color: #e4edf8;
   background: rgba(8, 18, 32, 0.62);
   padding: 0.22em 0.55em;
   border-radius: 0.35em;
-  font-family: sans-serif;
-  font-size: 2.8vh;
-  font-weight: 500;
+  font-family: "YTAF Inter", Arial, sans-serif;
+  font-size: 30px;
+  font-weight: 400;
   line-height: 1.25;
   white-space: nowrap;
   text-shadow: 0 1px 2px #000;
