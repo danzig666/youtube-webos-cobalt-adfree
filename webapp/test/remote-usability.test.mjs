@@ -33,7 +33,7 @@ test('the real remote handler respects numeric shortcut and typing preferences',
     configRead:()=>enabled, isSubtitleShortcut:()=>false,
     adjustPlaybackRate:value=>{calls.push(value);return true;}});
   const from=source.indexOf('  function getRemoteKeyCode('), to=source.indexOf('  function adjustPlaybackRate(',from);
-  vm.runInContext('let heldActivationControl=null;\n'+source.slice(from,to)+source.slice(source.indexOf('  const eventHandler = (evt) => {'),source.indexOf('\n  // Red, Green, Yellow, Blue')),context);
+  vm.runInContext('let closedActivationReleaseUntil=0,heldActivationControl=null;\n'+source.slice(from,to)+source.slice(source.indexOf('  const eventHandler = (evt) => {'),source.indexOf('\n  // Red, Green, Yellow, Blue')),context);
   function key(target) { context.input={type:'keydown',key:'1',keyCode:49,target,preventDefault(){},stopPropagation(){}}; vm.runInContext('eventHandler(input)',context); }
   key(); key({tagName:'INPUT'}); enabled=false; key();
   assert.deepEqual(calls,[-1]);

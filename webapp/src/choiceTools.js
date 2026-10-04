@@ -3,11 +3,18 @@ import './choiceTools.css';
 let choiceTabIndex = 100;
 const choices = {};
 let popup = null, held = null, released = null;
-let releaseGuardUntil = 0, pointerReleasePending = false;
+let releaseGuardUntil = 0, pointerReleasePending = false, releaseGuardRoot = null;
 
 function guardRelease(event) {
   releaseGuardUntil = Date.now() + 750;
   pointerReleasePending = !event?.type || event.type.startsWith('pointer') || event.type.startsWith('key');
+  releaseGuardRoot = popup?.root || null;
+}
+function consumeRelease(event) {
+  // click completes the compatibility mouse sequence. The next mousedown
+  // belongs to a new gesture, even if the remote stops emitting pointer events.
+  if (event.type === 'click') pointerReleasePending = false;
+  consume(event);
 }
 
 function consume(event) {
@@ -41,6 +48,13 @@ function close(restoreFocus = true) {
   old.root.parentNode?.removeChild(old.root);
   old.control.setAttribute('aria-expanded', 'false');
   if (restoreFocus) old.control.focus();
+}
+function resetKeys() {
+  // Menu closure/blur ends the picker's key ownership even if Cobalt omitted
+  // a keyup. The menu can briefly guard a pending OK/Space release itself.
+  const activationPending = [13,32].includes(held) || [13,32].includes(released);
+  held = null; released = null;
+  return activationPending;
 }
 function focusOption() {
   if (!popup) return;
@@ -82,7 +96,9 @@ function open(name, activationCode = null) {
     for (const type of ['pointermove','mousemove'])
       node.addEventListener(type, () => {if(popup?.name===name){popup.index=i;node.focus();}});
     function activate(event) {
-      consume(event);
+      // Cobalt may deliver the final click to this retained option after its
+      // popup was removed. It no longer reaches document capture in that case.
+      consumeRelease(event);
       if (event.button !== undefined && event.button !== 0) return;
       if (popup?.name === name) {
         // Cobalt can hit-test compatibility mouseup/click again after this
@@ -174,8 +190,8 @@ function guardPointer(event) {
   if (event.type === 'pointerdown' || event.type === 'mousedown') {
     // A real mouse-only remote must also be able to start the next gesture.
     // A compatibility mousedown after selection is not a new gesture.
-    if (event.type === 'pointerdown' || (event.buttons === 1 && !pointerReleasePending)) {
-      releaseGuardUntil = 0; pointerReleasePending = false;
+    if (event.type === 'pointerdown' || ((event.buttons === 1 || event.button === 0) && !pointerReleasePending)) {
+      releaseGuardUntil = 0; pointerReleasePending = false; releaseGuardRoot = null;
       if (held === null && released === null) {
         for (let node = event.target; node; node = node.parentElement) {
           if (node.dataset?.ytafChoice) {node.dataset.ytafIgnoreClickUntil = '0'; break;}
@@ -190,13 +206,18 @@ function guardPointer(event) {
     consume(event); return;
   }
   // Visible options own their mouse events regardless of how the list was
-  // opened. Do not require another keyup or pointerdown to unlock them.
-  if (popup?.root.contains?.(event.target)) return;
-  if (releaseGuardUntil > Date.now()) { consume(event); return; }
+  // opened. A rejected save keeps the list open, but its trailing compatibility
+  // events must not attempt the same save again. A newly opened list is free
+  // to accept input even while an older list's release guard is active.
+  if (popup?.root.contains?.(event.target)) {
+    if (releaseGuardRoot === popup.root && releaseGuardUntil > Date.now()) consumeRelease(event);
+    return;
+  }
+  if (releaseGuardUntil > Date.now()) { consumeRelease(event); return; }
   if (popup) {
     guardRelease(event); consume(event); close(false);
   }
 }
 for (const type of ['pointerdown','pointerup','mousedown','mouseup','click'])
   document.addEventListener(type, guardPointer, true);
-export const choiceTools = {contains: node => Boolean(popup?.root.contains?.(node)), add, open, close, select, setValue, handleKey, handleWheel, isOpen: () => Boolean(popup)};
+export const choiceTools = {contains: node => Boolean(popup?.root.contains?.(node)), add, open, close, resetKeys, select, setValue, handleKey, handleWheel, isOpen: () => Boolean(popup)};

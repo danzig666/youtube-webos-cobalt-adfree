@@ -85,3 +85,67 @@ test('category selection hides other panes without recreating settings, and igno
   assert.equal(ui.content.children[0].children.at(-1), b);
   assert.deepEqual(calls, ['playback', 'general']);
 });
+
+function navigationFixture() {
+  const calls = [];
+  const doc = {
+    activeElement: null,
+    createElement() {
+      const node = element();
+      node.focus = () => {
+        if (doc.activeElement === node) return;
+        doc.activeElement = node;
+        node.listeners.focus?.();
+      };
+      return node;
+    }
+  };
+  const ui = createSettingsSections(doc, [], key => {
+    calls.push(key);
+    // The owner's callback restores focus to the selected navigation item.
+    // Its focus event must not select recursively or reset the pane twice.
+    ui.currentButton().focus();
+  });
+  return {ui, doc, calls, buttons: ui.nav.children.map(row => row.children[0])};
+}
+
+test('moving remote focus between categories shows their options without OK', () => {
+  const {ui, doc, calls, buttons} = navigationFixture();
+  for (const button of buttons) {
+    button.focus();
+    const key = button.dataset.ytafSection;
+    assert.equal(ui.current(), key);
+    assert.equal(doc.activeElement, button);
+    assert.equal(ui.currentButton(), button);
+    assert.equal(button.attrs['aria-pressed'], 'true');
+    assert.deepEqual(ui.content.children.filter(pane => pane.style.display === 'block').map(pane => pane.id),
+      ['__settings_section_' + key]);
+  }
+  assert.deepEqual(calls, ['playback', 'captions', 'remote', 'sponsorblock', 'diagnostics']);
+});
+
+test('Magic Remote hover reveals categories using either mouseenter or legacy mouseover', () => {
+  const {ui, doc, calls, buttons} = navigationFixture();
+  buttons[1].listeners.mouseenter();
+  assert.equal(ui.current(), 'playback');assert.equal(doc.activeElement, buttons[1]);
+  buttons[2].listeners.mouseover();
+  assert.equal(ui.current(), 'captions');assert.equal(doc.activeElement, buttons[2]);
+  assert.deepEqual(calls, ['playback', 'captions']);
+});
+
+test('focus, repeated hover, OK and click on the current category do not reset its options', () => {
+  const {ui, calls, buttons} = navigationFixture();
+  const button = buttons[1];
+  button.focus();
+  ui.content.children[1].style.top = '-200px';
+  for (let i = 0; i < 3; i++) {
+    button.listeners.focus();
+    button.listeners.mouseenter();
+    button.listeners.mouseover();
+    button.__ytafActivate();
+    button.listeners.click();
+    ui.select('playback');
+  }
+  assert.deepEqual(calls, ['playback']);
+  assert.equal(ui.content.children[1].style.top, '-200px');
+});

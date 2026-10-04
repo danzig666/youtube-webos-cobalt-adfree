@@ -53,7 +53,7 @@ function setup() {
   const start = uiSource.indexOf('  const eventHandler = (evt) => {');
   const end = uiSource.indexOf('\n  // Red, Green, Yellow, Blue', start);
   assert.ok(start >= 0 && end > start);
-  vm.runInContext('let heldActivationControl = null;\n' + uiSource.slice(start, end), context);
+  vm.runInContext('let closedActivationReleaseUntil=0,heldActivationControl = null;\n' + uiSource.slice(start, end), context);
   function event(type, extra = {}) {
     return { type, key: 'Enter', keyCode: 13, repeat: false,
       preventDefault() {}, stopPropagation() {}, ...extra };
@@ -120,7 +120,7 @@ test('diagnostic actions activate once through the actual remote handler', () =>
   const context = vm.createContext({ document:{querySelector:()=>focused}, Date:{now:()=>1000},
     isContainerOpen:()=>true, menuHasFocus:()=>true, queueMenuItemScroll:()=>{}, getDirectionFromEvent:()=>null,
     isGreenKey:()=>false, getPlaybackRateShortcut:()=>0 });
-  vm.runInContext('let heldActivationControl = null;\n'+source.slice(start,end),context);
+  vm.runInContext('let closedActivationReleaseUntil=0,heldActivationControl = null;\n'+source.slice(start,end),context);
   for (const type of ['keydown','keydown','keypress','keyup']) {
     context.input={type,key:'Enter',keyCode:13,repeat:false,preventDefault(){},stopPropagation(){}};
     vm.runInContext('eventHandler(input)',context);
@@ -146,11 +146,39 @@ test('opening report content keeps the focused action inside the Cobalt viewport
     uiContainer:container,menuContent:content,menuViewport:viewport,
     isContainerOpen:()=>true,menuHasFocus:()=>true,getDirectionFromEvent:()=>null,
     isGreenKey:()=>false,getPlaybackRateShortcut:()=>0});
-  vm.runInContext('let heldActivationControl=null,menuScrollFrame=null,menuOffset=0;\n'+source.slice(scrollStart,scrollEnd)+source.slice(start,end),context);
+  vm.runInContext('let closedActivationReleaseUntil=0,heldActivationControl=null,menuScrollFrame=null,menuOffset=0;\n'+source.slice(scrollStart,scrollEnd)+source.slice(start,end),context);
   context.input={type:'keydown',key:'Enter',keyCode:13,repeat:false,preventDefault(){},stopPropagation(){}};
   vm.runInContext('eventHandler(input)',context);
   assert.equal(expanded,true); assert.equal(frames.length,1);
   frames[0]();
   assert.equal(content.style.top,'-230px');
   assert.ok(row.getBoundingClientRect().bottom-230 <= viewport.getBoundingClientRect().bottom-8);
+});
+
+
+test('closing settings clears stale OK latches but consumes the actual trailing release', () => {
+  const source=readFileSync(new URL('../src/ui.js',import.meta.url),'utf8');
+  function fixture() {
+    let choiceRelease=false;
+    const control={id:'sample',dataset:{ytafControl:'action'},parentElement:{dataset:{}},__ytafActivate(){}};
+    const container={style:{display:'block'},contains:()=>false};
+    const context=vm.createContext({document:{activeElement:null,querySelector:()=>control,documentElement:{contains:()=>false}},
+      uiContainer:container,Date:{now:()=>1000},setTimeout:fn=>fn(),
+      window:{cancelAnimationFrame(){}},isContainerOpen:()=>container.style.display!=='none',
+      menuHasFocus:()=>true,queueMenuItemScroll(){},getDirectionFromEvent:()=>null,isGreenKey:()=>false,
+      restoreSpatialNavigation(){},choiceTools:{close(){},resetKeys(){const pending=choiceRelease;choiceRelease=false;return pending;}}});
+    vm.runInContext('let heldActivationControl=null,closedActivationReleaseUntil=0,menuScrollFrame=null,focusGuardFrame=null,directionMoveFrame=null,heldDirection=null,latestFocus=null;\n'+
+      source.slice(source.indexOf('  function closeContainer() {'),source.indexOf('  const handleNumericShortcut ='))+
+      source.slice(source.indexOf('  const eventHandler = (evt) => {'),source.indexOf('\n  // Red, Green, Yellow, Blue')),context);
+    return {close(){vm.runInContext('closeContainer()',context);},choice(){choiceRelease=true;},
+      key(type,repeat=false){context.input={type,key:'Enter',keyCode:13,repeat,preventDefault(){this.consumed=true;},stopPropagation(){}};
+        vm.runInContext('eventHandler(input)',context);return Boolean(context.input.consumed);}};
+  }
+  const lost=fixture();assert.equal(lost.key('keydown'),true);lost.close();
+  assert.equal(lost.key('keydown'),false);assert.equal(lost.key('keyup'),false);
+  const trailing=fixture();trailing.key('keydown');trailing.close();
+  assert.equal(trailing.key('keydown',true),true);assert.equal(trailing.key('keyup'),true);
+  assert.equal(trailing.key('keydown'),false);
+  const choice=fixture();choice.choice();choice.close();
+  assert.equal(choice.key('keyup'),true);assert.equal(choice.key('keydown'),false);
 });

@@ -4,8 +4,11 @@
 import './navigation-checkbox.js';
 
 import './ui.css';
+import './corner-clock.css';
+import { installCornerClock } from './corner-clock.mjs';
 import { startPlaybackResume } from './playback-resume.mjs';
 import { createPlaybackSeek } from './playback-seek.mjs';
+import { createPlaybackControlsReveal } from './playback-controls-visibility.mjs';
 import { createSeekPreview } from './seek-preview.mjs';
 import { startPlaybackSpeed, playbackRates } from './playback-speed.mjs';
 import { ensureSettingsMounted } from './settings-mount.mjs';
@@ -46,6 +49,7 @@ export function userScriptStartUI() {
     return;
   }
   console.info('[ytaf] userScriptStartUI() called');
+  installCornerClock(document, window, configRead);
 
   const ARROW_KEY_CODE = { 37: 'left', 38: 'up', 39: 'right', 40: 'down' };
   let lastGreenKeyAt = 0;
@@ -59,6 +63,7 @@ export function userScriptStartUI() {
   let heldDirectionAt = 0;
   let directionMoveFrame = null;
   let heldActivationControl = null;
+  let closedActivationReleaseUntil = 0;
 
 
   function getDirectionFromEvent(evt) {
@@ -325,6 +330,11 @@ export function userScriptStartUI() {
     if (isContainerOpen()) closeContainer();
   });
   uiContainer.appendChild(createHomeRefreshButton(document, refreshHome));
+  uiContainer.appendChild(choiceTools.add('__clock_display', 'Clock (upper right)', configRead('clockDisplay'), [
+    {value:'off',label:'Off'},
+    {value:'browsing',label:'While browsing'},
+    {value:'always',label:'Always'}
+  ], callbackConfig('clockDisplay')));
   const videoQuality = createVideoCapabilitySetting(document, window, choiceTools);
   videoQuality.dataset.ytafSection = 'playback';
   uiContainer.appendChild(videoQuality);
@@ -354,8 +364,9 @@ export function userScriptStartUI() {
     configRead('rememberPlaybackPosition'), callbackConfig('rememberPlaybackPosition')));
   playbackPreferences.appendChild(choiceTools.add('__seek_behavior', 'Left / Right seeking', configRead('seekBehavior'), [
     {value:'youtube',label:'YouTube default (OK to confirm)'},
-    {value:'immediate',label:'Quickly (200 ms after last press)'},
-    {value:'delayed',label:'After a short pause (300 ms)'}
+    {value:'immediate',label:'Automatic — 0.5 seconds after release'},
+    {value:'delayed',label:'Automatic — 0.8 seconds after release'},
+    {value:'relaxed',label:'Automatic — 1 second after release'}
   ], callbackConfig('seekBehavior')));
   const playbackHint = document.createElement('div'); playbackHint.className='ytaf-setting-help';
   playbackHint.textContent='Positions are saved on this TV, separately for each app install. Live streams and Shorts are excluded. Automatic seeking uses 10-second steps during playback or on the timeline; other controls keep normal arrow navigation.';
@@ -366,7 +377,8 @@ export function userScriptStartUI() {
   clearPositions.textContent='Clear saved playback positions';clearPositions.__ytafActivate=()=>resume.clear();
   clearPositions.addEventListener('click',()=>{if(Number(clearRow.dataset.ytafIgnoreClickUntil||0)<=Date.now())resume.clear();});
   clearRow.appendChild(clearPositions);playbackPreferences.appendChild(clearRow);uiContainer.appendChild(playbackPreferences);
-  const handlePlaybackSeek=createPlaybackSeek(document,window,configRead,createSeekPreview(document,window),showNotification);
+  const revealPlaybackControls=createPlaybackControlsReveal(document,window);
+  const handlePlaybackSeek=createPlaybackSeek(document,window,configRead,createSeekPreview(document,window),showNotification,revealPlaybackControls);
 
   uiContainer.appendChild(checkboxTools.add(
     '__numeric_shortcuts', 'Numeric playback shortcuts',
@@ -487,14 +499,19 @@ export function userScriptStartUI() {
   }
 
   function applyVisibleContainerStyles() {
+    const viewportHeights = [window.innerHeight, document.documentElement?.clientHeight]
+      .filter(value => Number.isFinite(value) && value > 0);
+    const screenHeight = viewportHeights.length ? Math.min(...viewportHeights) : 720;
+    const menuTop = Math.round(screenHeight * .06);
+    const menuHeight = Math.floor(screenHeight * .86);
     Object.assign(uiContainer.style, {
       position: 'fixed', display: 'block', visibility: 'visible', opacity: '1',
-      left: '5vw', top: '5vh', width: '90vw', maxWidth: '1160px',
-      height: '90vh', maxHeight: '90vh', boxSizing: 'border-box',
+      left: '5vw', top: `${menuTop}px`, width: '90vw', maxWidth: '1160px',
+      height: `${menuHeight}px`, maxHeight: `${menuHeight}px`, minHeight: '0', margin: '0', boxSizing: 'border-box',
       overflow: 'hidden', zIndex: '2147483647', pointerEvents: 'auto',
       background: '#101e30', color: '#eef4ff', border: '1px solid #31465f',
       borderRadius: '24px', padding: '28px', fontSize: '22px',
-      lineHeight: '1.4', fontFamily: 'Arial, sans-serif',
+      lineHeight: '1.4', fontFamily: '"YTAF Inter", Arial, sans-serif',
       transform: 'none', animation: 'none',
       boxShadow: '0 20px 64px rgba(0,0,0,0.35), 0 0 0 9999px rgba(3,9,18,0.55)'
     });
@@ -591,6 +608,9 @@ export function userScriptStartUI() {
 
   function closeContainer() {
     console.info('Container: Hiding!');
+    const pendingChoiceRelease = choiceTools.resetKeys?.();
+    if (heldActivationControl || pendingChoiceRelease) closedActivationReleaseUntil = Date.now() + 1000;
+    heldActivationControl = null;
     if (menuScrollFrame !== null) {
       window.cancelAnimationFrame(menuScrollFrame);
       menuScrollFrame = null;
@@ -642,9 +662,27 @@ export function userScriptStartUI() {
     if (action === 'skip' && !window.sponsorblock?.skipCurrentSegment()) showNotification('No skippable segment here.',2000,'green');
   }, window);
 
-  window.addEventListener('blur', () => handleNumericShortcut.reset());
+  window.addEventListener('blur', () => {
+    handleNumericShortcut.reset();
+    heldActivationControl = null;
+    closedActivationReleaseUntil = 0;
+    heldDirection = null;
+    choiceTools.resetKeys?.();
+  });
   const menuBackGuard = createMenuBackGuard(isContainerOpen, closeContainer);
   const eventHandler = (evt) => {
+    if (typeof revealPlaybackControls !== 'undefined' && revealPlaybackControls.isSynthetic(evt)) return true;
+    const activationKey = evt.key === 'Enter' || evt.key === ' ' || [13,32].includes(evt.keyCode || evt.which);
+    // A missing release from settings must not swallow the next deliberate OK.
+    // Still consume the trailing release of the gesture that closed the menu.
+    if (activationKey && closedActivationReleaseUntil) {
+      if ((evt.type === 'keydown' && !evt.repeat) || Date.now() > closedActivationReleaseUntil) closedActivationReleaseUntil = 0;
+      else {
+        if (evt.type === 'keyup') closedActivationReleaseUntil = 0;
+        evt.preventDefault();evt.stopPropagation();evt.stopImmediatePropagation?.();
+        return false;
+      }
+    }
     const activationRelease = evt.type === 'keyup' && heldActivationControl &&
       (evt.key === 'Enter' || evt.key === ' ' || [13, 32].includes(evt.keyCode || evt.which));
     if (activationRelease) {
@@ -809,6 +847,12 @@ export function userScriptStartUI() {
   window.addEventListener('keydown', eventHandler, true);
   window.addEventListener('keypress', eventHandler, true);
   window.addEventListener('keyup', eventHandler, true);
+  window.addEventListener('resize', () => {
+    if (isContainerOpen()) {
+      applyVisibleContainerStyles();
+      queueMenuItemScroll(document.activeElement);
+    }
+  });
   // YouTube's visible player controls can reclaim focus after handling a key.
   // While our menu is open, keep focus modal and restore the last menu item.
   document.addEventListener('focus', guardMenuFocus, true);

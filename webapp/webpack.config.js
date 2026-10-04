@@ -79,6 +79,11 @@ module.exports = (env) => {
             }
           },
           {
+            // IPKs ship the injected CSS only; keep offline fonts inside it.
+            test: /\.woff2$/i,
+            type: "asset/inline"
+          },
+          {
             test: /\.css$/i,
             use: [
               MiniCssExtractPlugin.loader,

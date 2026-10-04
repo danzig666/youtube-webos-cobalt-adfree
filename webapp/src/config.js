@@ -4,6 +4,7 @@ const defaultConfig = {
   rememberPlaybackPosition: true,
   playbackPositions: [],
   seekBehavior: 'youtube',
+  clockDisplay: 'off',
   playbackSpeed: 'youtube',
   captionMode: 'youtube',
   captionLanguage: 'youtube',

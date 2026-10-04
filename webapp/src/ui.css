@@ -1,10 +1,13 @@
+@import "./fonts/inter.css";
+
 /* Opaque surfaces and explicit colours also work without CSS variables,
    backdrop filters or CSS Grid on older Cobalt runtimes. */
 .ytaf-ui-container {
   position: fixed;
   display: none;
   box-sizing: border-box;
-  font-family: Arial, sans-serif;
+  font-family: "YTAF Inter", Arial, sans-serif;
+  font-weight: 400;
   color: #eef4ff;
   background: #101e30;
   border: 1px solid #31465f;
@@ -23,6 +26,7 @@
 .ytaf-brand {
   color: #9dcaff;
   font-size: 15px;
+  font-weight: 600;
   letter-spacing: 1px;
   margin-bottom: 4px;
 }
@@ -87,6 +91,7 @@
   border-radius: 12px;
   color: #b9c9dd;
   font-size: 20px;
+  font-weight: 600;
   cursor: pointer;
 }
 .ytaf-settings-tab.ytaf-selected {
@@ -167,7 +172,7 @@
   pointer-events: none;
   text-align: right;
   font:
-    20px/1.4 Arial,
+    20px/1.4 "YTAF Inter", Arial,
     sans-serif;
 }
 .ytaf-notification-container .message {
@@ -203,13 +208,13 @@
   border-radius: 20px;
   z-index: 2147483646;
   font:
-    24px/1.4 Arial,
+    24px/1.4 "YTAF Inter", Arial,
     sans-serif;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
 }
 .ytaf-segment-prompt button {
   font:
-    22px Arial,
+    22px "YTAF Inter", Arial,
     sans-serif;
   margin: 18px 16px 0 0;
   padding: 12px 22px;
@@ -224,12 +229,12 @@
   border-color: #85c5ff;
 }
 /* Combobox listbox and the read-only, continuously scrollable report. */
-.ytaf-choice-popup { position: fixed; z-index: 2147483647; padding: 16px; box-sizing: border-box; background: #152b45; border: 2px solid #85c5ff; border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
-.ytaf-choice-heading { font-size: 22px; color: #eef4ff; margin-bottom: 6px; }
+.ytaf-choice-popup { font-family:"YTAF Inter",Arial,sans-serif; font-weight:400; line-height:1.4; position: fixed; z-index: 2147483647; padding: 16px; box-sizing: border-box; background: #152b45; border: 2px solid #85c5ff; border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
+.ytaf-choice-heading { font-weight:600; font-size: 22px; color: #eef4ff; margin-bottom: 6px; }
 .ytaf-choice-hint { font-size: 14px; color: #b3c4da; margin-bottom: 12px; }
 .ytaf-choice-viewport { overflow: hidden; }
 .ytaf-choice-options { position: relative; top: 0; }
-.ytaf-choice-option { display:block; width:100%; text-align:left; background:#152b45; color:#eef4ff; font-family:Arial,sans-serif; box-sizing: border-box; min-height: 50px; padding: 10px 14px; border: 2px solid transparent; border-radius: 8px; font-size: 20px; cursor: pointer; }
+.ytaf-choice-option { display:block; width:100%; text-align:left; background:#152b45; color:#eef4ff; font-family:"YTAF Inter",Arial,sans-serif; box-sizing: border-box; min-height: 50px; padding: 10px 14px; border: 2px solid transparent; border-radius: 8px; font-size: 20px; cursor: pointer; }
 .ytaf-choice-option[aria-selected="true"] { color: #9dcaff; background: #203c60; }
 .ytaf-choice-option:focus { background: #315f90; color: #fff; border-color: #85c5ff; outline: none; }
 .ytaf-diagnostics-report { white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; padding: 18px; font: 18px/1.5 monospace; background: #0b1726; border: 2px solid #304761; border-radius: 12px; color: #c7dcf5; }
@@ -241,4 +246,4 @@
 .ytaf-seek-fill {position:absolute;left:0;top:0;height:100%;background:#65b9ff;border-radius:3px;}
 .ytaf-seek-current {position:absolute;top:-3px;width:3px;height:12px;background:#fff;}
 .ytaf-seek-marker {position:absolute;top:-5px;margin-left:-8px;width:16px;height:16px;border-radius:8px;background:#85c5ff;box-shadow:0 0 0 2px #152b45;}
-.ytaf-seek-label {position:absolute;bottom:22px;margin-left:-130px;width:260px;color:#fff;text-align:center;font:22px/1.4 Arial,sans-serif;text-shadow:-1px -1px 2px #000,1px 1px 2px #000;}
+.ytaf-seek-label {position:absolute;bottom:22px;margin-left:-130px;width:260px;color:#fff;text-align:center;font:22px/1.4 "YTAF Inter",Arial,sans-serif;text-shadow:-1px -1px 2px #000,1px 1px 2px #000;}

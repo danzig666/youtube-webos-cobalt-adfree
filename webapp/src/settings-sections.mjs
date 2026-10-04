@@ -42,7 +42,7 @@ export function createSettingsSections(doc, nodes, onSelect) {
     buttons = {};
   let current = 'general';
   function select(key) {
-    if (!panes[key]) return;
+    if (!panes[key] || key === current) return;
     current = key;
     for (const [id] of settingsSections) {
       panes[id].style.display = id === key ? 'block' : 'none';
@@ -63,6 +63,12 @@ export function createSettingsSections(doc, nodes, onSelect) {
     button.dataset.ytafSection = key;
     button.setAttribute('role', 'button');
     button.__ytafActivate = () => select(key);
+    // Arrow navigation and the Magic Remote cursor preview the category as
+    // soon as they reach it. Staying on a tab must not reset its options.
+    button.addEventListener('focus', () => select(key));
+    button.addEventListener('mouseenter', () => select(key));
+    // Older Cobalt versions deliver mouseover without mouseenter.
+    button.addEventListener('mouseover', () => select(key));
     button.addEventListener('click', () => {
       if (Number(row.dataset.ytafIgnoreClickUntil || 0) > Date.now()) return;
       select(key);

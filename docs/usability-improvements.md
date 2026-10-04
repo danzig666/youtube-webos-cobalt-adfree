@@ -312,3 +312,31 @@ bottom timeline shows the current position and target instead. The preview
 stays for 900 ms after applying the seek and disappears on navigation, menu
 opening, cancellation or failure. Live DVR uses its seekable window. This
 overlay does not alter YouTube's renderer or handle pointer input.
+
+### Remote controls, clock and settings polish (2.6.14)
+
+Automatic seeking waits 500 ms after the last directional release, with 800 ms
+and 1 second choices. Existing `immediate` preferences map to 500 ms and
+`delayed` to 800 ms. The normal focused `ytlr-watch-default` host now enters the
+automatic path. Held keys preview without intermediate seeks; missing releases
+recover after two seconds and late releases are consumed. Target accumulation
+and ownership of focus moved by revealing controls are tracked separately.
+
+The known hidden YouTube controls container receives a guarded Enter pair,
+following NicholasBly's chapter-loading approach. Visible controls, editing and
+menus are excluded; attempts are bounded. This requires the known native DOM;
+unknown layouts retain the temporary seek timeline. Settings/picker key states
+reset on close or blur while trailing releases remain protected. Compatibility
+pointer/mouse click completion now allows the next cursor gesture, including
+Cobalt clicks to detached options; a rejected save runs once per gesture.
+
+General adds an optional upper-right local 24-hour clock: Off, While browsing,
+or Always. It saves per app, updates once a minute, suspends while backgrounded
+and remounts if YouTube removes its node. Category focus/hover changes the
+details immediately; repeated events on the selected category do nothing.
+The menu fits the measured viewport with 6% top and 8% bottom margins, and
+recalculates on resize. Bundled Inter regular/semibold styles the settings and
+option lists offline. Diagnostic text remains monospace.
+
+Host/browser verification uses fixtures for native controls, not a live TV;
+C3 confirmation is still required for the controls and safe-area fixes.

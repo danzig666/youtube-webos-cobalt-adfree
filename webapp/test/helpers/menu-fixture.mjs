@@ -33,7 +33,7 @@ export function menuFixture() {
   const choice = fs.readFileSync(new URL('../../src/choiceTools.js', import.meta.url), 'utf8');
   vm.runInContext(choice.replace("import './choiceTools.css';", '').replace('export const', 'const') + '\nglobalThis.choices=choiceTools;', context);
   const ui = fs.readFileSync(new URL('../../src/ui.js', import.meta.url), 'utf8');
-  vm.runInContext('let heldActivationControl=null;\n' + ui.slice(ui.indexOf('  const eventHandler = (evt) => {'), ui.indexOf('\n  // Red, Green, Yellow, Blue')), context);
+  vm.runInContext('let closedActivationReleaseUntil=0,heldActivationControl=null;\n' + ui.slice(ui.indexOf('  const eventHandler = (evt) => {'), ui.indexOf('\n  // Red, Green, Yellow, Blue')), context);
   return { doc, nodes, choices: context.choices, setOpen: value => {open = value;},
     choose(id, value) { context.choices.select(id, value); },
     key(key, code) {

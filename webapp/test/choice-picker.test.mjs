@@ -120,6 +120,73 @@ test('mouse-only input can immediately reopen after a selection without lifting 
   assert.equal(f.choices.isOpen(),true);assert.deepEqual(f.writes,['b']);
 });
 
+test('a completed pointer click does not block the next mouse-only click on a setting',()=>{
+  const f=fixture();f.click('test');
+  const option=f.doc.body.children[0].children[2].children[0].children[1];
+  option.listeners.pointerup({type:'pointerup',button:0,preventDefault(){},stopPropagation(){}});
+  const control=f.nodes.get('test');
+  for(const type of ['mousedown','mouseup','click']) {
+    const event={type,target:control,button:0,buttons:type==='mousedown'?1:0,preventDefault(){this.prevented=true;},stopPropagation(){}};
+    f.doc.dispatchEvent(event);assert.equal(event.prevented,true,type);
+  }
+  const down={type:'mousedown',target:control,button:0,buttons:1,preventDefault(){this.prevented=true;},stopPropagation(){}};
+  f.doc.dispatchEvent(down);assert.equal(down.prevented,undefined);
+  f.click('test');assert.equal(f.choices.isOpen(),true);assert.deepEqual(f.writes,['b']);
+});
+
+test('a rejected option is attempted once per pointer gesture, including its compatibility mouse events',()=>{
+  const f=menuFixture(), attempts=[];
+  f.choices.add('rejected','Choice','a',[{value:'a',label:'Old'},{value:'b',label:'Unavailable'}],value=>{attempts.push(value);return false;});
+  f.choices.open('rejected');
+  const option=f.doc.body.children[0].children[2].children[0].children[1];
+  const send=type=>{
+    const event={type,target:option,button:0,buttons:type.endsWith('down')?1:0,preventDefault(){this.prevented=true;},stopPropagation(){}};
+    f.doc.dispatchEvent(event);
+    if(!event.prevented)option.listeners[type]?.(event);
+  };
+  for(const type of ['pointerdown','pointerup','mousedown','mouseup','click'])send(type);
+  assert.deepEqual(attempts,['b']);assert.equal(f.choices.isOpen(),true);
+  assert.match(f.nodes.get('rejected').textContent,/Old/);
+  for(const type of ['mousedown','mouseup','click'])send(type);
+  assert.deepEqual(attempts,['b','b']);
+});
+
+test('Cobalt final click on a detached option unlocks the next mouse-only gesture',()=>{
+  const f=fixture();f.click('test');
+  const option=f.doc.body.children[0].children[2].children[0].children[1];
+  const event={button:0,preventDefault(){},stopPropagation(){}};
+  option.listeners.pointerup({...event,type:'pointerup'});
+  assert.equal(f.doc.body.children.length,0);
+  // Detached option events do not reach document capture.
+  option.listeners.click({...event,type:'click'});
+  const down={...event,type:'mousedown',target:f.nodes.get('test'),buttons:0,preventDefault(){this.prevented=true;}};
+  f.doc.dispatchEvent(down);assert.equal(down.prevented,undefined);
+  f.click('test');assert.equal(f.choices.isOpen(),true);assert.deepEqual(f.writes,['b']);
+});
+
+test('menu closure can release a lost picker OK keyup without losing duplicate-key protection',()=>{
+  const f=fixture();f.choices.open('test');
+  const input=()=>({type:'keydown',keyCode:13,preventDefault(){this.prevented=true;},stopPropagation(){}});
+  assert.equal(f.choices.handleKey(input()),true);assert.equal(f.choices.isOpen(),false);
+  const repeated=input();
+  assert.equal(f.choices.handleKey(repeated),true);assert.equal(repeated.prevented,true);
+  // The parent arms a bounded trailing-release guard from this return value.
+  assert.equal(f.choices.resetKeys(),true);
+  const next=input();
+  assert.equal(f.choices.handleKey(next),false);assert.equal(next.prevented,undefined);
+  assert.equal(f.choices.resetKeys(),false);
+});
+
+test('resetting an open picker reports pending activation and frees a held opening key',()=>{
+  const f=fixture();f.choices.open('test',13);
+  assert.equal(f.choices.resetKeys(),true);
+  f.choices.handleKey({type:'keydown',keyCode:13,preventDefault(){},stopPropagation(){}});
+  assert.equal(f.choices.isOpen(),false);
+  f.choices.resetKeys();f.choices.open('test');
+  f.choices.handleKey({type:'keydown',keyCode:40,preventDefault(){},stopPropagation(){}});
+  assert.equal(f.choices.resetKeys(),false);
+});
+
 
 test('options belong to the active settings surface and explicitly enable cursor hit testing',()=>{
   const f=fixture(),owner=f.doc.createElement('div'),oldQuery=f.doc.querySelector;
