@@ -10,7 +10,7 @@ window.setTimeout=(fn,delay=0)=>{const id=++seq;jobs.set(id,{fn,at:virtualTime+M
 window.setInterval=(fn,delay)=>{const id=++seq;jobs.set(id,{fn,at:virtualTime+delay,repeat:delay});return id};
 window.clearTimeout=window.clearInterval=id=>jobs.delete(id);
 window.requestAnimationFrame=fn=>setTimeout(()=>fn(virtualTime),16);window.cancelAnimationFrame=clearTimeout;
-window.fixtureSkips=[];window.fixtureNativeReveals=0;window.fixtureBacks=0;
+window.fixtureSkips=[];window.fixtureNativeReveals=0;window.fixtureNativeDismissals=0;window.fixtureBacks=0;
 const video=document.querySelector('video'),control=document.querySelector('#native-control'),timeline=document.querySelector('ytlr-progress-bar');
 Object.defineProperties(video,{readyState:{get:()=>ready},duration:{get:()=>1500},paused:{get:()=>false},ended:{get:()=>false},seeking:{get:()=>false},currentTime:{get:()=>position,set:v=>{fixtureSkips.push(v);position=v;}},seekable:{get:()=>({length:1,start:()=>0,end:()=>1500})}});
 const player=document.querySelector('ytlr-player');player.getVideoData=()=>({video_id:'aaaaaaaaaaa'});
@@ -22,7 +22,14 @@ window.fixtureAdvance=ms=>{const end=virtualTime+ms;let loops=0;while(true){cons
 setInterval(()=>video.dispatchEvent(new Event('timeupdate')),250);
 window.fixtureHideControls=()=>{control.style.opacity='1';control.focus();control.style.opacity='0';timeline.style.opacity='0';};
 document.body.addEventListener('keyup',event=>{if(event.keyCode===13){fixtureNativeReveals++;timeline.style.opacity='1';control.style.opacity='1';}});
-document.body.addEventListener('keydown',event=>{if([461,8,27].includes(event.keyCode))fixtureBacks++;});
+document.body.addEventListener('keydown',event=>{
+ if([461,8,27].includes(event.keyCode))fixtureBacks++;
+ // Model YouTube consuming Up to dismiss its visible transport UI. Painting is
+ // asynchronous; it happens after capture listeners but before recovery checks.
+ if(event.keyCode===38&&!event.repeat&&timeline.style.opacity==='1')setTimeout(()=>{
+  fixtureNativeDismissals++;control.style.opacity='0';timeline.style.opacity='0';
+ },16);
+});
 </script><script src="/adblockMain.js"></script></body></html>'''
 with sync_playwright() as p:
  browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
@@ -45,8 +52,24 @@ with sync_playwright() as p:
    if minute in [1,8,17]:
     page.evaluate('fixtureHideControls()');page.keyboard.press('ArrowUp');page.evaluate('fixtureAdvance(100)')
     assert page.evaluate('getComputedStyle(document.querySelector("ytlr-progress-bar")).opacity')=='1',(minute,errors)
-    reveals=page.evaluate('fixtureNativeReveals');page.keyboard.press('ArrowUp');page.evaluate('fixtureAdvance(100)')
+    reveals=page.evaluate('fixtureNativeReveals');dismissals=page.evaluate('fixtureNativeDismissals')
+    page.keyboard.down('ArrowUp');page.evaluate('fixtureAdvance(20)')
+    assert page.evaluate('fixtureNativeDismissals')==dismissals+1
+    assert page.evaluate('getComputedStyle(document.querySelector("ytlr-progress-bar")).opacity')=='0'
+    # Up must stay dismissed after delayed recovery, with genuine held repeats,
+    # and on TVs that emit repeated keydowns without setting event.repeat.
+    page.evaluate('fixtureAdvance(100)')
+    assert page.evaluate('getComputedStyle(document.querySelector("ytlr-progress-bar")).opacity')=='0','Up dismissal was immediately undone'
+    for repeat in [True,False,False,True]:
+     page.evaluate("repeat=>{document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',code:'ArrowUp',keyCode:38,which:38,repeat,bubbles:true,cancelable:true}));fixtureAdvance(200)}",repeat)
+     assert page.evaluate('getComputedStyle(document.querySelector("ytlr-progress-bar")).opacity')=='0','Held Up reopened dismissed controls'
+    page.keyboard.up('ArrowUp');page.evaluate('fixtureAdvance(100)')
+    assert page.evaluate('getComputedStyle(document.querySelector("ytlr-progress-bar")).opacity')=='0','Up release reopened dismissed controls'
     assert page.evaluate('fixtureNativeReveals')==reveals
+    # A new press is a new intention, and can recover controls left hidden.
+    page.keyboard.press('ArrowUp');page.evaluate('fixtureAdvance(100)')
+    assert page.evaluate('getComputedStyle(document.querySelector("ytlr-progress-bar")).opacity')=='1','Fresh Up did not recover hidden controls'
+    assert page.evaluate('fixtureNativeReveals')==reveals+1
     page.evaluate("window.dispatchEvent(new KeyboardEvent('keydown',{key:'Green',keyCode:404,bubbles:true}));window.dispatchEvent(new KeyboardEvent('keyup',{key:'Green',keyCode:404,bubbles:true}));fixtureAdvance(1000)")
     assert page.locator('.ytaf-ui-container').is_visible()
     page.evaluate("window.dispatchEvent(new KeyboardEvent('keydown',{key:'BrowserBack',keyCode:461,bubbles:true}));window.dispatchEvent(new KeyboardEvent('keyup',{key:'BrowserBack',keyCode:461,bubbles:true}));fixtureAdvance(1000)")
@@ -56,6 +79,6 @@ with sync_playwright() as p:
   assert page.evaluate('window.sponsorblock.pollErrors')==0
   assert page.evaluate('jobs.size')<15,page.evaluate('jobs.size')
   assert not errors,errors
-  print(f'{width}x{height}: production bundle passed 20 simulated playback minutes, three sponsor skips, three hidden-focus recovery cycles, visible-control protection and GREEN/BACK isolation',flush=True)
+  print(f'{width}x{height}: production bundle passed 20 simulated playback minutes, three sponsor skips, three hidden-focus recovery cycles, Up dismissal through held/released keys, fresh-key recovery and GREEN/BACK isolation',flush=True)
   context.close()
  browser.close()

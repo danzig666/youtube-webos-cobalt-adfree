@@ -61,15 +61,23 @@ export function createPlaybackControlsReveal(doc, win) {
   const synthetic = new WeakSet();
   let session = null, attempts = 0, lastAttempt = -Infinity, windowStarted = -Infinity, successCheck = null, inputCheck = null;
   let dispatchedPairs = 0;
+  let arrowGesture = null;
   function clearSuccessCheck() {
     if (successCheck !== null) win.clearTimeout(successCheck);
     successCheck = null;
   }
-  function reset() {
-    clearSuccessCheck();
+  function clearInputCheck() {
     if (inputCheck !== null) win.clearTimeout(inputCheck);
     inputCheck = null;
+  }
+  function resetRecovery() {
+    clearSuccessCheck();
+    clearInputCheck();
     session = null; attempts = 0; lastAttempt = -Infinity; windowStarted = -Infinity;
+  }
+  function reset() {
+    resetRecovery();
+    arrowGesture = null;
   }
   function controlsVisible(controls) {
     const children = Array.from(controls.querySelectorAll('[idomkey="progress-bar"], [role="slider"], [role="button"], button'));
@@ -83,7 +91,7 @@ export function createPlaybackControlsReveal(doc, win) {
       if (session !== request || request.video !== doc.querySelector('video') ||
           request.id !== getCurrentVideoId(win, doc, false) ||
           request.controls !== doc.querySelector(controlsSelector)) return false;
-      if (controlsVisible(request.controls) === true) { reset(); return true; }
+      if (controlsVisible(request.controls) === true) { resetRecovery(); return true; }
     } catch (_) { /* A failed layout read must not trigger another Enter. */ }
     return false;
   }
@@ -101,11 +109,11 @@ export function createPlaybackControlsReveal(doc, win) {
       if (!controls) return null;
       const shown = controlsVisible(controls);
       if (shown === null) return null;
-      if (shown) { reset(); return null; }
+      if (shown) { resetRecovery(); return null; }
       if (!playbackFocus(doc, video, controls)) return null;
       const now = win.Date?.now?.() ?? Date.now();
       if (!session || session.video !== video || session.id !== id || session.controls !== controls) {
-        reset(); session = {video, id, controls}; windowStarted = now;
+        resetRecovery(); session = {video, id, controls}; windowStarted = now;
       }
       // A slow renderer can show and hide between observations. Bound ignored
       // attempts within ten seconds, without permanently disabling the feature.
@@ -143,18 +151,44 @@ export function createPlaybackControlsReveal(doc, win) {
       return dispatched ? controls : null;
     } catch (_) { return null; }
   }
-  // Let the genuine arrow reach YouTube first. If it still leaves the actual
-  // controls hidden, perform one bounded reveal, without consuming that key.
+  // Recover only gestures that START with hidden controls. Visible controls
+  // may be intentionally dismissed by this arrow; never undo YouTube's action.
   show.handleKey = event => {
     const code = event.keyCode || event.which || {ArrowLeft:37,ArrowUp:38,ArrowRight:39,ArrowDown:40}[event.key];
-    if (event.type !== 'keydown' || ![37,38,39,40].includes(code) ||
-        event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || inputCheck !== null) return;
-    const video = doc.querySelector('video'), id = getCurrentVideoId(win, doc, false);
-    if (!video || !id) return;
-    inputCheck = win.setTimeout(() => {
-      inputCheck = null;
-      if (video === doc.querySelector('video') && id === getCurrentVideoId(win, doc, false)) show();
-    }, 80);
+    if (![37,38,39,40].includes(code)) return;
+    if (event.type === 'keyup') {
+      if (arrowGesture?.code === code) arrowGesture = null;
+      return;
+    }
+    if (event.type !== 'keydown' || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const now = win.Date?.now?.() ?? Date.now();
+    // Older remotes omit repeat flags or keyup. Keep a held gesture through
+    // successive events; a fresh press after 500 ms of quiet can recover.
+    const continuing = event.repeat || (arrowGesture?.code === code && now - arrowGesture.at < 500);
+    arrowGesture = {code, at: now};
+    if (continuing) {
+      // Native reveal may finish before our delayed check. A repeat acting on
+      // those now-visible controls can dismiss them and cancels that check.
+      if (inputCheck !== null) {
+        try {
+          const controls = doc.querySelector(controlsSelector);
+          if (!controls || controlsVisible(controls) !== false) clearInputCheck();
+        } catch (_) { clearInputCheck(); }
+      }
+      return;
+    }
+    clearInputCheck();
+    try {
+      const video = doc.querySelector('video'), id = getCurrentVideoId(win, doc, false);
+      const controls = doc.querySelector(controlsSelector);
+      if (!video || !id || !controls || controlsVisible(controls) !== false) return;
+      // Let the genuine arrow reach YouTube before attempting recovery.
+      inputCheck = win.setTimeout(() => {
+        inputCheck = null;
+        if (video === doc.querySelector('video') && id === getCurrentVideoId(win, doc, false) &&
+            controls === doc.querySelector(controlsSelector)) show();
+      }, 80);
+    } catch (_) { /* Unknown layout must not turn a dismissal into activation. */ }
   };
   show.report = () => ({attempts: dispatchedPairs, pending: inputCheck !== null});
   show.isSynthetic = event => synthetic.has(event);

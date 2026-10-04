@@ -194,10 +194,81 @@ test('queued ordinary-key recovery cannot cross navigation or overlay focus',()=
   f.advance(80);assert.equal(f.events.length,0);
   f.show.handleKey({type:'keydown',keyCode:40});f.doc.overlays=[f.node()];f.advance(80);
   assert.equal(f.events.length,0);
+  f.show.handleKey({type:'keyup',keyCode:40});
   f.doc.overlays=[];f.show.handleKey({type:'keydown',keyCode:40});f.doc.video={readyState:4};f.advance(80);
   assert.equal(f.events.length,0);
 });
 test('editable focus inside hidden controls still cannot trigger Enter',()=>{
   const f=fixture();f.doc.activeElement=f.node('INPUT',f.controls);
   assert.equal(f.show(),null);assert.equal(f.events.length,0);
+});
+
+test('Up dismisses visible controls without recovery reopening them on release or held repeats', () => {
+  for (const repeatFlag of [true, undefined]) {
+    const f = fixture(); f.controls.style.opacity = '1';
+    f.show.handleKey({type:'keydown', keyCode:38});
+    f.controls.style.opacity = '0'; // YouTube handles the genuine Up after capture.
+    f.advance(100);
+    for (let index = 0; index < 8; index++) {
+      f.show.handleKey({type:'keydown', keyCode:38, repeat:repeatFlag}); f.advance(100);
+    }
+    f.show.handleKey({type:'keyup', keyCode:38}); f.advance(100);
+    assert.equal(f.events.length, 0, 'the dismissal gesture must never inject Enter');
+    f.show.handleKey({type:'keydown', keyCode:38}); f.advance(80);
+    assert.equal(f.events.length, 2, 'a later fresh press can recover hidden controls');
+  }
+});
+
+test('successful reveal observation does not turn the held arrow into another reveal request', () => {
+  const f = fixture();
+  f.doc.body.dispatchEvent = event => {
+    f.events.push(event); if (event.type === 'keyup') f.controls.style.opacity = '1';
+    return true;
+  };
+  f.show.handleKey({type:'keydown', keyCode:38}); f.advance(80);
+  assert.equal(f.events.length, 2);
+  f.show.handleKey({type:'keydown', keyCode:38}); f.controls.style.opacity = '0'; f.advance(100);
+  f.show.handleKey({type:'keydown', keyCode:38}); f.advance(100);
+  assert.equal(f.events.length, 2, 'the same held gesture must not undo native dismissal');
+});
+
+test('a missing arrow release recovers after a quiet interval and lifecycle reset clears the gesture', () => {
+  const f = fixture(); f.controls.style.opacity = '1';
+  f.show.handleKey({type:'keydown', keyCode:38}); f.controls.style.opacity = '0'; f.advance(500);
+  assert.equal(f.events.length, 0);
+  f.show.handleKey({type:'keydown', keyCode:38}); f.advance(80);
+  assert.equal(f.events.length, 2);
+  f.emit('blur'); f.show.handleKey({type:'keydown', keyCode:38}); f.advance(80);
+  assert.equal(f.events.length, 4);
+});
+
+test('ordinary recovery requires known hidden controls before the key and the same controls afterward', () => {
+  for (const kind of ['unknown', 'throwing', 'replacement']) {
+    const f = fixture();
+    if (kind === 'unknown') {f.controls.style.opacity = '1'; f.controls.rect = null;}
+    if (kind === 'throwing') f.win.getComputedStyle = () => {throw Error('no layout');};
+    assert.doesNotThrow(() => f.show.handleKey({type:'keydown', keyCode:38}));
+    f.win.getComputedStyle = target => target.style;
+    if (kind === 'replacement') {
+      f.doc.controls = f.node('YT-FOCUS-CONTAINER', f.doc.body); f.doc.controls.style.opacity = '0';
+    } else f.controls.style.opacity = '0';
+    f.advance(80); assert.equal(f.events.length, 0, kind);
+  }
+});
+
+test('a repeated arrow can dismiss newly shown controls before pending recovery fires', () => {
+  const f = fixture();
+  f.show.handleKey({type:'keydown', keyCode:38});
+  f.advance(20); f.controls.style.opacity = '1'; // Native reveal completes first.
+  f.show.handleKey({type:'keydown', keyCode:38, repeat:true});
+  f.controls.style.opacity = '0'; // Native repeat dismisses them again.
+  f.advance(100);
+  assert.equal(f.events.length, 0, 'cancel the earlier recovery after visible-controls interaction');
+});
+
+test('fast repeats while controls stay hidden do not cancel the first recovery', () => {
+  const f = fixture();
+  f.show.handleKey({type:'keydown', keyCode:38}); f.advance(20);
+  f.show.handleKey({type:'keydown', keyCode:38, repeat:true}); f.advance(60);
+  assert.equal(f.events.length, 2);
 });
