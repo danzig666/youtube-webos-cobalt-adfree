@@ -40,40 +40,50 @@ export function playbackMenuVisible(doc, win) {
   return false;
 }
 
-function playbackFocus(doc, video) {
+function playbackFocus(doc, video, hiddenControls) {
   const focused = doc.activeElement;
   if (!focused || focused === doc.body || focused === video) return true;
+  // YouTube retains focus on transport buttons after fading their parent.
+  // Only accept that focus after every actual control was confirmed hidden.
+  const retainedFocus = hiddenControls?.contains?.(focused);
   for (let node = focused; node && node !== doc.body; node = node.parentElement) {
     const tag = (node.tagName || '').toUpperCase(), role = node.getAttribute?.('role');
-    if (node.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'A'].includes(tag) ||
-        ['textbox', 'searchbox', 'combobox', 'dialog', 'menu', 'listbox', 'button', 'link', 'option', 'menuitem'].includes(role)) return false;
+    if (node.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) ||
+        ['textbox', 'searchbox', 'combobox', 'dialog', 'menu', 'listbox'].includes(role)) return false;
+    if (['BUTTON', 'A'].includes(tag) || ['button', 'link', 'option', 'menuitem'].includes(role)) return Boolean(retainedFocus);
     if (node.id === 'ytlr-player__player-container-player' ||
         ['YTLR-PLAYER', 'YTLR-WATCH-DEFAULT'].includes(tag)) return true;
   }
-  return false;
+  return Boolean(retainedFocus);
 }
 
 export function createPlaybackControlsReveal(doc, win) {
   const synthetic = new WeakSet();
-  let session = null, attempts = 0, lastAttempt = -Infinity, windowStarted = -Infinity, successCheck = null;
+  let session = null, attempts = 0, lastAttempt = -Infinity, windowStarted = -Infinity, successCheck = null, inputCheck = null;
+  let dispatchedPairs = 0;
   function clearSuccessCheck() {
     if (successCheck !== null) win.clearTimeout(successCheck);
     successCheck = null;
   }
   function reset() {
     clearSuccessCheck();
+    if (inputCheck !== null) win.clearTimeout(inputCheck);
+    inputCheck = null;
     session = null; attempts = 0; lastAttempt = -Infinity; windowStarted = -Infinity;
+  }
+  function controlsVisible(controls) {
+    const children = Array.from(controls.querySelectorAll('[idomkey="progress-bar"], [role="slider"], [role="button"], button'));
+    // The shell can keep full-screen geometry after its contents disappear.
+    if (!children.length) return visible(controls, doc, win);
+    const states = children.map(child => visible(child, doc, win));
+    return states.includes(true) ? true : states.includes(null) ? null : false;
   }
   function observeSuccess(request) {
     try {
       if (session !== request || request.video !== doc.querySelector('video') ||
           request.id !== getCurrentVideoId(win, doc, false) ||
           request.controls !== doc.querySelector(controlsSelector)) return false;
-      if (visible(request.controls, doc, win) === true ||
-          Array.from(request.controls.querySelectorAll('[idomkey="progress-bar"], [role="slider"], [role="button"], button'))
-            .some(child => visible(child, doc, win) === true)) {
-        reset(); return true;
-      }
+      if (controlsVisible(request.controls) === true) { reset(); return true; }
     } catch (_) { /* A failed layout read must not trigger another Enter. */ }
     return false;
   }
@@ -89,21 +99,10 @@ export function createPlaybackControlsReveal(doc, win) {
       }
       const controls = doc.querySelector(controlsSelector);
       if (!controls) return null;
-      const shown = visible(controls, doc, win);
+      const shown = controlsVisible(controls);
       if (shown === null) return null;
       if (shown) { reset(); return null; }
-      // Some containers have zero geometry while their children overflow.
-      // Do not treat that as hidden if a real button/timeline is still visible.
-      for (const child of controls.querySelectorAll('[idomkey="progress-bar"], [role="slider"], [role="button"], button')) {
-        const childShown = visible(child, doc, win);
-        if (childShown !== false) {
-          if (childShown) reset();
-          return null;
-        }
-      }
-      // Revealing controls often focuses one of their buttons. Observe that
-      // success above before protecting interactive focus from another Enter.
-      if (!playbackFocus(doc, video)) return null;
+      if (!playbackFocus(doc, video, controls)) return null;
       const now = win.Date?.now?.() ?? Date.now();
       if (!session || session.video !== video || session.id !== id || session.controls !== controls) {
         reset(); session = {video, id, controls}; windowStarted = now;
@@ -130,7 +129,7 @@ export function createPlaybackControlsReveal(doc, win) {
       });
       let dispatched = false;
       const request = session;
-      try { doc.body.dispatchEvent(events[0]); dispatched = true; }
+      try { doc.body.dispatchEvent(events[0]); dispatched = true; dispatchedPairs++; }
       finally { doc.body.dispatchEvent(events[1]); }
       if (session === request && !observeSuccess(request)) {
         clearSuccessCheck();
@@ -144,6 +143,20 @@ export function createPlaybackControlsReveal(doc, win) {
       return dispatched ? controls : null;
     } catch (_) { return null; }
   }
+  // Let the genuine arrow reach YouTube first. If it still leaves the actual
+  // controls hidden, perform one bounded reveal, without consuming that key.
+  show.handleKey = event => {
+    const code = event.keyCode || event.which || {ArrowLeft:37,ArrowUp:38,ArrowRight:39,ArrowDown:40}[event.key];
+    if (event.type !== 'keydown' || ![37,38,39,40].includes(code) ||
+        event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || inputCheck !== null) return;
+    const video = doc.querySelector('video'), id = getCurrentVideoId(win, doc, false);
+    if (!video || !id) return;
+    inputCheck = win.setTimeout(() => {
+      inputCheck = null;
+      if (video === doc.querySelector('video') && id === getCurrentVideoId(win, doc, false)) show();
+    }, 80);
+  };
+  show.report = () => ({attempts: dispatchedPairs, pending: inputCheck !== null});
   show.isSynthetic = event => synthetic.has(event);
   show.reset = reset;
   win.addEventListener('hashchange', reset);

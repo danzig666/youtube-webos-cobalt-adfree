@@ -180,3 +180,11 @@ test('poller rebinds when the media element is replaced during the same video',(
   f.intervals[0]();assert.equal(f.controller.video,replacement);
   f.controller.skipCurrentSegment();assert.equal(replacement.currentTime,20);assert.equal(f.video.currentTime,5);
 });
+
+test('an active automatic segment skips even when timer callbacks are delayed behind playback updates',()=>{
+  const f=controllerFixture();f.video.currentTime=1;f.requests[0].respond();
+  // Reproduce a busy event queue: polls and timeupdate keep arriving before
+  // the scheduled skip callback. Crossing the start must not depend on it.
+  for(let time=1;time<=5;time++) {f.video.currentTime=time;f.intervals[0]();}
+  assert.ok(f.video.currentTime>=20,'poll must perform a due skip without another zero-delay timer');
+});

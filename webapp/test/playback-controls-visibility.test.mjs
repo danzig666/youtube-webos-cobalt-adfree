@@ -16,6 +16,7 @@ function fixture() {
     for (let current = candidate; current; current = current.parentElement) if (current === html) return true;
     return false;
   };
+  controls.contains = target => {for(let node=target;node;node=node.parentElement)if(node===controls)return true;return false;};
   body.classList = {contains: name => name === 'WEB_PAGE_TYPE_WATCH'};
   body.dispatchEvent = event => {events.push(event); return true;};
   controls.style.opacity = '0';
@@ -162,4 +163,41 @@ test('legacy numeric event fields are supplied and dispatch failures cannot stra
   assert.deepEqual(f.events.map(event => [event.type, event.keyCode, event.which]), [['keydown', 13, 13], ['keyup', 13, 13]]);
   assert.equal(f.events.every(event => f.show.isSynthetic(event)), true);
   f.show(); assert.equal(f.events.length, 2, 'a failure is still throttled');
+});
+
+test('a full-screen controls shell with hidden timeline children is still hidden',()=>{
+  const f=fixture();f.controls.style.opacity='1';
+  const timeline=f.node('YTLR-PROGRESS-BAR',f.controls);timeline.style.display='none';
+  f.controls.children=[timeline];
+  assert.equal(f.show(),f.controls);
+  assert.equal(f.events.length,2);
+});
+test('focus retained on a hidden native control can reveal controls again',()=>{
+  const f=fixture(),button=f.node('BUTTON',f.controls);
+  f.controls.children=[button];f.doc.activeElement=button;
+  assert.equal(f.show(),f.controls);
+  f.controls.style.opacity='1';
+  assert.equal(f.show(),null,'a visible button must never receive an extra activation');
+  assert.equal(f.events.length,2);
+});
+
+test('ordinary arrows reveal only after YouTube had a chance to show controls',()=>{
+  const f=fixture(),event={type:'keydown',keyCode:38};
+  f.show.handleKey(event);f.show.handleKey(event);f.advance(79);assert.equal(f.events.length,0);
+  f.advance(1);assert.equal(f.events.length,2);
+  f.controls.style.opacity='1';f.show.handleKey(event);f.advance(80);
+  assert.equal(f.events.length,2,'visible controls never receive an extra Enter');
+  assert.equal(f.show.report().attempts,1);
+});
+test('queued ordinary-key recovery cannot cross navigation or overlay focus',()=>{
+  const f=fixture();f.show.handleKey({type:'keydown',keyCode:40});f.emit('hashchange');
+  f.advance(80);assert.equal(f.events.length,0);
+  f.show.handleKey({type:'keydown',keyCode:40});f.doc.overlays=[f.node()];f.advance(80);
+  assert.equal(f.events.length,0);
+  f.doc.overlays=[];f.show.handleKey({type:'keydown',keyCode:40});f.doc.video={readyState:4};f.advance(80);
+  assert.equal(f.events.length,0);
+});
+test('editable focus inside hidden controls still cannot trigger Enter',()=>{
+  const f=fixture();f.doc.activeElement=f.node('INPUT',f.controls);
+  assert.equal(f.show(),null);assert.equal(f.events.length,0);
 });

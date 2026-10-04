@@ -8,6 +8,7 @@ import './corner-clock.css';
 import { installCornerClock, clockDisplayMode } from './corner-clock.mjs';
 import { startPlaybackResume } from './playback-resume.mjs';
 import { createPlaybackSeek } from './playback-seek.mjs';
+import { startPlaybackHealth } from './playback-health.mjs';
 import { createPlaybackControlsReveal } from './playback-controls-visibility.mjs';
 import { createSeekPreview } from './seek-preview.mjs';
 import { startPlaybackSpeed, playbackRates } from './playback-speed.mjs';
@@ -50,6 +51,7 @@ export function userScriptStartUI() {
     return;
   }
   console.info('[ytaf] userScriptStartUI() called');
+  startPlaybackHealth(document, window);
   if (['always','browsing'].includes(configRead('clockDisplay')))
     configWrite('clockDisplay', clockDisplayMode(configRead('clockDisplay')));
   installCornerClock(document, window, configRead);
@@ -401,6 +403,7 @@ export function userScriptStartUI() {
   clearPositions.addEventListener('click',()=>{if(Number(clearRow.dataset.ytafIgnoreClickUntil||0)<=Date.now()){resume.clear();renderResumeStatus();}});
   clearRow.appendChild(clearPositions);playbackPreferences.appendChild(clearRow);uiContainer.appendChild(playbackPreferences);
   const revealPlaybackControls=createPlaybackControlsReveal(document,window);
+  window.__ytafPlaybackControls = revealPlaybackControls;
   const handlePlaybackSeek=createPlaybackSeek(document,window,configRead,createSeekPreview(document,window),showNotification,revealPlaybackControls);
 
   uiContainer.appendChild(checkboxTools.add(
@@ -869,6 +872,7 @@ export function userScriptStartUI() {
       evt.stopImmediatePropagation?.();
       }
     }
+    if (!menuOpen && typeof revealPlaybackControls !== 'undefined') revealPlaybackControls.handleKey?.(evt);
     return true;
   };
 

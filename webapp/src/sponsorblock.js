@@ -263,6 +263,9 @@ class SponsorBlockController {
   pendingPrompt = null;
   fetchRetryTimeout = null;
   fetchRetries = 0;
+  lastPollAt = null;
+  pollErrors = 0;
+  mediaRebinds = 0;
 
   start() {
     // Start discovery even on Home, before a URL or media element exists.
@@ -589,8 +592,9 @@ class SponsorBlockController {
       }
     }
 
+    if (this.video) this.mediaRebinds++;
     this.video = nextVideo;
-    this.skipHandler = () => this.scheduleSkip();
+    this.skipHandler = () => this.scheduleSkip(true);
     this.markerHandler = () => this.queueProgressBarCheck();
     this.video.addEventListener('play', this.skipHandler);
     this.video.addEventListener('pause', this.skipHandler);
@@ -825,7 +829,7 @@ class SponsorBlockController {
     return this.performSkip([segment], segment.segment[1]);
   }
 
-  scheduleSkip() {
+  scheduleSkip(performDue = false) {
     if (this.nextSkipTimeout) window.clearTimeout(this.nextSkipTimeout);
     this.nextSkipTimeout = null;
     if (!this.playbackAllowed() || !this.video) {
@@ -856,6 +860,15 @@ class SponsorBlockController {
       }, () => { this.pendingPrompt = null; });
       this.pendingPrompt = {close, token, start: ask.segment[0], end: ask.segment[1]};
       return;
+    }
+    const current = active.filter(segment => this.actionFor(segment.category) === 'auto');
+    // A busy event queue may deliver another timeupdate/poll before our
+    // zero-delay timeout. Execute a due skip here instead of cancelling and
+    // replacing that timeout indefinitely. Preserve prompt/exception policy.
+    if (performDue && current.length) {
+      const end = automaticSkipTarget(this.segments, time,
+        Math.max(...current.map(segment => segment.segment[1])), category => this.actionFor(category), this.skipped);
+      if (end !== null) {this.performSkip(current, end); return;}
     }
     const next = this.getNextSkippableSegments().find(segment => this.actionFor(segment.category) === 'auto');
     if (!next) return;
@@ -910,11 +923,13 @@ class SponsorBlockController {
     if (this.skipPollInterval) return;
 
     this.skipPollInterval = window.setInterval(() => {
+      this.lastPollAt = Date.now();
       try {
         this.syncVideoState();
-        this.scheduleSkip();
+        this.scheduleSkip(true);
       } catch (err) {
-        console.warn('[SponsorBlock] skip poll failed:', err);
+        this.pollErrors = Math.min(9999, this.pollErrors + 1);
+        if (this.pollErrors <= 3) console.warn('[SponsorBlock] skip poll failed');
       }
     }, 250);
   }

@@ -38,3 +38,14 @@ test('clock geometry and thumbnail progress status are visible without serializi
   win.__ytafCornerClock.report=()=>{throw Error('unavailable');};
   assert.match(frontendPlaybackReport(doc,win),/Clock: diagnostic status unavailable/);
 });
+test('health report shows delivery evidence and poll errors without serializing private fields',()=>{
+  const doc={querySelector:()=>null};
+  const win={Date:{now:()=>10000},__ytafPlaybackHealth:{report:()=>({foreground:true,keys:9,errors:1,
+    updates:30,updateAge:'7s',progressAge:'8s',maxDelay:5000,stalls:1,url:'private'})},
+    __ytafPlaybackControls:{report:()=>({attempts:2,pending:false})},
+    sponsorblock:{lastPollAt:8000,pollErrors:3,mediaRebinds:1,fetchStatus:'idle'}};
+  const report=frontendPlaybackReport(doc,win);
+  assert.match(report,/maximum 5000ms; stalls 1/);assert.match(report,/last event 7s/);
+  assert.match(report,/last 2s ago; errors 3; media replacements 1/);
+  assert.doesNotMatch(report,/private/);
+});

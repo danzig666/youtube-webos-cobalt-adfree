@@ -15,6 +15,17 @@ export function readPlaybackReport(win) {
   } catch (_) { /* unavailable on older runtimes */ }
   return 'Playback diagnostics require the updated native Cobalt runtime.';
 }
+function healthReport(win) {
+  try {
+    const health = win.__ytafPlaybackHealth?.report?.();
+    const controls = win.__ytafPlaybackControls?.report?.();
+    if (!health) return 'Script health: unavailable';
+    return [`Script health: foreground ${Boolean(health.foreground)}; keys ${health.keys}; errors ${health.errors}`,
+      `Playback updates: ${health.updates}; last event ${health.updateAge}; last advancing position ${health.progressAge}`,
+      `Script timer delay: maximum ${health.maxDelay}ms; stalls ${health.stalls}`,
+      `Controls recovery: ${controls?.attempts || 0} reveal attempts; pending ${Boolean(controls?.pending)}`].join('\n');
+  } catch (_) { return 'Script health: unavailable'; }
+}
 export function frontendPlaybackReport(doc,win) {
   const video=doc.querySelector('video'), sponsor=win.sponsorblock;
   const number=value=>Number.isFinite(value)?Math.round(value*100)/100:'unknown';
@@ -28,10 +39,12 @@ export function frontendPlaybackReport(doc,win) {
     `Local fallback: ${win.__ytafResume?.localStatus || 'not initialized'}`,
     clockReport(win),
     `Thumbnail progress: ${win.__ytafThumbnailProgress?.status || 'not initialized'}`,
+    healthReport(win),
     `Settings initialized: ${Boolean(win.__ytafUiInitialized)}`,
     `SponsorBlock: ${sponsor ? statuses.includes(sponsor.fetchStatus)?sponsor.fetchStatus:'unknown' : 'not initialized'}`,
     `SponsorBlock segments: ${Array.isArray(sponsor?.segments)?sponsor.segments.length:0}; retries: ${number(sponsor?.fetchRetries)}`,
     `SponsorBlock media binding: ${Boolean(video && sponsor?.video===video)}; poll active: ${Boolean(sponsor?.skipPollInterval)}`,
+    `SponsorBlock poll: last ${Number.isFinite(sponsor?.lastPollAt) ? Math.round(Math.max(0,(win.Date?.now?.() ?? Date.now()) - sponsor.lastPollAt)/1000)+'s ago' : 'unavailable'}; errors ${number(sponsor?.pollErrors)}; media replacements ${number(sponsor?.mediaRebinds)}`,
     `SponsorBlock HTTP status: ${Number.isFinite(sponsor?.lastStatus)?sponsor.lastStatus:'unavailable'}`
   ].join('\n');
 }
