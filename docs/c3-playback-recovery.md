@@ -25,7 +25,7 @@ Three new regressions fail against 2.6.21 and pass with this change:
 
 Ordinary arrows previously had no reveal recovery: the helper was only called
 by the optional automatic-seek feature. An unconsumed arrow now reaches YouTube
-first; after 80 ms the app checks whether the actual controls remain hidden and
+first, provided its gesture started with confirmed hidden controls; after 80 ms the app checks whether those same controls remain hidden and
 uses the bounded existing Enter-pair reveal when appropriate. It never forces
 CSS visibility, reloads the page or sends an extra activation to visible controls.
 Navigation/media replacement invalidate queued recovery. The 0.5-second
@@ -65,3 +65,23 @@ A long-playback C3 retest is required before calling the intermittent issue fixe
 The supplied photos confirm ordinary LG queries identify OLED65C35LA, firmware
 33.23.05, webOS SDK/platform 10.2.2, 4K OLED, HDR10 and Dolby Vision. They do not
 establish codec/profile playback support; no automatic capability changes occur.
+
+
+## Follow-up: Up immediately reopened a dismissed seekbar (2.6.24)
+
+The previous recovery scheduled a check even when controls were visible before
+Up. YouTube hid the seekbar normally, then the delayed check saw hidden controls
+and sent Enter, opening them again. A production-bundle browser regression
+reproduced that visible → hidden → reopened sequence before the fix.
+
+Recovery now requires confirmed hidden controls at the initial keydown and
+retains the same controls/media identity through the delayed check. Each arrow
+gesture receives at most one recovery opportunity. Repeated keydowns cannot
+turn an intentional dismissal into a new request, including remotes without a
+repeat flag; keyup ends the gesture. A missing keyup recovers after 500 ms without
+input. Visibility-success bookkeeping does not release a still-held arrow.
+
+All 365 web tests pass. The production browser regression checks intentional
+Up dismissal, held-key repeats with and without repeat flags, release staying
+hidden, and recovery on a later fresh Up press at both 720p and 1080p. Automatic
+seeking retains its configured delay. C3 confirmation is still required.
