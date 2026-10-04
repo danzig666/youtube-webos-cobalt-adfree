@@ -108,12 +108,19 @@ export function createPlaybackSeek(doc, win, read, preview, notify, revealContro
     const target = seekTarget(video, base+(code===39?10:-10));
     if (target === null) return false;
     consume(event);held.add(code);lastDirection=code;lastPress=now();
+    const extending = current(pending);
     let controls = current(revealed) ? revealed.controls : null;
-    if (!current(pending)) {
+    const ticket = {id,video,target,controls};
+    pending=ticket;
+    // Show the requested position on this keydown, before asking YouTube to
+    // reveal/rebuild its controls. Only the timer below changes playback time.
+    preview(target,video);
+    if (!extending) {
       try { controls = revealControls() || controls; } catch (_) { /* Keep our timeline usable. */ }
     }
+    if (pending !== ticket) return true;
     if (controls) revealed = {id,video,controls};
-    pending={id,video,target,controls};preview(target,video);
+    ticket.controls=controls;
     schedule();
     return true;
   }

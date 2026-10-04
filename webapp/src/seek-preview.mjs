@@ -12,44 +12,77 @@ export function seekTimeline(video) {
   return Number.isFinite(start) && Number.isFinite(end) && end > start ? {start, end} : null;
 }
 
-// Draw a transient marker over the visible YouTube track without changing its
-// renderer state. When controls are hidden, provide our own playback timeline.
+// Keep the pending destination visible independently of YouTube's asynchronous
+// controls. Their renderer can reveal, move or replace the track after keydown.
 export function createSeekPreview(doc, win) {
-  let root = null, fill, current, marker, label, timeout = null, video, target;
+  let root = null, fill, current, marker, label, timeout = null, frame = null;
+  let video, target, revision = 0;
   function clear() {
+    revision++;
     if (timeout !== null) win.clearTimeout(timeout);
-    timeout = null;
+    if (frame !== null) win.clearTimeout(frame);
+    timeout = frame = null;
     if (root?.parentNode) root.parentNode.removeChild(root);
     root = null;
   }
-  function layout() {
-    const range = seekTimeline(video);
-    if (!range) {clear(); return;}
-    const width = win.innerWidth, height = win.innerHeight;
-    let rect = null;
-    for (const node of doc.querySelectorAll('[idomkey="progress-bar"] [idomkey="segment"], [idomkey="progress-bar"] [idomkey="cue-ranges"], [idomkey="progress-bar"] [idomkey="slider"], ytlr-progress-bar [role="slider"]')) {
-      const bounds = node.getBoundingClientRect();
-      if (bounds.width < width / 4 || bounds.height <= 0 || bounds.bottom <= 0 || bounds.top >= height) continue;
-      let visible = true;
-      for (let parent = node; parent && parent !== doc.body; parent = parent.parentElement) {
-        const style = win.getComputedStyle(parent);
-        if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) {visible = false; break;}
+  function trackBounds(width, height) {
+    try {
+      // Some Cobalt collections only expose indexed entries. No iterator is
+      // needed here, and an unavailable YouTube layout cannot hide our rail.
+      const nodes = doc.querySelectorAll('[idomkey="progress-bar"] [idomkey="slider"], ytlr-progress-bar [role="slider"], [idomkey="progress-bar"] [idomkey="cue-ranges"], [idomkey="progress-bar"] [idomkey="segment"]');
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i], bounds = node.getBoundingClientRect();
+        if (![bounds.left, bounds.top, bounds.width, bounds.height, bounds.bottom].every(Number.isFinite) ||
+            bounds.width < width / 4 || bounds.height <= 0 || bounds.bottom <= 0 ||
+            bounds.top >= height || bounds.left >= width || bounds.left + bounds.width <= 0) continue;
+        let visible = true;
+        for (let parent = node; parent; parent = parent.parentElement) {
+          const style = win.getComputedStyle(parent);
+          if (!style || style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse' ||
+              (style.opacity !== '' && style.opacity !== undefined && Number(style.opacity) === 0)) {visible = false; break;}
+        }
+        if (visible) return bounds;
       }
-      if (visible) {rect = bounds; break;}
-    }
+    } catch (_) { /* The independent fallback is already visible. */ }
+    return null;
+  }
+  function draw(range, rect, width, height) {
     const left = rect ? Math.max(0, rect.left) : width * .08;
     const trackWidth = rect ? Math.min(rect.width, width - left) : width * .84;
     root.style.left = `${left}px`;
     root.style.width = `${trackWidth}px`;
-    root.style.top = `${rect ? Math.max(50, Math.min(height - 24, rect.top + rect.height / 2 - 3)) : height * .88}px`;
+    root.style.top = `${rect ? Math.max(80, Math.min(height - 30, rect.top + rect.height / 2 - 3)) : height * .86}px`;
     root.className = `ytaf-seek-preview${rect ? ' ytaf-seek-preview-native' : ''}`;
     const ratio = value => Math.max(0, Math.min(1, (value - range.start) / (range.end - range.start)));
     const fraction = ratio(target);
     fill.style.width = `${fraction * 100}%`;
     marker.style.left = `${fraction * 100}%`;
     current.style.left = `${ratio(Number(video.currentTime)) * 100}%`;
-    label.style.left = `${Math.max(130, Math.min(trackWidth - 130, fraction * trackWidth))}px`;
-    label.textContent = `Seek to ${clock(target)} / ${clock(range.end)}`;
+    label.style.left = `${Math.max(150, Math.min(trackWidth - 150, fraction * trackWidth))}px`;
+    const text = `Seek to ${clock(target)} / ${clock(range.end)}`;
+    if (label.textContent !== text) label.textContent = text;
+  }
+  function layout() {
+    if (!root) return false;
+    let range;
+    try { range = seekTimeline(video); } catch (_) { clear(); return false; }
+    if (!range || !doc.body) { clear(); return false; }
+    const width = win.innerWidth, height = win.innerHeight;
+    // Always mount and draw a usable rail before inspecting YouTube controls.
+    // A previous rendering pass may have removed our body child entirely.
+    if (root.parentNode !== doc.body) doc.body.appendChild(root);
+    draw(range, null, width, height);
+    const rect = trackBounds(width, height);
+    if (rect) draw(range, rect, width, height);
+    return true;
+  }
+  function follow() {
+    const ticket = revision;
+    frame = win.setTimeout(() => {
+      if (ticket !== revision) return;
+      frame = null;
+      if (layout()) follow();
+    }, 100);
   }
   return (value, element, phase = 'pending') => {
     if (value === null) {clear(); return;}
@@ -57,18 +90,32 @@ export function createSeekPreview(doc, win) {
     if (!root) {
       root = doc.createElement('div');
       root.setAttribute('role', 'status');
-      for (const name of ['fill', 'current', 'marker', 'label']) {
-        const child = doc.createElement('span');
+      // The remote may be used before the injected stylesheet has loaded. Keep
+      // the actual rail, marker and time readable without any external CSS.
+      Object.assign(root.style, {position: 'fixed', zIndex: '2147483646', height: '6px',
+        display: 'block', visibility: 'visible', opacity: '1', background: '#627184', pointerEvents: 'none'});
+      const parts = [
+        ['fill', {left: '0', top: '0', height: '6px', background: '#65b9ff'}],
+        ['current', {top: '-4px', width: '3px', height: '14px', background: '#fff'}],
+        ['marker', {top: '-7px', marginLeft: '-10px', width: '20px', height: '20px', borderRadius: '10px', background: '#85c5ff'}],
+        ['label', {bottom: '24px', marginLeft: '-150px', width: '300px', padding: '8px 0',
+          background: '#101e30', color: '#fff', textAlign: 'center', font: '24px/1.4 "YTAF Inter",Arial,sans-serif'}]
+      ];
+      const children = parts.map(([name, style]) => {
+        const child = doc.createElement('div');
         child.className = `ytaf-seek-${name}`;
+        Object.assign(child.style, {position: 'absolute', display: 'block'}, style);
         root.appendChild(child);
-      }
-      fill = root.children[0]; current = root.children[1];
-      marker = root.children[2]; label = root.children[3];
-      doc.body.appendChild(root);
+        return child;
+      });
+      [fill, current, marker, label] = children;
     }
-    layout();
+    if (!layout()) return;
     if (timeout !== null) win.clearTimeout(timeout);
-    // Leave the destination visible briefly after the debounced native seek.
-    timeout = win.setTimeout(clear, phase === 'applied' ? 900 : 2000);
+    timeout = null;
+    // Pending feedback lasts as long as the seek gesture, including a held key.
+    // The seek controller owns cancellation and lost-keyup recovery.
+    if (phase === 'applied') timeout = win.setTimeout(clear, 900);
+    if (frame === null) follow();
   };
 }

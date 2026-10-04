@@ -106,3 +106,15 @@ test('revealed native button focus retains automatic seeking after seeked withou
   f.advance(1);assert.equal(f.video.currentTime,150);
   f.doc.emit('mousedown');assert.equal(handler(f.key(39)),false);
 });
+
+test('the target is previewed on keydown before revealing controls and before the delayed native write',()=>{
+  const f=playbackFixture();f.settings.seekBehavior='immediate';f.video.currentTime=100;
+  const events=[];
+  const handler=createPlaybackSeek(f.doc,f.win,f.read,target=>events.push(['preview',target]),f.notify,()=>{
+    assert.deepEqual(events,[['preview',110]]);assert.equal(f.video.currentTime,100);return null;
+  });
+  handler(f.key(39));assert.deepEqual(events,[['preview',110]]);
+  f.advance(600);assert.equal(f.video.currentTime,100);
+  handler(f.key(39,'keyup'));f.advance(499);assert.equal(f.video.currentTime,100);
+  f.advance(1);assert.equal(f.video.currentTime,110);
+});
