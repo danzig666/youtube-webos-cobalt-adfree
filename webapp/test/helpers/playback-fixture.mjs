@@ -24,7 +24,7 @@ export function playbackFixture() {
     Date: {now: () => clock},
     setTimeout: (fn, delay) => {const id = ++sequence;timers.set(id,{fn,at:clock+delay});return id;},
     clearTimeout: id => timers.delete(id)});
-  const settings = {rememberPlaybackPosition: true,playbackPositions: [],seekBehavior: 'youtube'};
+  const settings = {playbackResumeMode: 'youtube-local',rememberPlaybackPosition: true,playbackPositions: [],seekBehavior: 'youtube'};
   function advance(ms) {
     const end = clock+ms;
     for (;;) {

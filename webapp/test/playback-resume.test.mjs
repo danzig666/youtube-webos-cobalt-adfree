@@ -9,7 +9,7 @@ test('VOD progress saves on pause and restores once after starting playback',()=
   assert.equal(f.writes.at(-1)[0].position,85);
   const g=playbackFixture();g.settings.playbackPositions=f.writes.at(-1);start(g);
   g.media('loadedmetadata');assert.equal(g.video.currentTime,0);
-  g.media('playing');assert.equal(g.video.currentTime,85);
+  g.media('playing');g.advance(1500);assert.equal(g.video.currentTime,85);
   g.video.currentTime=0;g.media('playing');assert.equal(g.video.currentTime,0);
 });
 test('native/cloud resume, explicit timestamps, manual seeking and incompatible durations win over local bookmarks',()=>{
@@ -18,7 +18,7 @@ test('native/cloud resume, explicit timestamps, manual seeking and incompatible 
     if(variant==='cloud') f.video.currentTime=35;
     if(variant==='timestamp') f.win.location.href+='&t=0';
     if(variant==='duration') f.settings.playbackPositions[0].duration=350;
-    const api=start(f);if(variant==='manual')api.manual();f.media('playing');
+    const api=start(f);if(variant==='manual')api.manual();f.media('playing');f.advance(2000);
     assert.equal(f.video.currentTime,variant==='cloud'?35:0,variant);
   }
   assert.equal(hasExplicitStart({hash:'#/watch?v=aaaaaaaaaaa&start=20'}),true);
@@ -32,7 +32,7 @@ test('live DVR, Shorts, unknown metadata, mismatched player, ads and disabled pr
     if(variant==='unknown')f.win.__ytafPlaybackMetadata[0].live=null;
     if(variant==='wrongplayer')f.doc.player={getVideoData:()=>({video_id:'bbbbbbbbbbb'})};
     if(variant==='ad')f.doc.player={getAdState:()=>1};
-    if(variant==='disabled')f.settings.rememberPlaybackPosition=false;
+    if(variant==='disabled')f.settings.playbackResumeMode='youtube';
     if(variant==='metadata-duration')f.win.__ytafPlaybackMetadata[0].duration=200;
     start(f);f.media('playing');assert.equal(f.video.currentTime,0,variant);
     f.video.currentTime=50;f.media('pause');assert.equal(f.writes.length,0,variant);
@@ -86,7 +86,7 @@ function nativeReport(f,position,frames=1,generation=1) {
 }
 test('an accepted DOM target does not report resumed until a native frame reaches it',()=>{
   const f=playbackFixture();f.settings.playbackPositions=[f.bookmark(90)];nativeReport(f,0);
-  const api=start(f);f.media('playing');assert.equal(f.video.currentTime,90);
+  const api=start(f);f.media('playing');f.advance(1500);assert.equal(f.video.currentTime,90);
   f.video.seeking=true;f.advance(1500);assert.equal(f.notifications.length,0);assert.match(api.status,/waiting/);
   nativeReport(f,90.2,2,2);f.advance(500);assert.match(api.status,/reached/);
   assert.match(f.notifications.at(-1)[0],/Resumed/);assert.equal(f.timers.size,0);
@@ -101,21 +101,21 @@ test('YouTube account target is retargeted instead of overwritten by a local boo
 test('ignored resume seek retries finitely and times out without claiming success or losing bookmark',()=>{
   const f=playbackFixture();f.settings.playbackPositions=[f.bookmark()];nativeReport(f,0);
   let writes=0;Object.defineProperty(f.video,'currentTime',{get:()=>0,set:()=>writes++});
-  const api=start(f);f.media('playing');f.advance(12000);
+  const api=start(f);f.media('playing');f.advance(13500);
   assert.equal(writes,3);assert.equal(f.timers.size,0);assert.match(api.status,/timed out/);
   assert.match(f.notifications.at(-1)[0],/Could not confirm/);assert.equal(f.settings.playbackPositions[0].position,90);
 });
 test('clicking a settings control does not cancel pending resume; actual timeline interaction does',()=>{
   const f=playbackFixture();f.settings.playbackPositions=[f.bookmark()];const api=start(f);
-  f.doc.emit('pointerdown',{target:{closest:()=>null}});f.media('playing');assert.equal(f.video.currentTime,90);
+  f.doc.emit('pointerdown',{target:{closest:()=>null}});f.media('playing');f.advance(1500);assert.equal(f.video.currentTime,90);
   f.doc.emit('pointerdown',{target:{closest:()=>({})}});assert.equal(f.timers.size,0);
   assert.match(api.status,/Manual/);
 });
 test('pending resume cancellation handles navigation, disabling, clearing and page exit',()=>{
   for(const variant of ['navigate','disable','clear','exit']) {
-    const f=playbackFixture();f.settings.playbackPositions=[f.bookmark()];const api=start(f);f.media('playing');
+    const f=playbackFixture();f.settings.playbackPositions=[f.bookmark()];const api=start(f);f.media('playing');f.advance(1500);
     if(variant==='navigate'){f.win.location.href='?v=bbbbbbbbbbb';f.win.emit('hashchange');}
-    if(variant==='disable'){f.settings.rememberPlaybackPosition=false;f.doc.emit('ytaf-config-changed',{detail:{key:'rememberPlaybackPosition'}});}
+    if(variant==='disable'){f.settings.playbackResumeMode='youtube';f.doc.emit('ytaf-config-changed',{detail:{key:'playbackResumeMode'}});}
     if(variant==='clear')api.clear();if(variant==='exit')f.win.emit('pagehide');
     const notifications=f.notifications.length;f.advance(20000);assert.equal(f.timers.size,0,variant);
     assert.equal(f.notifications.length,notifications,variant);
@@ -127,4 +127,138 @@ test('an account seek already in flight is not restarted by a synthetic timeupda
   start(f);f.media('playing');f.media('timeupdate');assert.deepEqual(seeks,[]);
   nativeReport(f,120.2,4,2);f.video.currentTime=120.2;f.video.seeking=false;f.media('seeked');
   assert.deepEqual(seeks,[]);assert.equal(f.timers.size,0);assert.equal(f.notifications.length,0);
+});
+
+
+test('YouTube-only mode never restores or rewrites TV bookmarks, including unknown or missing mode',()=>{
+  for(const mode of ['youtube',undefined,'invalid']) {
+    const f=playbackFixture();f.settings.playbackResumeMode=mode;
+    f.settings.playbackPositions=[f.bookmark(90)];
+    const api=start(f);f.media('playing');f.advance(2000);
+    assert.equal(f.video.currentTime,0,String(mode));
+    f.video.currentTime=55;f.media('timeupdate');f.media('pause');f.win.emit('pagehide');
+    assert.equal(f.writes.length,0,String(mode));assert.equal(f.settings.playbackPositions[0].position,90);
+    assert.match(api.localStatus,/off/);
+  }
+});
+test('TV fallback waits 1500 ms for YouTube after playback starts',()=>{
+  const f=playbackFixture();f.settings.playbackPositions=[f.bookmark(90)];start(f);
+  f.advance(10000);f.media('loadedmetadata');assert.equal(f.video.currentTime,0);
+  f.media('playing');f.advance(1499);assert.equal(f.video.currentTime,0);
+  f.advance(1);assert.equal(f.video.currentTime,90);
+});
+test('YouTube account position arriving during the fallback grace period takes precedence',()=>{
+  const f=playbackFixture();f.settings.playbackPositions=[f.bookmark(90)];nativeReport(f,0);
+  const seeks=[];f.doc.player={getVideoData:()=>({video_id:'aaaaaaaaaaa'}),seekTo:time=>seeks.push(time)};
+  start(f);f.media('playing');f.advance(1000);f.video.currentTime=120;nativeReport(f,120,4);
+  f.media('timeupdate');f.advance(1000);assert.deepEqual(seeks,[]);assert.equal(f.video.currentTime,120);
+  assert.equal(f.writes.at(-1)[0].position,120);
+});
+test('a late account target is verified after initialization at zero without any TV bookmark',()=>{
+  const f=playbackFixture();f.settings.playbackResumeMode='youtube';f.settings.rememberPlaybackPosition=false;nativeReport(f,0);
+  const seeks=[];f.doc.player={getVideoData:()=>({video_id:'aaaaaaaaaaa'}),seekTo:time=>seeks.push(time)};
+  const api=start(f);f.media('playing');f.advance(800);f.video.currentTime=120;f.media('timeupdate');
+  assert.deepEqual(seeks,[120]);assert.equal(f.writes.length,0);
+  nativeReport(f,120.2,4,2);f.advance(500);assert.match(api.status,/YouTube.*reached/);
+  f.media('pause');assert.equal(f.writes.length,0);
+});
+test('explicit timestamps suppress TV fallback but still verify YouTube native playback',()=>{
+  for(const target of [0,120]) {
+    const f=playbackFixture();f.win.location.href+=`&t=${target}`;
+    f.settings.playbackPositions=[f.bookmark(90)];nativeReport(f,0);
+    const seeks=[];f.doc.player={getVideoData:()=>({video_id:'aaaaaaaaaaa'}),seekTo:time=>seeks.push(time)};
+    start(f);f.video.currentTime=target;f.media('playing');f.advance(1600);
+    assert.deepEqual(seeks,target?[120]:[]);assert.equal(f.writes.length,0);
+  }
+});
+test('a later account seek already playing cancels an obsolete local retry',()=>{
+  const f=playbackFixture();f.settings.playbackPositions=[f.bookmark(90)];nativeReport(f,0);
+  const seeks=[];f.doc.player={getVideoData:()=>({video_id:'aaaaaaaaaaa'}),seekTo:time=>{seeks.push(time);f.video.currentTime=time;}};
+  const api=start(f);f.media('playing');f.advance(1500);assert.deepEqual(seeks,[90]);
+  f.advance(200);f.video.currentTime=120;nativeReport(f,120,4,2);f.media('timeupdate');f.advance(3000);
+  assert.deepEqual(seeks,[90]);assert.equal(f.timers.size,0);assert.match(api.status,/YouTube.*reached/);
+  assert.equal(f.notifications.length,0);
+});
+test('a later account target replaces the pending TV target when native playback has not reached either',()=>{
+  const f=playbackFixture();f.settings.playbackPositions=[f.bookmark(90)];nativeReport(f,0);
+  const seeks=[];f.doc.player={getVideoData:()=>({video_id:'aaaaaaaaaaa'}),seekTo:time=>{seeks.push(time);f.video.currentTime=time;}};
+  const api=start(f);f.media('playing');f.advance(1500);f.advance(200);
+  f.video.currentTime=120;f.media('timeupdate');assert.deepEqual(seeks,[90,120]);
+  nativeReport(f,120.2,4,2);f.advance(500);assert.match(api.status,/YouTube.*reached/);
+  assert.equal(f.notifications.length,0);assert.equal(f.writes.length,0);
+});
+test('loadedmetadata before SPA navigation does not permanently disable the new video',()=>{
+  const f=playbackFixture();start(f);f.video.currentTime=60;f.media('timeupdate');
+  f.doc.player={getVideoData:()=>({video_id:'bbbbbbbbbbb'})};
+  f.win.__ytafPlaybackMetadata.unshift({id:'bbbbbbbbbbb',live:false,duration:300});
+  f.video.currentTime=0;f.media('loadedmetadata');
+  f.win.location.href='https://www.youtube.com/tv?v=bbbbbbbbbbb';f.win.emit('hashchange');
+  f.media('playing');f.video.currentTime=50;f.media('pause');
+  assert.equal(f.writes.at(-1)[0].id,'bbbbbbbbbbb');assert.equal(f.writes.at(-1)[0].position,50);
+});
+test('an unconfirmed DOM target is never saved, while presented native time is saved',()=>{
+  const f=playbackFixture();f.settings.playbackPositions=[f.bookmark(90)];nativeReport(f,0);
+  const api=start(f);api.manual();f.video.currentTime=120;f.media('pause');
+  assert.equal(f.writes.length,0);assert.equal(f.settings.playbackPositions[0].position,90);
+  nativeReport(f,120.2,3,2);f.video.currentTime=120.4;f.media('pause');
+  assert.equal(f.writes.at(-1)[0].position,120.2);assert.match(api.localStatus,/Saved on this TV at 2:00/);
+});
+test('resume timeout preserves a good TV bookmark instead of replacing it with failed playback',()=>{
+  const f=playbackFixture();f.settings.playbackPositions=[f.bookmark(90)];nativeReport(f,0);
+  const api=start(f);f.media('playing');f.advance(13500);assert.match(api.status,/timed out/);
+  f.video.currentTime=10;nativeReport(f,10,3);f.media('timeupdate');f.media('pause');f.win.emit('pagehide');
+  assert.equal(f.writes.length,0);assert.equal(f.settings.playbackPositions[0].position,90);
+});
+test('leaving playback or making a manual seek cancels the TV fallback grace period',()=>{
+  for(const action of ['navigate','manual','exit','mode']) {
+    const f=playbackFixture();f.settings.playbackPositions=[f.bookmark(90)];const api=start(f);f.media('playing');
+    f.advance(500);
+    if(action==='navigate'){f.win.location.href='?v=bbbbbbbbbbb';f.win.emit('hashchange');}
+    if(action==='manual')api.manual();
+    if(action==='exit')f.win.emit('pagehide');
+    if(action==='mode'){f.settings.playbackResumeMode='youtube';f.doc.emit('ytaf-config-changed',{detail:{key:'playbackResumeMode'}});}
+    f.advance(2000);assert.equal(f.video.currentTime,0,action);assert.equal(f.timers.size,0,action);
+  }
+});
+
+
+test('a player identity change alone cannot save the previous media source under a new video',()=>{
+  const f=playbackFixture();start(f);f.video.currentTime=65;f.media('timeupdate');
+  f.doc.player={getVideoData:()=>({video_id:'bbbbbbbbbbb'})};
+  f.win.__ytafPlaybackMetadata.unshift({id:'bbbbbbbbbbb',live:false,duration:300});
+  f.win.location.href='https://www.youtube.com/tv?v=bbbbbbbbbbb';f.win.emit('hashchange');
+  f.media('timeupdate');f.media('pause');
+  assert.equal(f.settings.playbackPositions.some(entry=>entry.id==='bbbbbbbbbbb'),false);
+  f.video.currentTime=0;f.media('loadedmetadata');f.media('playing');
+  f.video.currentTime=35;f.media('pause');assert.equal(f.writes.at(-1)[0].id,'bbbbbbbbbbb');
+  assert.equal(f.writes.at(-1)[0].position,35);
+});
+test('an available native bridge with an inactive or invalid snapshot cannot confirm or save a DOM target',()=>{
+  for(const snapshot of ['Current player: Shared Starfish (inactive)\nSession: 8 generation: 1\nPlayback rate: requested 1x applied 1x\nNative presentation: 0 seconds\nPresented frames: 0\n','unavailable']) {
+    const f=playbackFixture();f.settings.playbackPositions=[f.bookmark(90)];
+    f.win.h5vcc={system:{getYtafMediaReport:()=>snapshot}};
+    const api=start(f);f.video.currentTime=120;f.media('playing');f.media('pause');
+    assert.equal(f.writes.length,0);assert.equal(f.settings.playbackPositions[0].position,90);
+    api.manual();f.video.currentTime=120.5;f.media('timeupdate');assert.equal(f.writes.length,0);
+  }
+  const f=playbackFixture();f.settings.playbackPositions=[f.bookmark(90)];nativeReport(f,0);
+  const api=start(f);f.media('playing');f.advance(1500);
+  f.win.h5vcc.system.getYtafMediaReport=()=>'';f.video.currentTime=90.5;f.advance(500);
+  assert.match(api.status,/waiting/);assert.equal(f.notifications.length,0);
+  nativeReport(f,90.5,3,2);f.advance(500);assert.match(api.status,/reached/);
+});
+
+
+test('changing resume mode during navigation cannot bypass source identity checks',()=>{
+  const f=playbackFixture();f.settings.playbackResumeMode='youtube';nativeReport(f,65);
+  start(f);f.video.currentTime=65;f.media('timeupdate');
+  f.doc.player={getVideoData:()=>({video_id:'bbbbbbbbbbb'})};
+  f.win.__ytafPlaybackMetadata.unshift({id:'bbbbbbbbbbb',live:false,duration:300});
+  f.win.location.href='https://www.youtube.com/tv?v=bbbbbbbbbbb';f.win.emit('hashchange');
+  f.settings.playbackResumeMode='youtube-local';
+  f.doc.emit('ytaf-config-changed',{detail:{key:'playbackResumeMode'}});
+  f.media('pause');assert.equal(f.writes.length,0);
+  f.video.currentTime=0;f.media('loadedmetadata');f.media('playing');
+  f.video.currentTime=35;nativeReport(f,35,2,2);f.media('pause');
+  assert.equal(f.writes.at(-1)[0].id,'bbbbbbbbbbb');assert.equal(f.writes.at(-1)[0].position,35);
 });

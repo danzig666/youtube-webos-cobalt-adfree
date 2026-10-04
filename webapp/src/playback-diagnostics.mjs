@@ -16,6 +16,7 @@ export function frontendPlaybackReport(doc,win) {
     video ? `Media: ready ${number(video.readyState)} paused ${Boolean(video.paused)} seeking ${Boolean(video.seeking)} ended ${Boolean(video.ended)}` : 'Media: unavailable',
     video ? `Position: ${number(video.currentTime)} / ${number(video.duration)} seconds` : 'Position: unavailable',
     `Resume: ${win.__ytafResume?.status || 'not initialized'}`,
+    `Local fallback: ${win.__ytafResume?.localStatus || 'not initialized'}`,
     `Settings initialized: ${Boolean(win.__ytafUiInitialized)}`,
     `SponsorBlock: ${sponsor ? statuses.includes(sponsor.fetchStatus)?sponsor.fetchStatus:'unknown' : 'not initialized'}`,
     `SponsorBlock segments: ${Array.isArray(sponsor?.segments)?sponsor.segments.length:0}; retries: ${number(sponsor?.fetchRetries)}`,

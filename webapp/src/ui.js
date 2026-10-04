@@ -360,8 +360,15 @@ export function userScriptStartUI() {
   const speedHint=document.createElement('div');speedHint.className='ytaf-setting-help';
   speedHint.textContent='Custom speed applies to this video only. Each new video starts normally. Unsupported or stalled speeds return to 1× automatically.';
   playbackPreferences.appendChild(speedHint);
-  playbackPreferences.appendChild(checkboxTools.add('__remember_position', 'Remember playback position on this TV',
-    configRead('rememberPlaybackPosition'), callbackConfig('rememberPlaybackPosition')));
+  playbackPreferences.appendChild(choiceTools.add('__resume_mode', 'Playback resume', configRead('playbackResumeMode'), [
+    {value:'youtube',label:'YouTube watch history'},
+    {value:'youtube-local',label:'YouTube + TV fallback'}
+  ], callbackConfig('playbackResumeMode')));
+  const resumeStatus=document.createElement('div');resumeStatus.className='ytaf-setting-help';
+  resumeStatus.id='__resume_status';
+  function renderResumeStatus() {resumeStatus.textContent=`${resume.status} ${resume.localStatus || ''}`;}
+  renderResumeStatus();document.addEventListener('ytaf-config-changed',renderResumeStatus);
+  playbackPreferences.appendChild(resumeStatus);
   playbackPreferences.appendChild(choiceTools.add('__seek_behavior', 'Left / Right seeking', configRead('seekBehavior'), [
     {value:'youtube',label:'YouTube default (OK to confirm)'},
     {value:'immediate',label:'Automatic — 0.5 seconds after release'},
@@ -369,13 +376,13 @@ export function userScriptStartUI() {
     {value:'relaxed',label:'Automatic — 1 second after release'}
   ], callbackConfig('seekBehavior')));
   const playbackHint = document.createElement('div'); playbackHint.className='ytaf-setting-help';
-  playbackHint.textContent='Positions are saved on this TV, separately for each app install. Live streams and Shorts are excluded. Automatic seeking uses 10-second steps during playback or on the timeline; other controls keep normal arrow navigation.';
+  playbackHint.textContent='YouTube manages account resume through watch history. Sign in and keep watch history enabled to sync across devices. Optional TV fallback stores unfinished videos on this app install, and gives YouTube priority. Automatic seeking previews 10-second steps before the delayed jump.';
   playbackPreferences.appendChild(playbackHint);
   const clearRow=document.createElement('div'), clearPositions=document.createElement('div');
   clearPositions.id='__clear_playback_positions';clearPositions.tabIndex=903;clearPositions.className='ytaf-diagnostic-action';
   clearPositions.dataset.ytafControl='action';clearPositions.setAttribute('role','button');
-  clearPositions.textContent='Clear saved playback positions';clearPositions.__ytafActivate=()=>resume.clear();
-  clearPositions.addEventListener('click',()=>{if(Number(clearRow.dataset.ytafIgnoreClickUntil||0)<=Date.now())resume.clear();});
+  clearPositions.textContent='Clear TV fallback positions';clearPositions.__ytafActivate=()=>{resume.clear();renderResumeStatus();};
+  clearPositions.addEventListener('click',()=>{if(Number(clearRow.dataset.ytafIgnoreClickUntil||0)<=Date.now()){resume.clear();renderResumeStatus();}});
   clearRow.appendChild(clearPositions);playbackPreferences.appendChild(clearRow);uiContainer.appendChild(playbackPreferences);
   const revealPlaybackControls=createPlaybackControlsReveal(document,window);
   const handlePlaybackSeek=createPlaybackSeek(document,window,configRead,createSeekPreview(document,window),showNotification,revealPlaybackControls);
@@ -452,6 +459,7 @@ export function userScriptStartUI() {
     currentFocusIndex = -1;
     // A category can be changed by pointer while a hidden setting had focus.
     sections.currentButton().focus();
+    renderResumeStatus();
     if (sections.current() === 'diagnostics') document.dispatchEvent(new CustomEvent('ytaf-diagnostics-opened'));
   });
   menuContent = sections.content;
@@ -556,6 +564,7 @@ export function userScriptStartUI() {
 
   function openContainer() {
     ensureSettingsMounted(document, uiContainer);
+    renderResumeStatus();
     if (typeof window !== 'undefined') window.__ytafSponsorPrompt?.dismiss();
     console.info('Container: Showing & Focusing!');
     latestFocus =

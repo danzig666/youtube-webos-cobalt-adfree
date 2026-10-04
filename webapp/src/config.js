@@ -2,6 +2,7 @@ const CONFIG_KEY = 'ytaf-configuration-cobalt-adfree-v2';
 const defaultConfig = {
   enableAdBlock: true,
   rememberPlaybackPosition: true,
+  playbackResumeMode: 'youtube',
   playbackPositions: [],
   seekBehavior: 'youtube',
   clockDisplay: 'off',
