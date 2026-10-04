@@ -6,12 +6,12 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 ## Download and install
 
-**[Latest release: v2.6.15-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.15-beta.1)**
+**[Latest release: v2.6.16-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.16-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
-| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.15-beta.1/com.cobalt.youtube.adfree_2.6.15_arm.ipk) | Installs alongside official YouTube |
-| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.15-beta.1/youtube.leanback.v4_2.6.15_arm.ipk) | **Replaces official YouTube** |
+| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.16-beta.1/com.cobalt.youtube.adfree_2.6.16_arm.ipk) | Installs alongside official YouTube |
+| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.16-beta.1/youtube.leanback.v4_2.6.16_arm.ipk) | **Replaces official YouTube** |
 
 Install using webOS Device Manager or `ares-cli` with Developer Mode, or Homebrew Channel on a compatible setup. Update the same package ID you already use, then fully close and reopen the app. Checksums and build records accompany each release.
 
@@ -32,7 +32,8 @@ The original ad blocking, Return YouTube Dislike, automatic account selection, s
 | Playback resume | YouTube watch history by default, with optional TV-local fallback and visible resume/save status |
 | Quick seeking | Optional 10-second Left/Right steps applied 0.5, 0.8 or 1 second after release; repeated taps combine into one seek, with a target marker and timestamp |
 | Playback speed and reset | 0.5×–2× for the current video, progress monitoring, failure recovery to 1× and a dedicated reset action |
-| Corner clock | Optional upper-right local-time clock: while browsing or always; off by default |
+| Corner clock | Optional upper-right local-time clock with TV-safe margins and recovery: while browsing or always; off by default |
+| Thumbnail progress | Updates the watched video’s red thumbnail bar on return without refreshing or rearranging the feed |
 | Sleep timer | Pause after 15, 30, 60 or 90 minutes, with countdown and cancellation |
 | Stop after this video | Hold subsequent autoplay paused until Continue playback |
 | Configurable remote keys | Separate action selectors for keys 0–9, optional shortcuts and built-in remote help |
@@ -52,6 +53,8 @@ YouTube default restores native caption styling. DeArrow sends visible video IDs
 
 - **Home refresh:** fixed the silent Home-detection failure caused by Cobalt lacking `URL.searchParams`; Home detection uses its supported query-string interface. Removed the full-reload button, shortcut and code; saved full-reload assignments become No action. Added the reference `SOFT_RELOAD_PAGE` command and corrected Home detection for current `FEtopics` alongside the older `FEwhat_to_watch`.
 
+- **Clock:** added explicit rendering above YouTube content, TV-safe positioning, recovery from missing nodes or observer failures, and visible status.
+- **Thumbnail progress:** uses confirmed playback to update matching cached thumbnails on return; preserves card order, selection and scroll, with no feed refresh or account API.
 - **Fonts:** moved Inter from embedded data URLs to installed font files after reproducing a security-policy rejection. Both weights load under the restricted browser test; C3 appearance still needs confirmation.
 - **Settings:** fixed adblock preference saving, malformed configuration recovery, BACK closing the video, the off-centre close icon, the empty blue notification pill and QR controls appearing on every category.
 - **Option lists:** fixed cursor selection, open/close flicker, stale popups after category changes, duplicate key/mouse activation and clicks passing through to underlying switches. Remote keys now have individual selectors.
@@ -63,7 +66,7 @@ YouTube default restores native caption styling. DeArrow sends visible video IDs
 - **Diagnostics and packaging:** replaced paged reports with one scrollable textbox and removed unusable clipboard copy. Fixed MSE trace attribution/error handling, dependency inspection, runtime-library inclusion and non-root package permissions.
 - **Development:** added SDK-free native host tests, a scheduled full Gold ARM build workflow, device-report templates and a compatibility-matrix generator. Scheduled builds activate on the default branch; they do not publish stable releases.
 
-The LG C3 user confirmed caption sizing/cursor selection in 2.6.5 and in-place Home refresh in 2.6.11. Version 2.6.15 adds persistent seek feedback, YouTube-first resume with an optional local fallback, and local font loading. The current release passes browser checks, 271 web tests and both ARM builds. **Playback resume, fractional speeds, live/DVR, HDR, lifecycle recovery and intermittent disappearing controls still need device validation; the controls issue is not confirmed resolved.** AAC retains its existing decoder path; legacy playback and `YTAF_SHARED_AV=0` rollback remain available.
+The LG C3 user confirmed caption sizing/cursor selection in 2.6.5 and in-place Home refresh in 2.6.11. Version 2.6.16 hardens clock rendering and updates thumbnail progress on return without changing the feed. The current release passes browser checks, 293 web tests and both ARM builds. **Clock and thumbnail rendering, playback resume, fractional speeds, live/DVR, HDR, lifecycle recovery and intermittent disappearing controls still need device validation; the controls issue is not confirmed resolved.** AAC retains its existing decoder path; legacy playback and `YTAF_SHARED_AV=0` rollback remain available.
 
 ## Screenshots
 
