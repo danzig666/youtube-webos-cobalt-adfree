@@ -36,7 +36,8 @@ export function extractLaunchParams() {
 }
 
 export function handleLaunch(params) {
-  console.info('handleLaunch', params);
+  // Launch parameters can contain pairing codes and voice-search content.
+  console.info('[ytaf] Handling launch');
 
   // We use our custom "target" param, since launches with "contentTarget"
   // parameter do not respect "handlesRelaunch" appinfo option. We still

@@ -20,6 +20,16 @@ let hasBypassed = false;
 let observer = null;
 let startupTimer = null;
 let cleanupTimer = null;
+let bypassTimer = null;
+let bypassGeneration = 0;
+
+function cancelPendingBypass() {
+  bypassGeneration++;
+  window.clearTimeout(bypassTimer);
+  window.clearTimeout(cleanupTimer);
+  bypassTimer = cleanupTimer = null;
+  document.body?.classList.remove(BYPASS_BODY_CLASS);
+}
 
 function updateRecurringActions(disable) {
   try {
@@ -53,7 +63,7 @@ function updateRecurringActions(disable) {
       );
     }
   } catch (err) {
-    console.warn('[Auto Login] Failed to update recurring actions:', err);
+    console.warn('[Auto Login] Failed to update recurring actions');
   }
 }
 
@@ -78,7 +88,7 @@ function isGuestMode() {
     const autoNav = readStorageData(AUTONAV_KEY);
     return Boolean(autoNav && autoNav.guest === true);
   } catch (err) {
-    console.warn('[Auto Login] Failed to read the last identity:', err);
+    console.warn('[Auto Login] Failed to read the last identity');
     return false;
   }
 }
@@ -111,8 +121,7 @@ function createKeyboardEvent(type, keyDefinition) {
         event[property] = keyDefinition.code;
       } catch (assignmentError) {
         console.warn(
-          `[Auto Login] Could not set keyboard event property ${property}:`,
-          assignmentError
+          `[Auto Login] Could not set keyboard event property ${property}`
         );
       }
     }
@@ -139,30 +148,37 @@ function finishBypass() {
 }
 
 export function attemptAutoLogin(force = false) {
-  if (!document.body) return;
+  if (!document.body || !configRead('enableAutoLogin')) return;
 
   const isAccountSelector =
     document.body.classList.contains(ACCOUNT_SELECTOR_CLASS);
 
-  if ((!isAccountSelector && !force) || (hasBypassed && !force)) return;
+  if (!isAccountSelector || (hasBypassed && !force)) return;
+
+  cancelPendingBypass();
+  const generation = bypassGeneration;
+  const selectorBody = document.body;
+  function stillSelecting() {
+    if (generation !== bypassGeneration) return false;
+    const current = configRead('enableAutoLogin') && document.body === selectorBody &&
+      selectorBody.classList.contains(ACCOUNT_SELECTOR_CLASS);
+    if (!current) selectorBody.classList.remove(BYPASS_BODY_CLASS);
+    return current;
+  }
 
   hasBypassed = true;
   document.body.classList.add(BYPASS_BODY_CLASS);
   console.info('[Auto Login] Account selector detected, bypassing it');
 
-  window.setTimeout(() => {
-    if (!configRead('enableAutoLogin')) {
-      finishBypass();
-      return;
-    }
+  bypassTimer = window.setTimeout(() => {
+    bypassTimer = null;
+    if (!stillSelecting()) return;
 
     if (isGuestMode()) {
       sendKey(REMOTE_KEYS.DOWN);
-      window.setTimeout(() => {
-        if (!configRead('enableAutoLogin')) {
-          finishBypass();
-          return;
-        }
+      bypassTimer = window.setTimeout(() => {
+        bypassTimer = null;
+        if (!stillSelecting()) return;
         sendKey(REMOTE_KEYS.ENTER);
         finishBypass();
       }, 200);
@@ -187,6 +203,7 @@ function attachObserver() {
 }
 
 function stopAutoLogin() {
+  cancelPendingBypass();
   if (observer) {
     observer.disconnect();
     observer = null;
@@ -203,6 +220,7 @@ function stopAutoLogin() {
 }
 
 export function resetAutoLogin() {
+  cancelPendingBypass();
   hasBypassed = false;
   window.clearTimeout(startupTimer);
 

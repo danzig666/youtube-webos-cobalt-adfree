@@ -109,7 +109,7 @@ export function persistPlaybackPositions(positions) {
 }
 
 export function configWrite(key, value) {
-  console.info('Setting key', key, 'to', key === 'sponsorBlockExcludedChannels' ? '(channel preferences)' : value);
+  console.info('[ytaf] Setting changed:', Object.prototype.hasOwnProperty.call(defaultConfig, key) ? key : 'unknown');
   localConfig[key] = value;
   window.__ytafConfigState = localConfig;
   window.__ytafConfigPersisted = persistConfiguration();
@@ -121,7 +121,7 @@ export function configWrite(key, value) {
       try {
         applyResult = window.__ytafApplyShortsState();
       } catch (err) {
-        console.error('[ytaf shorts] live apply threw', err);
+        console.error('[ytaf shorts] live apply failed');
       }
     }
   }

@@ -98,9 +98,20 @@ function requestJSON(url, timeout, onSuccess, onFailure) {
     xhr.onerror = () => finishFailure(new Error('RYD request failed'), xhr.status || 'n/a');
     xhr.ontimeout = () => finishFailure(new Error('RYD request timed out'), xhr.status || 'n/a');
     xhr.onabort = () => finishFailure(new Error('RYD request aborted'), xhr.status || 'n/a');
-    xhr.open('GET', url);
-    xhr.timeout = timeout;
-    xhr.send();
+    try {
+        xhr.open('GET', url);
+        xhr.timeout = timeout;
+        xhr.send();
+    } catch (err) {
+        finishFailure(new Error('RYD request could not start'), 'n/a');
+    }
+    return () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(watchdog);
+        xhr.onload = xhr.onerror = xhr.ontimeout = xhr.onabort = null;
+        try { xhr.abort(); } catch (_) {}
+    };
 }
 
 function findDislikeButton() {
@@ -174,6 +185,10 @@ function setReturnYouTubeDislikeCssActive(active) {
 }
 
 class ReturnYouTubeDislike {
+    active = false;
+    requestToken = 0;
+    cancelRequest = null;
+    activationRefreshTimer = null;
     videoID = null;
     dislikes = 'n/a';
     votesLoaded = false;
@@ -195,6 +210,7 @@ class ReturnYouTubeDislike {
     descriptionError = '';
 
     init(videoID) {
+        this.active = true;
         setReturnYouTubeDislikeCssActive(true);
         this.videoID = videoID;
         this.votesLoaded = false;
@@ -213,8 +229,15 @@ class ReturnYouTubeDislike {
         this.scheduleInitialRefreshes();
     }
 
+    isCurrent() {
+        return this.active && configRead('enableReturnYouTubeDislike') &&
+            getVideoIDFromLocation() === this.videoID;
+    }
+
     fetchVotes() {
-        if (!this.videoID) return;
+        if (!this.videoID || !this.isCurrent()) return;
+        const token = ++this.requestToken;
+        this.cancelRequest?.();
 
         this.votesLoaded = false;
         this.dislikes = 'n/a';
@@ -224,22 +247,27 @@ class ReturnYouTubeDislike {
         this.lastBody = '';
 
         const url = `${RYD_API}?videoId=${encodeURIComponent(this.videoID)}`;
-        requestJSON(
+        this.cancelRequest = requestJSON(
             url,
             8000,
             (results, status = 200, body = '') => {
+                if (token !== this.requestToken || !this.isCurrent()) return;
+                this.cancelRequest = null;
                 this.votesLoaded = true;
                 this.fetchStatus = 'votes-loaded';
                 this.fetchError = '';
                 this.lastStatus = status;
                 this.lastBody = String(body || '').substring(0, 180);
-                this.dislikes = Number.isFinite(Number(results.dislikes))
-                    ? Number(results.dislikes)
+                this.dislikes = typeof results?.dislikes === 'number' &&
+                    Number.isFinite(results.dislikes) && results.dislikes >= 0
+                    ? results.dislikes
                     : 'n/a';
                 this.refresh();
                 this.scheduleRefresh(400);
             },
             (err, status = 'n/a', body = '') => {
+                if (token !== this.requestToken || !this.isCurrent()) return;
+                this.cancelRequest = null;
                 this.votesLoaded = true;
                 this.fetchStatus = 'fetch-error';
                 this.fetchError = err?.message || String(err);
@@ -264,6 +292,7 @@ class ReturnYouTubeDislike {
     }
 
     scheduleRefresh(delay) {
+        if (!this.isCurrent()) return;
         if (this.refreshTimer) clearTimeout(this.refreshTimer);
         this.refreshTimer = setTimeout(() => {
             this.refreshTimer = null;
@@ -275,7 +304,7 @@ class ReturnYouTubeDislike {
         if (this.domObserver || !document.body) return;
 
         this.domObserver = new MutationObserver(() => {
-            if (this.domRefreshTimer) return;
+            if (!this.isCurrent() || this.domRefreshTimer) return;
 
             this.domRefreshTimer = setTimeout(() => {
                 this.domRefreshTimer = null;
@@ -290,6 +319,7 @@ class ReturnYouTubeDislike {
     }
 
     refresh() {
+        if (!this.isCurrent()) return;
         this.updateDislikeButton();
         this.updateDescriptionDislikes();
     }
@@ -323,7 +353,7 @@ class ReturnYouTubeDislike {
     }
 
     applyDislikeCount() {
-        if (this.isUpdatingButton || !this.dislikeButton) return;
+        if (!this.isCurrent() || this.isUpdatingButton || !this.dislikeButton) return;
 
         const label = findDislikeLabel(this.dislikeButton);
         if (!label) return;
@@ -353,6 +383,7 @@ class ReturnYouTubeDislike {
     }
 
     handleGlobalActivate(evt) {
+        if (!this.isCurrent()) return;
         const menuOpen = document.querySelector('.ytaf-ui-container')?.style?.display !== 'none';
         const focusInsideMenu = menuOpen && (
             document.activeElement === document.querySelector('.ytaf-ui-container') ||
@@ -386,7 +417,11 @@ class ReturnYouTubeDislike {
         // The description panel is created after Enter/click. A delayed refresh is
         // cheaper than observing the whole document permanently.
         this.scheduleRefresh(250);
-        setTimeout(() => this.refresh(), 900);
+        if (this.activationRefreshTimer !== null) clearTimeout(this.activationRefreshTimer);
+        this.activationRefreshTimer = setTimeout(() => {
+            this.activationRefreshTimer = null;
+            this.refresh();
+        }, 900);
     }
 
     handleDislikeToggle() {
@@ -577,6 +612,12 @@ class ReturnYouTubeDislike {
     }
 
     destroy() {
+        this.active = false;
+        this.requestToken++;
+        this.cancelRequest?.();
+        this.cancelRequest = null;
+        if (this.activationRefreshTimer !== null) clearTimeout(this.activationRefreshTimer);
+        this.activationRefreshTimer = null;
         setReturnYouTubeDislikeCssActive(false);
         this.clearRetryTimers();
 
@@ -612,6 +653,7 @@ class ReturnYouTubeDislike {
         }
 
         if (this.dislikeButton) {
+            clearCountSpan(findDislikeLabel(this.dislikeButton));
             this.dislikeButton.classList.remove(
                 'ytaf-ryd-loading',
                 'ytaf-ryd-show-native',
@@ -619,6 +661,9 @@ class ReturnYouTubeDislike {
             );
         }
 
+        document.querySelectorAll('.ytaf-ryd-ready').forEach(container => {
+            container.classList.remove('ytaf-ryd-ready');
+        });
         this.dislikeButton = null;
     }
 }
@@ -654,8 +699,12 @@ function scheduleLoadReturnYouTubeDislike() {
 }
 
 export function userScriptStartReturnYouTubeDislike() {
+    if (window.__ytafReturnYouTubeDislikeStarted) return;
+    window.__ytafReturnYouTubeDislikeStarted = true;
     window.returnYoutubeDislike = window.returnYoutubeDislike || null;
     window.addEventListener('hashchange', scheduleLoadReturnYouTubeDislike, false);
+    document.addEventListener('yt-navigate-finish', scheduleLoadReturnYouTubeDislike);
+    document.addEventListener('loadedmetadata', scheduleLoadReturnYouTubeDislike, true);
 
     if (!window.__ytafReturnYouTubeDislikeConfigListenerStarted) {
         window.__ytafReturnYouTubeDislikeConfigListenerStarted = true;

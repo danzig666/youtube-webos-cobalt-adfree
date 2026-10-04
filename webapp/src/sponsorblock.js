@@ -675,7 +675,7 @@ class SponsorBlockController {
     this.fetchStatus = 'fetch-error';
     this.fetchError = err?.message || String(err);
     this.segments = [];
-    console.warn('[SponsorBlock] fetch failed:', err);
+    console.warn('[SponsorBlock] fetch failed');
     // Retry only transient failures, bounded per video. A 404/no segments is
     // handled as a successful empty response and never retried.
     if(this.fetchRetries < 2 && (status===0 || status==='n/a' || status===429 || status>=500)) {
@@ -789,9 +789,7 @@ class SponsorBlockController {
 
     console.info(
       '[SponsorBlock] markers rendered:',
-      renderedCount,
-      'video:',
-      this.videoID
+      renderedCount
     );
   }
 

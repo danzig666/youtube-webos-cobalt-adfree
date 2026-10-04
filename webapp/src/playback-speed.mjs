@@ -24,13 +24,24 @@ export function startPlaybackSpeed(doc, win, read, write, notify) {
     if(ticket!==current)return;
     normal();status(text);notify(text,5000,'yellow');
   }
+  function resetMeasurement(current, time) {
+    current.baseline=null;current.lastState=null;
+    current.started=time;current.lastProgress=time;
+  }
   function check(current) {
     timer=null;
     if(ticket!==current)return;
     const video=current.video;
     if(doc.querySelector('video')!==video || getCurrentVideoId(win,doc,false)!==current.id) {normal();return;}
     if(video.ended) {normal();status('Normal speed restored for the next video.');return;}
-    const time=now(), state=nativePlaybackState(win);
+    const time=now();
+    // The native pipeline and JS clock may both pause when webOS backgrounds
+    // the app. That interval cannot measure a selected playback rate.
+    if(doc.hidden || doc.visibilityState==='hidden') {
+      resetMeasurement(current,time);
+      timer=win.setTimeout(()=>check(current),1000);return;
+    }
+    const state=nativePlaybackState(win);
     if(video.paused) {
       // Pause is intentional, not a stalled firmware rate. Begin fresh when it resumes.
       current.lastProgress=time;current.baseline=null;if(!current.applied)current.started=time;
@@ -64,7 +75,10 @@ export function startPlaybackSpeed(doc, win, read, write, notify) {
             (Math.abs(state.requested-current.rate)>.001 || Math.abs(state.applied-current.rate)>.001)) {
           fail(current,'Native player did not apply playback speed. Normal speed restored.');return;
         }
-        if(!video.seeking && Math.abs(state.applied-current.rate)<.001 && state.frames>0) {
+        // A short network buffer is not proof that SetPlayRate is wrong. Only
+        // measure continuously ready playback; the separate eight-second
+        // progress watchdog still recovers a native pipeline that stays stuck.
+        if(!video.seeking && video.readyState>=3 && Math.abs(state.applied-current.rate)<.001 && state.frames>0) {
           if(!current.baseline)current.baseline={...state,time};
           const base=current.baseline, elapsed=(time-base.time)/1000;
           if(elapsed>=3 && state.frames>base.frames && state.position>base.position) {
@@ -115,6 +129,10 @@ export function startPlaybackSpeed(doc, win, read, write, notify) {
   });
   win.addEventListener('hashchange',()=>{if(ticket && getCurrentVideoId(win,doc,false)!==ticket.id)leave();});
   win.addEventListener('pagehide',leave);
+  const resumeMeasurement=()=>{if(ticket)resetMeasurement(ticket,now());};
+  doc.addEventListener('visibilitychange',resumeMeasurement);
+  doc.addEventListener('webOSRelaunch',resumeMeasurement);
+  win.addEventListener('pageshow',resumeMeasurement);
   doc.addEventListener('ytaf-config-changed',event=>{
     if(event.detail?.key!=='playbackSpeed' || internalWrite)return;
     const value=read('playbackSpeed');

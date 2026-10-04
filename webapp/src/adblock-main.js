@@ -24,7 +24,7 @@ console.info('[ytaf] adblock-main.js LOADED, imports ready');
 document.addEventListener(
   'webOSRelaunch',
   (evt) => {
-    console.info('RELAUNCH:', evt, window.launchParams);
+    console.info('[ytaf] Relaunch received');
     resetAutoLogin();
     handleRelaunch(evt.detail);
   },
@@ -43,7 +43,7 @@ function startDebugOverlay() {
     require('./debug-overlay.js').userScriptStartDebugOverlay();
     console.info('[ytaf] Debug overlay started');
   } catch (err) {
-    console.warn('[ytaf] Failed to start debug overlay:', err);
+    console.warn('[ytaf] Failed to start debug overlay');
   }
 }
 
@@ -53,7 +53,7 @@ export async function startUserScript() {
   try {
     handleInitialLaunch();
   } catch (err) {
-    console.warn('[ytaf] Failed to apply startup page:', err);
+    console.warn('[ytaf] Failed to apply startup page');
   }
 
   try {
@@ -63,7 +63,7 @@ export async function startUserScript() {
     startDebugOverlay();
     console.info('[ytaf] UI started');
   } catch (err) {
-    console.warn('[ytaf] Failed to start UI:', err);
+    console.warn('[ytaf] Failed to start UI');
   }
 
   try {
@@ -74,20 +74,40 @@ export async function startUserScript() {
     }, key => console.warn('[ytaf] Feature initialization failed:',key));
     console.info('[ytaf] All hooks loaded successfully');
   } catch (err) {
-    console.warn('[ytaf] Failed loading hooks:', err);
+    console.warn('[ytaf] Failed loading hooks');
   }
+}
+
+// Error messages/stacks and relaunch payloads can contain signed URLs or
+// account data. Keep only a fixed error category, and bound repeated reports.
+const errorNames = ['Error', 'TypeError', 'RangeError', 'ReferenceError',
+  'SyntaxError', 'URIError', 'EvalError', 'AggregateError', 'DOMException'];
+let errorWindowStarted = Date.now(), errorReports = 0;
+function reportGlobalError(kind, error) {
+  const now = Date.now();
+  if (now - errorWindowStarted >= 60000 || now < errorWindowStarted) {
+    errorWindowStarted = now; errorReports = 0;
+  }
+  if (errorReports >= 8) return;
+  errorReports++;
+  let name = 'Error';
+  try {
+    const candidate = error?.name;
+    if (errorNames.includes(candidate)) name = candidate;
+  } catch (_) {}
+  console.error(`[ytaf] ${kind}: ${name}`);
 }
 
 // Global error handlers to catch unhandled errors
 window.addEventListener('error', (event) => {
-  console.error('[ytaf] Global error:', event.error || event.message);
+  reportGlobalError('Global error', event.error);
 });
 
 window.addEventListener('unhandledrejection', (event) => {
-  console.error('[ytaf] Unhandled promise rejection:', event.reason);
+  reportGlobalError('Unhandled promise rejection', event.reason);
 });
 
 // Start the user script and catch any top-level errors
 startUserScript().catch((err) => {
-  console.error('[ytaf] startUserScript() error:', err);
+  console.error('[ytaf] startUserScript() failed');
 });

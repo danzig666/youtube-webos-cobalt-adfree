@@ -99,3 +99,19 @@ test('reset without a visible media element cannot restart an old hidden native 
   const f=fixture();f.doc.video=null;f.api.reset();assert.deepEqual(f.resetPauses,[true]);
   assert.equal(f.settings.playbackSpeed,'youtube');
 });
+
+test('temporary buffering does not count its idle time as an incorrect playback speed',()=>{
+  const f=fixture();f.api.request(1.5);f.native(1.5);f.progress(1.5,1);
+  f.video.readyState=2;f.advance(2000);
+  f.video.readyState=4;f.progress(1.5,4);
+  assert.equal(f.resets(),0);assert.equal(f.video.playbackRate,1.5);
+  assert.match(f.api.status,/progressing/);
+});
+
+test('background playback monitoring resumes with a fresh speed measurement',()=>{
+  const f=fixture();f.api.request(1.5);f.native(1.5);f.progress(1.5,1);
+  f.doc.hidden=true;f.doc.emit('visibilitychange');f.advance(30000);
+  assert.equal(f.resets(),0,'suspension is not a firmware speed failure');
+  f.doc.hidden=false;f.doc.emit('visibilitychange');f.progress(1.5,4);
+  assert.equal(f.resets(),0);assert.match(f.api.status,/progressing/);
+});

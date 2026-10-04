@@ -60,6 +60,7 @@ export function createEndStop(doc, win, notify) {
   doc.addEventListener(
     'ended',
     (event) => {
+      checkNavigation();
       if (
         state !== 'armed' ||
         event.target !== target ||
@@ -95,10 +96,16 @@ export function createEndStop(doc, win, notify) {
       target = null;
       api.render();
       notify('Video changed. Stop after video cancelled.', 3000, 'green');
+    } else if (id === videoId) {
+      // YouTube can replace the media element without changing videos. Keep
+      // the armed ending attached to the current element, not the detached one.
+      const current = doc.querySelector('video');
+      if (current) target = current;
     }
   }
   win.addEventListener('hashchange', checkNavigation);
   doc.addEventListener('yt-navigate-finish', checkNavigation);
+  doc.addEventListener('loadedmetadata', checkNavigation, true);
   return api;
 }
 export function createEndStopPanel(doc, win, notify) {
