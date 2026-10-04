@@ -399,3 +399,45 @@ delayed cards; recycled card identities cannot retain the previous overlay.
 Thumbnail progress status is available in Diagnostics. The displayed bar
 reflects playback in this app, while YouTube remains responsible for account
 history. Clock and thumbnail rendering still require device validation.
+
+
+### Plain clock and reopening watched videos (2.6.17)
+
+The clock is white text with no background, border, padding or shadow. Its
+upper-right position moves inward by a few pixels every three minutes and
+cycles through eight offsets within the TV-safe area. This reduces a fixed
+text pattern; it cannot guarantee prevention of OLED burn-in.
+
+General now offers Off (default) or In menus and with playback controls.
+Previously enabled While browsing/Always preferences migrate to the latter.
+Browsing screens show the clock. On Watch/Shorts it appears only with a visible
+settings/menu overlay or seek timeline, including a pending seek preview;
+clean playback hides it. Known nodes are checked for visible ancestors and
+on-screen geometry every 500 ms while on the player, without revealing controls
+or observing the player subtree. Opening/closing GREEN updates it immediately.
+
+The confirmed in-memory snapshot behind the thumbnail red bar now also supplies
+a same-session resume target. It is frozen before a reopened video's first
+frames at zero overwrite the live snapshot. After 1.5 seconds of playback,
+resume requests that position if YouTube supplied no nonzero target. YouTube's
+position takes priority, including a late account target; explicit timestamps,
+manual seeks, completion and incompatible durations suppress the fallback.
+Success requires an actually presented native frame, with bounded retries and
+a timeout rather than a success toast for an echoed DOM seek target.
+
+A minimal body-class observer resets the resume session when the TV SPA returns
+to browsing without a URL change. Reused video metadata is not treated as a new
+account target until a playback event arrives. No page refresh, account-history
+API or recommendation replacement is added. This cache is document-local and
+bounded to 20 videos; it does not survive an app restart. Cross-launch account
+resume still depends on YouTube. Optional TV fallback remains the separate
+persistent store of up to 100 unfinished VODs for 90 days.
+
+Regression tests cover Back/reopen with a reused element, repeated visits,
+constant-URL navigation after manual seeking, account-target precedence,
+explicit zero timestamps, duration changes and completed/unconfirmed playback.
+Browser checks at 720p/1080p use the actual UI bundle with labelled player
+fixtures: transparent clock, visible-menu/timeline gating, hidden-ancestor
+fades, shifting, confirmed resume and preservation of feed nodes/order/focus/
+scroll. Both IPKs are compiled with their matching native identities. Actual
+LG C3 playback/clock behavior still requires device verification.
