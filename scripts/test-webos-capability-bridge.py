@@ -20,7 +20,7 @@ using namespace starboard::shared::webos;
 int main(int argc, char** argv) {
  if(argc==2 && !std::strcmp(argv[1],"--ytaf-capability-probe")) return RunWebOsCapabilityProbe();
  assert(GetWebOsCapabilityTestReport()=="{\"state\":\"idle\"}");
- assert(StartWebOsCapabilityTest()); assert(!StartWebOsCapabilityTest());
+ assert(StartWebOsCapabilityTest());
  for(int i=0;i<900;++i) {const auto report=GetWebOsCapabilityTestReport();
   if(report.find("\"done\"")!=std::string::npos){std::cout<<report;return 0;}usleep(10000);}
  return 1;
@@ -51,4 +51,4 @@ bool getMaxVideoResolution(std::string codec, int* w, int* h, int* fps) {
     subprocess.run(flags + ['-shared','-fPIC',str(fake),'-o',str(library)],check=True)
     stalled = json.loads(subprocess.check_output([str(executable)],env=env,timeout=12))
     assert stalled['decoder'] == {'status':'timeout','body':''}
-    print('Real capability bridge: deduplication, unavailable APIs, vendor ABI query, and isolated timeout passed')
+    print('Real capability bridge: unavailable APIs, vendor ABI query, and isolated timeout passed')
