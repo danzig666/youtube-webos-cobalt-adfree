@@ -32,6 +32,8 @@ These are browser checks, not C3 firmware validation. The existing on-TV photos 
 - Complete SDK-free native host suite, including real decoder, shared rate, initial/repeated seek, HDR boundary and concurrent EOS fixtures.
 - Production-bundle playback simulation: 20 simulated minutes at each resolution, three sponsor skips, repeated hidden-focus recovery and GREEN/BACK isolation.
 - Browser traversal of all six categories and their dropdowns; reader navigation, modal pointer isolation and category scroll reset.
+- GitHub CI passed for compiled source `691153d2c456e0a8e2f2627508412f033fff639a`. The published original-ID and separate-ID IPKs were downloaded again and their SHA-256 checksums verified.
+- Production npm dependency audit reported no advisories.
 - Package identity tests, IPK parser tests, compatibility-generator tests and runtime artifact provenance/checksum tests.
 - Both ARM Gold runtimes and original-ID/separate-ID IPKs are built and verified for the release. Build records record the exact compiled source SHA.
 
@@ -48,5 +50,7 @@ The artifact packaging workflow now accepts an empty version or the exact runtim
 5. **Unify playback focus decisions.** Seek shortcuts and ordinary control recovery should share one tested interpretation of hidden versus visible YouTube controls. Validate the first Left/Right after hidden focus without hijacking visible control navigation.
 6. **Run sustained C3 playback tests.** Prioritize buffering, network starvation, live/DVR, speed changes, background/resume and natural EOS in one process. Investigate native stall recovery and legacy callback lifetime using traces before altering recovery behavior. Host simulations cannot reproduce all Cobalt event-delivery or firmware behavior.
 7. **Finish localization and add an interface text-size preference.** Older controls have translations while newer sections and help remain English. Apply the same language coverage and test larger text without clipping rows or popups.
+
+8. **Review upstream ARM build hardening.** The linker warns that BoringSSL’s `chacha-armv4.o` lacks a GNU-stack note, and `readelf -l cobalt` confirms an executable GNU_STACK segment. Audit the upstream assembly requirements, then correct stack annotations/link policy and validate on hardware before enforcing a non-executable stack. This is a recorded hardening gap, not a reproduced playback failure.
 
 Legacy playback, shared-A/V rollback and explicit capability overrides remain available. This audit does not enable compressed AAC or infer HDR support from a decoder ceiling.
