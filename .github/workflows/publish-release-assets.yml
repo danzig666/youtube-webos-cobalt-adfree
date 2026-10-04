@@ -11,19 +11,19 @@ on:
       tag:
         description: Existing release tag
         required: true
-        default: v2.6.15-beta.1
+        default: v2.6.16-beta.1
         type: string
       artifacts_sha:
         description: Immutable release-artifacts commit SHA
         required: true
-        default: 4b7e99ffa9d6efd3437b3785b4d3e03d787881ae
+        default: 3edaf431fbf3149d809bde52f2fdc57297fb4074
         type: string
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-assets-${{ inputs.tag || 'v2.6.15-beta.1' }}
+  group: release-assets-${{ inputs.tag || 'v2.6.16-beta.1' }}
   cancel-in-progress: false
 
 jobs:
@@ -35,6 +35,6 @@ jobs:
       - name: Verify artifacts and attach them to the release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag || 'v2.6.15-beta.1' }}
-          ARTIFACTS_SHA: ${{ inputs.artifacts_sha || '4b7e99ffa9d6efd3437b3785b4d3e03d787881ae' }}
+          RELEASE_TAG: ${{ inputs.tag || 'v2.6.16-beta.1' }}
+          ARTIFACTS_SHA: ${{ inputs.artifacts_sha || '3edaf431fbf3149d809bde52f2fdc57297fb4074' }}
         run: python3 scripts/publish-release-assets.py --tag "$RELEASE_TAG" --artifacts-sha "$ARTIFACTS_SHA"
