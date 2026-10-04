@@ -340,3 +340,37 @@ option lists offline. Diagnostic text remains monospace.
 
 Host/browser verification uses fixtures for native controls, not a live TV;
 C3 confirmation is still required for the controls and safe-area fixes.
+
+### Seek feedback, YouTube resume and local fonts (2.6.15)
+
+The seek preview mounts synchronously before requesting YouTube's controls.
+Its marker and timestamp stay visible throughout the key hold and release
+delay. A bounded active-preview timer follows a newly revealed timeline or
+remounts the fallback rail if YouTube replaces its container. Essential inline
+styles keep the preview visible even before the injected stylesheet loads.
+The selected 500/800/1000 ms delay still starts after the last key release.
+
+Playback resume defaults to **YouTube watch history**. The reference project
+NicholasBly/youtube-webos (reviewed at 78a374a32774b92a2094e1cda8db4da0d83540d4)
+uses YouTube's own history handling and does not implement a separate account
+save API. Our ad blocker preserves YouTube's playback/watchtime requests and
+playbackTracking metadata. Account synchronization requires sign-in and enabled
+watch history and has not been validated in this environment.
+
+**YouTube + TV fallback** explicitly enables local bookmarks. It gives YouTube
+time to supply its position and stops retrying an older local target if a newer
+YouTube target arrives. Account-target verification also runs without local
+bookmarks and with explicit URL timestamps. Matching player identity handles
+metadata that arrives before SPA navigation; partial responses preserve known
+same-video VOD/live information. Requested DOM timestamps cannot be saved as
+confirmed progress while native playback disagrees. The settings page and
+diagnostics expose resume and local-save status. Existing local bookmarks stay
+available until cleared; clearing them does not delete YouTube history.
+
+Inter regular and semibold are installed as local WOFF2 files alongside the
+stylesheet. Cobalt routes data-URL fonts through its network/CSP checks, while
+installed file resources use its local file fetcher. A strict font-src browser
+test reproduces the old embedded-font rejection and verifies the local-font
+layout. The actual C3 page policy has not been captured, so this is a verified
+loading fix rather than proof of the TV's previous fallback cause. Font files
+and their OFL license are included in both IPKs and native content artifacts.
