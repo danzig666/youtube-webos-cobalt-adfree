@@ -6,12 +6,12 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 ## Download and install
 
-**[Latest release: v2.6.17-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.17-beta.1)**
+**[Latest release: v2.6.18-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.18-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
-| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.17-beta.1/com.cobalt.youtube.adfree_2.6.17_arm.ipk) | Installs alongside official YouTube |
-| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.17-beta.1/youtube.leanback.v4_2.6.17_arm.ipk) | **Replaces official YouTube** |
+| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.18-beta.1/com.cobalt.youtube.adfree_2.6.18_arm.ipk) | Installs alongside official YouTube |
+| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.18-beta.1/youtube.leanback.v4_2.6.18_arm.ipk) | **Replaces official YouTube** |
 
 Install using webOS Device Manager or `ares-cli` with Developer Mode, or Homebrew Channel on a compatible setup. Update the same package ID you already use, then fully close and reopen the app. Checksums and build records accompany each release.
 
@@ -29,7 +29,7 @@ The original ad blocking, Return YouTube Dislike, automatic account selection, s
 | Video quality profiles | Safe 1080p SDR, 4K SDR or 4K HDR; saved on the TV and applied after a full restart |
 | SponsorBlock category actions | Auto skip, Ask first, Markers only or Off for each category |
 | Permanent channel exceptions | Disable all SponsorBlock skipping for a channel; manage and remove saved exceptions |
-| Playback resume | YouTube watch history, same-session resume from confirmed progress, and optional persistent TV fallback |
+| Playback resume | YouTube watch history, resume during loading from confirmed session progress, and optional persistent TV fallback |
 | Quick seeking | Optional 10-second Left/Right steps applied 0.5, 0.8 or 1 second after release; repeated taps combine into one seek, with a target marker and timestamp |
 | Playback speed and reset | 0.5×–2× for the current video, progress monitoring, failure recovery to 1× and a dedicated reset action |
 | Corner clock | Optional plain white clock in menus and with the seekbar; shifts slightly every three minutes and hides during clean playback |
@@ -59,14 +59,14 @@ YouTube default restores native caption styling. DeArrow sends visible video IDs
 - **Settings:** fixed adblock preference saving, malformed configuration recovery, BACK closing the video, the off-centre close icon, the empty blue notification pill and QR controls appearing on every category.
 - **Option lists:** fixed cursor selection, open/close flicker, stale popups after category changes, duplicate key/mouse activation and clicks passing through to underlying switches. Remote keys now have individual selectors.
 - **Captions:** fixed styles not activating on Cobalt, sizes being overwritten by YouTube and competing font-size updates. Added smaller sizes, stable sizing across cue replacement, measured feedback and the thin outline without a black bar.
-- **Seeking and resume:** fixed stale targets across repeated seeks and early resume requests being lost before metadata or seekable ranges exist. Automatic seeks show the target before revealing controls, survive timeline redraws and wait after key release. Resume verifies late YouTube targets, preserves partial metadata and prevents local retries or unconfirmed DOM timestamps from replacing valid progress. Reopened videos now use the confirmed thumbnail snapshot; constant-URL page transitions reset stale resume state.
+- **Seeking and resume:** fixed stale targets across repeated seeks and early resume requests being lost before metadata or seekable ranges exist. Automatic seeks show the target before revealing controls, survive timeline redraws and wait after key release. Resume verifies late YouTube targets, preserves partial metadata and prevents local retries or unconfirmed DOM timestamps from replacing valid progress. Reopened videos now queue the confirmed thumbnail position during loading, removing the delay after playback starts; constant-URL page transitions reset stale resume state.
 - **Speed:** added native policy/feedback, idempotent rate changes, deferred application until playback starts, stall detection and 1× recovery/reset without retaining a broken speed across videos.
 - **UI recovery and SponsorBlock:** fixed stale settings/picker OK states and pointer/mouse click completion; added guarded hidden-player controls reveal; restored settings if YouTube removes their node, preserved native text/video layout behavior, rebound replaced media elements and added bounded retries after transient segment-fetch failures.
 - **Native media:** centralized conservative capabilities; separated generic shared audio state from Opus timing; added idempotent lifecycle handling, typed errors and bounded tracing. Expanded queue, generation, EOS, overflow, transition and seek tests. Fixed legacy configuration admission, asynchronous startup and timestamp bounds.
 - **Diagnostics and packaging:** replaced paged reports with one scrollable textbox and removed unusable clipboard copy. Fixed MSE trace attribution/error handling, dependency inspection, runtime-library inclusion and non-root package permissions.
 - **Development:** added SDK-free native host tests, a scheduled full Gold ARM build workflow, device-report templates and a compatibility-matrix generator. Scheduled builds activate on the default branch; they do not publish stable releases.
 
-The LG C3 user confirmed caption sizing/cursor selection in 2.6.5 and in-place Home refresh in 2.6.11. Version 2.6.17 adds a plain shifting clock and connects confirmed thumbnail progress to same-session resume without changing the feed. The current release passes browser checks, 299 web tests and both ARM builds. **Clock and thumbnail rendering, playback resume, fractional speeds, live/DVR, HDR, lifecycle recovery and intermittent disappearing controls still need device validation; the controls issue is not confirmed resolved.** AAC retains its existing decoder path; legacy playback and `YTAF_SHARED_AV=0` rollback remain available.
+The LG C3 user confirmed caption sizing/cursor selection in 2.6.5 and in-place Home refresh in 2.6.11. The user also confirmed cached resume in 2.6.17. Version 2.6.18 queues that position during loading to remove the delay after playback starts. The current release passes browser checks, 310 web tests and both ARM builds. **Clock and thumbnail rendering, playback resume, fractional speeds, live/DVR, HDR, lifecycle recovery and intermittent disappearing controls still need device validation; the controls issue is not confirmed resolved.** AAC retains its existing decoder path; legacy playback and `YTAF_SHARED_AV=0` rollback remain available.
 
 ## Screenshots
 
