@@ -441,3 +441,35 @@ fixtures: transparent clock, visible-menu/timeline gating, hidden-ancestor
 fades, shifting, confirmed resume and preservation of feed nodes/order/focus/
 scroll. Both IPKs are compiled with their matching native identities. Actual
 LG C3 playback/clock behavior still requires device verification.
+
+
+### Queue cached resume during loading (2.6.18)
+
+The C3 user confirmed that the 2.6.17 cache resumes correctly, but reported an
+opening frame followed by the jump. The confirmed same-session cache no longer
+waits 1.5 seconds after playback starts. When the route and player agree on the
+video ID and cached metadata confirms matching VOD duration, `loadstart` seeds
+Cobalt's retained pre-metadata `currentTime`. That event follows the resource
+reset, so an outgoing video's player is not sought accidentally.
+
+If identity or metadata is unavailable at loadstart, the confirmed cache is
+applied at loadedmetadata/loadeddata/canplay, or immediately on the first
+playback event. Existing nonzero YouTube targets and explicit timestamps take
+priority. A page reset of the queued value is repaired at metadata, before the
+usual playing-time retry. Slow pre-metadata loading does not consume the seek
+confirmation timeout. Metadata that invalidates eligibility cancels pending
+confirmation; native frames from the outgoing source cannot report success.
+
+The existing native initial-position and empty-seekable-range patches retain
+this request and the demuxer cancels pending reads for the requested target.
+They remain unchanged. These hooks remove the deliberate after-playback delay;
+separate hardware/render threads mean host/browser tests cannot guarantee that
+a C3 never exposes an initial frame. Device verification is still required for
+this timing improvement. Optional persistent TV fallback retains its 1.5-second
+YouTube grace period when no confirmed current-session cache exists.
+
+Validation: 310 web tests, actual UI fixtures at 720p/1080p verifying a cached
+request at loadstart before metadata/playing and confirmation on the first
+native frame, real Cobalt early/empty-range and repeated-seek host regressions,
+production webpack, package/container checks and both Gold ARM builds. Home
+returns retain their original cards, focus and scroll without a feed refresh.
