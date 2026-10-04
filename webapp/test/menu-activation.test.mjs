@@ -159,10 +159,10 @@ test('opening report content keeps the focused action inside the Cobalt viewport
 test('closing settings clears stale OK latches but consumes the actual trailing release', () => {
   const source=readFileSync(new URL('../src/ui.js',import.meta.url),'utf8');
   function fixture() {
-    let choiceRelease=false;
+    let choiceRelease=false;const closedEvents=[];
     const control={id:'sample',dataset:{ytafControl:'action'},parentElement:{dataset:{}},__ytafActivate(){}};
     const container={style:{display:'block'},contains:()=>false};
-    const context=vm.createContext({document:{activeElement:null,querySelector:()=>control,documentElement:{contains:()=>false}},
+    const context=vm.createContext({CustomEvent:class {constructor(type){this.type=type;}},document:{dispatchEvent:event=>closedEvents.push(event.type),activeElement:null,querySelector:()=>control,documentElement:{contains:()=>false}},
       uiContainer:container,Date:{now:()=>1000},setTimeout:fn=>fn(),
       window:{cancelAnimationFrame(){}},isContainerOpen:()=>container.style.display!=='none',
       menuHasFocus:()=>true,queueMenuItemScroll(){},getDirectionFromEvent:()=>null,isGreenKey:()=>false,
@@ -170,7 +170,7 @@ test('closing settings clears stale OK latches but consumes the actual trailing 
     vm.runInContext('let heldActivationControl=null,closedActivationReleaseUntil=0,menuScrollFrame=null,focusGuardFrame=null,directionMoveFrame=null,heldDirection=null,latestFocus=null;\n'+
       source.slice(source.indexOf('  function closeContainer() {'),source.indexOf('  const handleNumericShortcut ='))+
       source.slice(source.indexOf('  const eventHandler = (evt) => {'),source.indexOf('\n  // Red, Green, Yellow, Blue')),context);
-    return {close(){vm.runInContext('closeContainer()',context);},choice(){choiceRelease=true;},
+    return {close(){vm.runInContext('closeContainer()',context);assert.equal(closedEvents.at(-1),'ytaf-menu-closed');},choice(){choiceRelease=true;},
       key(type,repeat=false){context.input={type,key:'Enter',keyCode:13,repeat,preventDefault(){this.consumed=true;},stopPropagation(){}};
         vm.runInContext('eventHandler(input)',context);return Boolean(context.input.consumed);}};
   }

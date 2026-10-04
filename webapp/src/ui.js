@@ -5,7 +5,7 @@ import './navigation-checkbox.js';
 
 import './ui.css';
 import './corner-clock.css';
-import { installCornerClock } from './corner-clock.mjs';
+import { installCornerClock, clockDisplayMode } from './corner-clock.mjs';
 import { startPlaybackResume } from './playback-resume.mjs';
 import { createPlaybackSeek } from './playback-seek.mjs';
 import { createPlaybackControlsReveal } from './playback-controls-visibility.mjs';
@@ -50,6 +50,8 @@ export function userScriptStartUI() {
     return;
   }
   console.info('[ytaf] userScriptStartUI() called');
+  if (['always','browsing'].includes(configRead('clockDisplay')))
+    configWrite('clockDisplay', clockDisplayMode(configRead('clockDisplay')));
   installCornerClock(document, window, configRead);
   if (!window.__ytafThumbnailProgress)
     window.__ytafThumbnailProgress = startThumbnailProgress(document, window);
@@ -335,18 +337,17 @@ export function userScriptStartUI() {
   uiContainer.appendChild(createHomeRefreshButton(document, refreshHome));
   uiContainer.appendChild(choiceTools.add('__clock_display', 'Clock (upper right)', configRead('clockDisplay'), [
     {value:'off',label:'Off'},
-    {value:'browsing',label:'While browsing'},
-    {value:'always',label:'Always'}
+    {value:'controls',label:'In menus and with playback controls'}
   ], callbackConfig('clockDisplay')));
   const clockStatus=document.createElement('div');clockStatus.className='ytaf-setting-help';
   clockStatus.id='__clock_status';
   function renderClockStatus() {
     const labels={off:'Clock is off.',mounted:'Clock is on in the upper-right corner.',
-      'browsing-hidden':'Clock is hidden during playback in browsing mode.',
+      'playback-hidden':'Clock is hidden while watching without controls.',
       background:'Clock is paused while the app is in the background.',
       'waiting-for-body':'Clock will appear when the page is ready.',destroyed:'Clock is stopped.'};
     clockStatus.textContent=(labels[window.__ytafCornerClock?.status] || 'Clock is starting.') +
-      (configRead('clockDisplay')==='always' ? ' Uses the TV’s local time.' : ' Choose Always to show it during videos too.');
+      ' White text, shifted slightly every 3 minutes. Visible in menus and when the seekbar is up.';
   }
   renderClockStatus();document.addEventListener('ytaf-config-changed',renderClockStatus);
   uiContainer.appendChild(clockStatus);
@@ -656,6 +657,7 @@ export function userScriptStartUI() {
     uiContainer.style.display = 'none';
     uiContainer.style.visibility = 'hidden';
     uiContainer.style.pointerEvents = 'none';
+    document.dispatchEvent(new CustomEvent('ytaf-menu-closed'));
     heldDirection = null;
     const menuFocus = document.activeElement;
     if (menuFocus && uiContainer.contains(menuFocus) && typeof menuFocus.blur === 'function') {

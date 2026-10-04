@@ -20,6 +20,26 @@ function visible(node, doc, win) {
     rect.right > 0 && rect.top < win.innerHeight && rect.left < win.innerWidth;
 }
 
+// Inspect real timeline geometry; the controls container itself can retain a
+// full-screen rectangle while all of its controls are hidden.
+export function playbackTimelineVisible(doc, win) {
+  try {
+    const nodes = doc.querySelectorAll('[idomkey="progress-bar"], ytlr-progress-bar, .ytaf-seek-preview');
+    for (let index = 0; index < nodes.length && index < 12; index++)
+      if (visible(nodes[index], doc, win) === true) return true;
+  } catch (_) { /* Unknown layout must not put a clock over clean playback. */ }
+  return false;
+}
+
+export function playbackMenuVisible(doc, win) {
+  try {
+    const nodes = doc.querySelectorAll('.ytaf-ui-container, .ytaf-choice-popup, [role="dialog"], [role="menu"], [role="listbox"]');
+    for (let index = 0; index < nodes.length && index < 20; index++)
+      if (visible(nodes[index], doc, win) === true) return true;
+  } catch (_) { /* A missing menu is not evidence of visible controls. */ }
+  return false;
+}
+
 function playbackFocus(doc, video) {
   const focused = doc.activeElement;
   if (!focused || focused === doc.body || focused === video) return true;

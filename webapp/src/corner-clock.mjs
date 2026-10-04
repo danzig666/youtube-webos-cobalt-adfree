@@ -1,11 +1,20 @@
 // Inspired by the optional top-right clock in NicholasBly/youtube-webos:
 // https://github.com/NicholasBly/youtube-webos/blob/78a374a32774b92a2094e1cda8db4da0d83540d4/src/watch.js
 // This controller is independent of YouTube's renderer and player callbacks.
+import {playbackTimelineVisible, playbackMenuVisible} from './playback-controls-visibility.mjs';
+
+export function clockDisplayMode(value) {
+  return ['controls', 'browsing', 'always'].includes(value) ? 'controls' : 'off';
+}
+
 export function installCornerClock(doc, win, read) {
   if (win.__ytafCornerClock) return win.__ytafCornerClock;
   let node = null, timer = null, observer = null, observedBody = null;
   let disposed = false, observerFailed = false, status = 'off';
   const listeners = [];
+  const shiftStarted = new (win.Date || Date)().getTime();
+  const shiftInterval = 180000;
+  const shifts = [[0,0], [3,1], [6,3], [4,6], [1,5], [0,3], [2,2], [4,0]];
 
   function clearTimer() {
     if (timer !== null) win.clearTimeout(timer);
@@ -36,23 +45,25 @@ export function installCornerClock(doc, win, read) {
       return false;
     }
   }
-  function applyAppearance() {
+  function applyAppearance(date) {
     const width = Number(win.innerWidth) > 0 ? Number(win.innerWidth) : 1920;
     const height = Number(win.innerHeight) > 0 ? Number(win.innerHeight) : 1080;
     const size = Math.max(20, Math.round(height * .028));
+    const shift = shifts[Math.floor(Math.max(0, date.getTime() - shiftStarted) / shiftInterval) % shifts.length];
+    const scale = height / 720;
     // The menu already supplies its essential appearance inline. Do the same
     // for the clock: a removed/replaced stylesheet must not make it invisible.
     const style = {
       position: 'fixed', display: 'block', visibility: 'visible', opacity: '1',
-      top: `${Math.round(height * .05)}px`, right: `${Math.round(width * .05)}px`,
+      top: `${Math.round(height * .05 + shift[0] * scale)}px`, right: `${Math.round(width * .05 + shift[1] * scale)}px`,
       bottom: 'auto', left: 'auto', width: `${Math.round(size * 4.1)}px`,
-      height: `${Math.round(size * 1.7)}px`, boxSizing: 'border-box', margin: '0',
-      zIndex: '2147483646', pointerEvents: 'none', color: '#e4edf8',
-      backgroundColor: 'rgba(8, 18, 32, 0.62)', padding: `${Math.round(size * .2)}px 0`,
-      borderRadius: `${Math.round(size * .35)}px`, border: 'none',
+      height: `${Math.round(size * 1.3)}px`, boxSizing: 'border-box', margin: '0',
+      zIndex: '2147483647', pointerEvents: 'none', color: '#fff',
+      backgroundColor: 'transparent', padding: '0',
+      borderRadius: '0', border: 'none',
       fontFamily: '"YTAF Inter", Arial, sans-serif', fontSize: `${size}px`,
       fontWeight: '400', lineHeight: `${Math.round(size * 1.3)}px`,
-      whiteSpace: 'nowrap', textAlign: 'center', textShadow: '0 1px 2px #000'
+      whiteSpace: 'nowrap', textAlign: 'center', textShadow: 'none'
     };
     for (const key of Object.keys(style)) {
       if (node.style[key] !== style[key]) node.style[key] = style[key];
@@ -64,18 +75,22 @@ export function installCornerClock(doc, win, read) {
   function refresh() {
     if (disposed) return;
     clearTimer();
-    const mode = read('clockDisplay');
-    if (!['browsing', 'always'].includes(mode) || doc.hidden || doc.visibilityState === 'hidden') {
-      status = ['browsing', 'always'].includes(mode) ? 'background' : 'off';
+    const mode = clockDisplayMode(read('clockDisplay'));
+    if (mode === 'off' || doc.hidden || doc.visibilityState === 'hidden') {
+      status = mode !== 'off' ? 'background' : 'off';
       stopObserving();
       removeNode();
       return;
     }
     const observing = observeBody();
-    if (!doc.body || (mode === 'browsing' && doc.body.classList.contains('WEB_PAGE_TYPE_WATCH'))) {
-      status = doc.body ? 'browsing-hidden' : 'waiting-for-body';
+    const playingPage = doc.body?.classList.contains('WEB_PAGE_TYPE_WATCH') || doc.body?.classList.contains('WEB_PAGE_TYPE_SHORTS');
+    const menuOpen = playbackMenuVisible(doc, win);
+    if (!doc.body || (playingPage && !menuOpen && !playbackTimelineVisible(doc, win))) {
+      status = doc.body ? 'playback-hidden' : 'waiting-for-body';
       removeNode();
-      if (!observing) schedule(1000);
+      // Visibility fades can happen without body mutations. Inspect only the
+      // small set of timelines while on the player; never reveal controls.
+      if (playingPage || !observing) schedule(playingPage ? 500 : 1000);
       return;
     }
     if (!node) {
@@ -84,17 +99,18 @@ export function installCornerClock(doc, win, read) {
       node.className = 'ytaf-corner-clock';
       node.setAttribute('aria-label', 'Current time');
     }
-    applyAppearance();
-    if (node.parentNode !== doc.body) doc.body.appendChild(node);
-    status = 'mounted';
     const date = new (win.Date || Date)();
+    applyAppearance(date);
+    if (node.parentNode !== doc.body || (menuOpen && node !== doc.body.lastElementChild)) doc.body.appendChild(node);
+    status = 'mounted';
     const text = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
     if (node.textContent !== text) node.textContent = text;
     // Use wall time after resume or a system clock change; never count minutes.
     const untilMinute = 60000 - date.getSeconds() * 1000 - date.getMilliseconds();
+    const untilShift = shiftInterval - Math.max(0, date.getTime() - shiftStarted) % shiftInterval;
     // Some runtime profiles have incomplete MutationObserver implementations.
     // One bounded repair timer also handles a body missing during startup.
-    schedule(observing ? untilMinute : Math.min(1000, untilMinute));
+    schedule(Math.min(untilMinute, untilShift, playingPage ? 500 : observing ? Infinity : 1000));
   }
   function listen(target, type, callback) {
     target.addEventListener(type, callback);
@@ -111,12 +127,13 @@ export function installCornerClock(doc, win, read) {
   listen(win, 'resize', refresh);
   listen(doc, 'webOSRelaunch', refresh);
   listen(doc, 'ytaf-menu-opened', refresh);
+  listen(doc, 'ytaf-menu-closed', refresh);
   const controller = {
     refresh,
     get status() { return status; },
     report() {
       const report = {
-        mode: ['off', 'browsing', 'always'].includes(read('clockDisplay')) ? read('clockDisplay') : 'off',
+        mode: clockDisplayMode(read('clockDisplay')),
         status, mounted: Boolean(node?.parentNode && node.parentNode === doc.body),
         observer: observedBody ? 'active' : observerFailed || !win.MutationObserver ? 'fallback' : 'idle'
       };

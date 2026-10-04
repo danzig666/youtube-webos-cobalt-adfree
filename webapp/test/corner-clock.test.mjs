@@ -18,19 +18,27 @@ function fixture() {
     });
   }
   function element() {
-    return {parentNode: null, children: [], textContent: '', attributes: {}, style: {}, watch: false,
+    return {parentNode: null, parentElement: null, children: [], textContent: '', attributes: {}, style: {}, watch: false,
+      get lastElementChild() {return this.children[this.children.length-1];},
+      contains(node) {return this===node || this.children.some(child=>child.contains(node));},
+      getBoundingClientRect() {return {left:10,top:10,right:1210,bottom:60,width:1200,height:50};},
       classList: {contains(name) {return name === 'WEB_PAGE_TYPE_WATCH' && this.node.watch;}},
       setAttribute(key, value) {this.attributes[key] = value;},
       appendChild(child) {
         if (child.parentNode) child.parentNode.removeChild(child);
-        this.children.push(child);child.parentNode = this;
+        this.children.push(child);child.parentNode = child.parentElement = this;
       },
-      removeChild(child) {this.children = this.children.filter(value => value !== child);child.parentNode = null;}
+      removeChild(child) {this.children = this.children.filter(value => value !== child);child.parentNode = child.parentElement = null;}
     };
   }
   function body() {const node=element();node.classList.node=node;return node;}
   const doc = events({hidden: false, visibilityState: 'visible', body: body(), documentElement: element(), createElement: element});
+  let timeline=null, menu=null;
+  doc.documentElement.contains=node=>Boolean(doc.body?.contains(node));
+  doc.querySelectorAll=selector=>selector.includes('progress-bar') ? timeline ? [timeline] : [] : menu ? [menu] : [];
   const win = events({
+    innerWidth:1280,innerHeight:720,
+    getComputedStyle:node=>({display:'block',visibility:'visible',opacity:'1',...node.style}),
     Date: class extends Date {constructor() {super(time);}},
     setTimeout(callback, delay) {const id=++sequence;timers.set(id,{callback,at:time+delay});return id;},
     clearTimeout(id) {timers.delete(id);},
@@ -52,7 +60,10 @@ function fixture() {
   return {doc,win,timers,observers,body,settings,advance,read:key=>settings[key],
     set(mode) {settings.clockDisplay=mode;doc.emit('ytaf-config-changed',{detail:{key:'clockDisplay'}});},
     mutate() {for (const observer of observers) if (observer.targets.length) observer.callback();},
-    setTime(value) {time=value;}
+    setTime(value) {time=value;},
+    timeline(shown) {if(!timeline){timeline=element();doc.body.appendChild(timeline);}timeline.style.opacity=shown?'1':'0';},
+    menu(shown) {if(!menu){menu=element();doc.body.appendChild(menu);}menu.style.display=shown?'block':'none';doc.emit(shown?'ytaf-menu-opened':'ytaf-menu-closed');},
+    clock:()=>doc.body.children.find(node=>node.id==='ytaf-corner-clock')
   };
 }
 
@@ -83,15 +94,20 @@ test('reinstalling and rebuilding YouTube body retain a single clock and minute 
   assert.ok(f.observers[0].targets.every(target=>!target.options.subtree));
 });
 
-test('browsing clock follows navigation; always mode also shows during playback', () => {
+test('enabled and legacy modes hide during clean playback and follow the visible seekbar or menu', () => {
   const f=fixture();installCornerClock(f.doc,f.win,f.read);f.set('browsing');
   assert.equal(f.doc.body.children.length,1);
   f.doc.body.watch=true;f.mutate();
-  assert.equal(f.doc.body.children.length,0);assert.equal(f.timers.size,0);
-  f.set('always');assert.equal(f.doc.body.children.length,1);
-  f.set('browsing');assert.equal(f.doc.body.children.length,0);
+  assert.equal(f.clock(),undefined);assert.equal(f.timers.size,1);
+  f.set('always');assert.equal(f.clock(),undefined);
+  f.timeline(true);f.advance(500);assert.ok(f.clock());
+  f.timeline(false);f.advance(500);assert.equal(f.clock(),undefined);
+  f.menu(true);assert.ok(f.clock());
+  assert.equal(f.doc.body.lastElementChild,f.clock(),'white clock remains above settings');
+  f.menu(false);assert.equal(f.clock(),undefined);
+  f.set('controls');assert.equal(f.clock(),undefined);
   f.doc.body.watch=false;f.doc.emit('yt-navigate-finish');
-  assert.equal(f.doc.body.children.length,1);assert.equal(f.timers.size,1);
+  assert.ok(f.clock());assert.equal(f.timers.size,1);
 });
 
 test('background stops the timer; resume displays current wall time immediately', () => {
@@ -122,13 +138,15 @@ test('clock supplies visible upper-right geometry without stylesheet rules and a
   assert.equal(node.style.position,'fixed');assert.equal(node.style.display,'block');
   assert.equal(node.style.visibility,'visible');assert.equal(node.style.opacity,'1');
   assert.equal(node.style.top,'36px');assert.equal(node.style.right,'64px');
-  assert.equal(node.style.width,'82px');assert.equal(node.style.height,'34px');
-  assert.equal(node.style.zIndex,'2147483646');assert.equal(node.style.pointerEvents,'none');
+  assert.equal(node.style.width,'82px');assert.equal(node.style.height,'26px');
+  assert.equal(node.style.zIndex,'2147483647');assert.equal(node.style.pointerEvents,'none');
+  assert.equal(node.style.backgroundColor,'transparent');assert.equal(node.style.color,'#fff');
+  assert.equal(node.style.textShadow,'none');assert.equal(node.style.padding,'0');
   // Simulate external styling being overwritten, and a changed TV viewport.
   node.style.display='none';node.style.opacity='0';
   f.win.innerWidth=1920;f.win.innerHeight=1080;f.win.emit('resize');
   assert.equal(node.style.top,'54px');assert.equal(node.style.right,'96px');
-  assert.equal(node.style.width,'123px');assert.equal(node.style.height,'51px');
+  assert.equal(node.style.width,'123px');assert.equal(node.style.height,'39px');
   assert.equal(node.style.display,'block');assert.equal(node.style.opacity,'1');
   assert.equal(f.timers.size,1);
 });
@@ -142,7 +160,7 @@ test('partial or missing MutationObserver cannot block clock startup or removed-
     f.advance(1000);
     assert.equal(f.doc.body.children[0],node);assert.equal(f.timers.size,1);
     f.doc.body.watch=true;f.set('browsing');
-    assert.equal(controller.status,'browsing-hidden');assert.equal(f.doc.body.children.length,0);
+    assert.equal(controller.status,'playback-hidden');assert.equal(f.doc.body.children.length,0);
     f.doc.body.watch=false;f.advance(1000);
     assert.equal(controller.status,'mounted');assert.equal(f.doc.body.children[0],node);
     f.set('off');assert.equal(controller.status,'off');assert.equal(f.timers.size,0);
@@ -156,9 +174,19 @@ test('enabled clock retries a missing startup body and exposes bounded diagnosti
   assert.equal(controller.status,'waiting-for-body');assert.equal(f.timers.size,1);
   f.doc.body=f.body();f.advance(1000);
   assert.equal(controller.status,'mounted');
-  assert.deepEqual(controller.report(),{mode:'always',status:'mounted',mounted:true,observer:'active',time:'09:08'});
+  assert.deepEqual(controller.report(),{mode:'controls',status:'mounted',mounted:true,observer:'active',time:'09:08',bounds:'10,10,1200,50',display:'block',visibility:'visible',zIndex:'2147483647'});
   f.doc.hidden=true;f.doc.emit('visibilitychange');
   assert.equal(controller.status,'background');assert.equal(f.timers.size,0);
   f.doc.hidden=false;f.win.emit('pageshow');assert.equal(controller.status,'mounted');
   controller.destroy();assert.equal(controller.status,'destroyed');assert.equal(f.timers.size,0);
+});
+
+test('OLED clock shifts a few pixels every three minutes without drifting outside the safe area',()=>{
+  const f=fixture();f.set('controls');installCornerClock(f.doc,f.win,f.read);
+  const node=f.clock(), initial=[node.style.top,node.style.right];
+  f.advance(179999);assert.deepEqual([node.style.top,node.style.right],initial);
+  f.advance(1);assert.deepEqual([node.style.top,node.style.right],['39px','65px']);
+  f.advance(180000);assert.deepEqual([node.style.top,node.style.right],['42px','67px']);
+  f.advance(6*180000);assert.deepEqual([node.style.top,node.style.right],initial);
+  assert.equal(node.style.backgroundColor,'transparent');assert.equal(f.timers.size,1);
 });
