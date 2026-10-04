@@ -44,6 +44,8 @@ def read_members(package: Path) -> dict[str, tuple[int, bytes]]:
         name = raw_name
         mtime = parse_decimal(header[16:28], "mtime")
         size = parse_decimal(header[48:58], "size")
+        if size < 0:
+            raise ValueError("IPK member size must not be negative")
         if mtime <= 0:
             raise ValueError(f"IPK member {name} has an invalid epoch timestamp")
 

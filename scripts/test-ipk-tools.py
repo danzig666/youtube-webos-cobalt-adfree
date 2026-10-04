@@ -8,6 +8,8 @@ import io
 from pathlib import Path
 import tarfile
 import tempfile
+import subprocess
+import sys
 import unittest
 
 
@@ -84,6 +86,22 @@ def make_package(path: Path) -> None:
 
 
 class IpkOwnershipTest(unittest.TestCase):
+    def test_negative_member_size_cannot_loop_backwards(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            package = Path(folder) / 'negative.ipk'
+            for size in (-60, -61, -1):
+                header = f'{"debian-binary":<16}{1700000000:<12}{0:<6}{0:<6}{100644:<8}{size:<10}`\n'.encode()
+                package.write_bytes(normalizer.AR_MAGIC + header)
+                for name, call in (
+                    ('normalize-ipk-ownership.py', "m['read_ar_members'](p.read_bytes())"),
+                    ('verify-ipk-container.py', "m['read_members'](p)")):
+                    code = "import runpy,sys;from pathlib import Path;m=runpy.run_path(sys.argv[1]);p=Path(sys.argv[2]);" + call
+                    with self.subTest(size=size, parser=name):
+                        result = subprocess.run([sys.executable, '-c', code, str(SCRIPTS_DIR / name), str(package)],
+                                                capture_output=True, text=True, timeout=2)
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertIn('size must not be negative', result.stderr)
+
     def test_nonroot_app_can_read_files_and_execute_cobalt(self) -> None:
         for mode, name, expected in ((0o600, "appinfo.json", "not readable"),
                                      (0o644, "cobalt", "not executable"),

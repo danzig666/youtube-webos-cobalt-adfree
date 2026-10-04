@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       version:
-        description: Package version (empty = version from appinfo.json)
+        description: Package version (empty or exactly the compiled source version)
         required: false
         default: ""
         type: string
@@ -29,6 +29,9 @@ jobs:
       SDK_TAG: webos-a38c582
 
     steps:
+      - name: Check out artifact verification tools
+        uses: actions/checkout@v5
+
       - name: Validate Cobalt run ID
         shell: bash
         run: |
@@ -47,6 +50,7 @@ jobs:
           set -euo pipefail
           artifact_dir="$RUNNER_TEMP/cobalt-artifact"
           mkdir -p "$artifact_dir"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$COBALT_RUN_ID" > "$artifact_dir/run.json"
           artifacts_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$COBALT_RUN_ID/artifacts")"
           mapfile -t artifact_names < <(
             jq -r '.artifacts[] | select(.expired == false) | select((.name | startswith("cobalt-")) or (.name | startswith("starterless-cobalt-"))) | select((.name | contains("build-log")) | not) | .name' <<<"$artifacts_json"
@@ -64,29 +68,24 @@ jobs:
           test -s "$archive"
           test -s "$archive.sha256"
           test -s "$metadata"
-          expected_sha="$(awk 'NR == 1 { print $1 }' "$archive.sha256")"
-          actual_sha="$(sha256sum "$archive" | awk '{ print $1 }')"
-          test "$actual_sha" = "$expected_sha"
-          source_ref="$(sed -n 's/^source_ref=//p' "$metadata")"
-          source_sha="$(sed -n 's/^source_sha=//p' "$metadata")"
-          cobalt_ref="$(sed -n 's/^cobalt_ref=//p' "$metadata")"
-          build_type="$(sed -n 's/^build_type=//p' "$metadata")"
-          test -n "$source_ref"
-          test -n "$source_sha"
-          test -n "$cobalt_ref"
-          test -n "$build_type"
+          python3 scripts/verify-cobalt-artifact.py --metadata "$metadata" \
+            --run "$artifact_dir/run.json" --repository "$GITHUB_REPOSITORY" \
+            --archive "$archive" --output "$GITHUB_OUTPUT"
           echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
           echo "archive=$archive" >> "$GITHUB_OUTPUT"
-          echo "source_ref=$source_ref" >> "$GITHUB_OUTPUT"
-          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
-          echo "cobalt_ref=$cobalt_ref" >> "$GITHUB_OUTPUT"
-          echo "build_type=$build_type" >> "$GITHUB_OUTPUT"
 
-      - name: Check out main
+      - name: Check out the exact runtime source
         uses: actions/checkout@v5
         with:
-          ref: main
+          ref: ${{ steps.cobalt.outputs.source_sha }}
           fetch-depth: 1
+
+      - name: Set up Node for packaging
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Resolve package version
         id: version
@@ -109,10 +108,10 @@ jobs:
             exit 4
           fi
 
-          if [[ -n "$REQUESTED_VERSION" ]]; then
-            jq --arg version "$version" '.version = $version' \
-              starterless-cobalt/appinfo.json > starterless-cobalt/appinfo.json.tmp
-            mv starterless-cobalt/appinfo.json.tmp starterless-cobalt/appinfo.json
+          compiled_version="$(jq -r '.version' starterless-cobalt/appinfo.json)"
+          if [[ "$version" != "$compiled_version" ]]; then
+            echo "Package version must match the compiled runtime version ($compiled_version). Rebuild Cobalt for a new version." >&2
+            exit 4
           fi
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -136,23 +135,13 @@ jobs:
           test -f assets/icon.png
           test -f assets/largeIcon.png
           test "$(jq -r '.version' starterless-cobalt/appinfo.json)" = "$PACKAGE_VERSION"
+          test "$(git rev-parse HEAD)" = "$RUNTIME_SOURCE_SHA"
           echo "Packaging SHA: $(git rev-parse HEAD)"
           echo "Package version: $PACKAGE_VERSION"
           echo "Runtime source ref: $RUNTIME_SOURCE_REF"
           echo "Runtime source SHA: $RUNTIME_SOURCE_SHA"
           echo "Cobalt ref: $COBALT_REF"
           echo "Build type: $BUILD_TYPE"
-
-      - name: Build current webapp
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd webapp
-          npm ci --no-audit --no-fund
-          npm run build -- --env production
-          test -s output/adblockMain.js
-          test -s output/adblockMain.css
-          test -s output/adblockPreload.js
 
       - name: Extract Cobalt runtime
         id: runtime
@@ -207,7 +196,7 @@ jobs:
         env:
           COBALT_BUILD_DIR: ${{ steps.runtime.outputs.runtime_dir }}
           COBALT_RUNTIME_DIR: ${{ github.workspace }}/starterless-cobalt/lib
-          WEBAPP_OUTPUT_DIR: ${{ github.workspace }}/webapp/output
+          WEBAPP_OUTPUT_DIR: ${{ steps.runtime.outputs.runtime_dir }}/content/web/adblock
           COBALT_PACKAGE_OUTPUT_DIR: ${{ github.workspace }}/output
         shell: bash
         run: |
@@ -227,6 +216,7 @@ jobs:
           RUNTIME_SOURCE_REF: ${{ steps.cobalt.outputs.source_ref }}
           RUNTIME_SOURCE_SHA: ${{ steps.cobalt.outputs.source_sha }}
           COBALT_REF: ${{ steps.cobalt.outputs.cobalt_ref }}
+          UPSTREAM_COBALT_SHA: ${{ steps.cobalt.outputs.cobalt_source_sha }}
           BUILD_TYPE: ${{ steps.cobalt.outputs.build_type }}
           PACKAGE_VERSION: ${{ steps.version.outputs.version }}
           VERSION_SOURCE: ${{ steps.version.outputs.source }}
@@ -241,8 +231,9 @@ jobs:
           cobalt_source_ref=$RUNTIME_SOURCE_REF
           cobalt_source_sha=$RUNTIME_SOURCE_SHA
           cobalt_ref=$COBALT_REF
+          upstream_cobalt_sha=$UPSTREAM_COBALT_SHA
           cobalt_build_type=$BUILD_TYPE
-          package_ref=main
+          package_ref=$RUNTIME_SOURCE_REF
           package_sha=$(git rev-parse HEAD)
           package_version=$PACKAGE_VERSION
           package_version_source=$VERSION_SOURCE

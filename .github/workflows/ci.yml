@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - playback/host-tested-v2
   pull_request:
   workflow_dispatch:
 
@@ -76,6 +77,7 @@ jobs:
           python3 scripts/test-ipk-tools.py
           python3 scripts/test-starterless-package.py
           python3 scripts/test-device-compatibility.py
+          python3 scripts/test-cobalt-artifact.py
 
       - name: Build injected web app
         working-directory: webapp

@@ -62,6 +62,8 @@ def read_ar_members(contents: bytes) -> list[tuple[str, bytes, bytes]]:
         if raw_name.endswith("/"):
             raise ValueError(f"GNU ar member name is not webOS-compatible: {raw_name}")
         size = parse_decimal(header[48:58], f"{raw_name} size")
+        if size < 0:
+            raise ValueError("IPK member size must not be negative")
         data_start = offset + AR_HEADER_SIZE
         data_end = data_start + size
         if data_end > len(contents):
