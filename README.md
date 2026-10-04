@@ -6,12 +6,12 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 ## Download and install
 
-**[Latest release: v2.6.21-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.21-beta.1)**
+**[Latest release: v2.6.22-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.22-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
-| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.21-beta.1/com.cobalt.youtube.adfree_2.6.21_arm.ipk) | Installs alongside official YouTube |
-| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.21-beta.1/youtube.leanback.v4_2.6.21_arm.ipk) | **Replaces official YouTube** |
+| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.22-beta.1/com.cobalt.youtube.adfree_2.6.22_arm.ipk) | Installs alongside official YouTube |
+| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.22-beta.1/youtube.leanback.v4_2.6.22_arm.ipk) | **Replaces official YouTube** |
 
 Install using webOS Device Manager or `ares-cli` with Developer Mode, or Homebrew Channel on a compatible setup. Update the same package ID you already use, then fully close and reopen the app. Checksums and build records accompany each release.
 
@@ -39,7 +39,7 @@ The original ad blocking, Return YouTube Dislike, automatic account selection, s
 | Configurable remote keys | Separate action selectors for keys 0–9, optional shortcuts and built-in remote help |
 | Caption preferences | Startup on/off behavior, preferred language, six text-size choices including YouTube default, and a thin black outline around custom-size letters |
 | Optional DeArrow | Community titles or titles and thumbnails; off by default, with a temporary Show originals action |
-| Scrollable diagnostics | App/runtime versions, capability policy, codecs, rates, queues, resume/SponsorBlock state, Home-refresh reasons and bounded playback events |
+| Scrollable diagnostics | App/runtime versions, capability policy, codecs, rates, queues, resume/SponsorBlock state, script/update delivery, Home-refresh reasons and bounded playback events |
 | TV capability test | Read-only LG panel/UHD/OLED/HDR flags and optional Starfish decoder limits; configured Cobalt support is shown separately |
 | Durable preferences | Private per-install saves, migration from older browser settings and visible save-failure feedback |
 | Two installable variants | Original-ID and separate-ID IPKs with matching runtime identities, build records and SHA-256 checksums |
@@ -64,12 +64,12 @@ YouTube default restores native caption styling. DeArrow sends visible video IDs
 - **Captions:** fixed styles not activating on Cobalt, sizes being overwritten by YouTube and competing font-size updates. Added smaller sizes, stable sizing across cue replacement, measured feedback and the thin outline without a black bar.
 - **Seeking and resume:** fixed stale targets across repeated seeks and early resume requests being lost before metadata or seekable ranges exist. Automatic seeks show the target before revealing controls, survive timeline redraws and wait after key release. Resume verifies late YouTube targets, preserves partial metadata and prevents local retries or unconfirmed DOM timestamps from replacing valid progress. Reopened videos now queue the confirmed thumbnail position during loading, removing the delay after playback starts; constant-URL page transitions reset stale resume state.
 - **Speed:** added native policy/feedback, idempotent rate changes, deferred application until playback starts, stall detection and 1× recovery/reset without retaining a broken speed across videos.
-- **UI recovery and SponsorBlock:** fixed stale settings/picker OK states and pointer/mouse click completion; added guarded hidden-player controls reveal; restored settings if YouTube removes their node, preserved native text/video layout behavior, rebound replaced media elements and added bounded retries after transient segment-fetch failures.
+- **UI recovery and SponsorBlock:** fixed stale settings/picker OK states and pointer/mouse click completion; added guarded hidden-player controls reveal, including retained hidden-button focus and ordinary-arrow recovery; restored settings if YouTube removes their node, preserved native text/video layout behavior, rebound replaced media elements added bounded retries after transient segment-fetch failures, and applied due automatic skips without repeatedly replacing their timer.
 - **Native media:** centralized conservative capabilities; separated generic shared audio state from Opus timing; added idempotent lifecycle handling, typed errors and bounded tracing. Expanded queue, generation, EOS, overflow, transition and seek tests. Fixed legacy configuration admission, asynchronous startup and timestamp bounds.
 - **Diagnostics and packaging:** replaced paged reports with one scrollable textbox and removed unusable clipboard copy. Fixed MSE trace attribution/error handling, dependency inspection, runtime-library inclusion and non-root package permissions.
 - **Development:** added SDK-free native host tests, a scheduled full Gold ARM build workflow, device-report templates and a compatibility-matrix generator. Scheduled builds activate on the default branch; they do not publish stable releases.
 
-The LG C3 user confirmed caption sizing/cursor selection in 2.6.5 and in-place Home refresh in 2.6.11. The user also confirmed cached resume in 2.6.17. Version 2.6.18 queues that position during loading to remove the delay after playback starts. Version 2.6.19 adds the read-only TV capability test; C3 returned identical Starfish ceilings but unreadable LG command replies. Version 2.6.20 exposed a C3 -1031 privilege rejection; 2.6.21 removes app-ID forwarding by using ordinary LS2 calls and raises the clock. The report names failure stages/codes and labels shared decoder ceilings. The current release passes browser checks, 322 web tests, native host regressions and both ARM builds. The capability queries still need TV validation. **Clock and thumbnail rendering, playback resume, fractional speeds, live/DVR, HDR, lifecycle recovery and intermittent disappearing controls still need device validation; the controls issue is not confirmed resolved.** AAC retains its existing decoder path; legacy playback and `YTAF_SHARED_AV=0` rollback remain available.
+C3 feedback confirms caption sizing/cursor selection (2.6.5), in-place Home refresh (2.6.11), cached resume (2.6.17) and LG model/panel/HDR queries (2.6.21). Version 2.6.22 corrects three reproduced control-reveal/skip-scheduling defects and adds bounded script-delivery diagnostics. It passes 332 web tests, production-bundle checks with 20 simulated playback minutes at 720p/1080p, package checks and both ARM builds; native code is unchanged from the previously host-tested release. **The intermittent C3 controls/SponsorBlock failure is not yet TV-confirmed resolved.** See [recovery details](docs/c3-playback-recovery.md). Clock and thumbnail rendering, account resume, fractional speeds, live/DVR, HDR and lifecycle recovery still need device validation. AAC keeps its existing decoder path; legacy playback and `YTAF_SHARED_AV=0` rollback remain available.
 
 ## Screenshots
 
