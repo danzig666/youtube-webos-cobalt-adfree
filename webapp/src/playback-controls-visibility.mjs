@@ -35,14 +35,34 @@ function playbackFocus(doc, video) {
 
 export function createPlaybackControlsReveal(doc, win) {
   const synthetic = new WeakSet();
-  let session = null, attempts = 0, lastAttempt = -Infinity;
-  function reset() { session = null; attempts = 0; lastAttempt = -Infinity; }
+  let session = null, attempts = 0, lastAttempt = -Infinity, windowStarted = -Infinity, successCheck = null;
+  function clearSuccessCheck() {
+    if (successCheck !== null) win.clearTimeout(successCheck);
+    successCheck = null;
+  }
+  function reset() {
+    clearSuccessCheck();
+    session = null; attempts = 0; lastAttempt = -Infinity; windowStarted = -Infinity;
+  }
+  function observeSuccess(request) {
+    try {
+      if (session !== request || request.video !== doc.querySelector('video') ||
+          request.id !== getCurrentVideoId(win, doc, false) ||
+          request.controls !== doc.querySelector(controlsSelector)) return false;
+      if (visible(request.controls, doc, win) === true ||
+          Array.from(request.controls.querySelectorAll('[idomkey="progress-bar"], [role="slider"], [role="button"], button'))
+            .some(child => visible(child, doc, win) === true)) {
+        reset(); return true;
+      }
+    } catch (_) { /* A failed layout read must not trigger another Enter. */ }
+    return false;
+  }
   function show() {
     try {
       if (!doc.body?.classList.contains('WEB_PAGE_TYPE_WATCH') ||
           doc.body.classList.contains('WEB_PAGE_TYPE_SHORTS')) return null;
       const video = doc.querySelector('video'), id = getCurrentVideoId(win, doc, false);
-      if (!video || video.readyState < 1 || !id || !playbackFocus(doc, video)) return null;
+      if (!video || video.readyState < 1 || !id) return null;
       for (const overlay of doc.querySelectorAll('.ytaf-ui-container, [role="dialog"], [role="menu"], [role="listbox"]')) {
         // An uninspectable overlay might be interactive; fail closed.
         if (visible(overlay, doc, win) !== false) return null;
@@ -55,12 +75,22 @@ export function createPlaybackControlsReveal(doc, win) {
       // Some containers have zero geometry while their children overflow.
       // Do not treat that as hidden if a real button/timeline is still visible.
       for (const child of controls.querySelectorAll('[idomkey="progress-bar"], [role="slider"], [role="button"], button')) {
-        if (visible(child, doc, win) !== false) return null;
+        const childShown = visible(child, doc, win);
+        if (childShown !== false) {
+          if (childShown) reset();
+          return null;
+        }
       }
-      if (!session || session.video !== video || session.id !== id || session.controls !== controls) {
-        session = {video, id, controls}; attempts = 0; lastAttempt = -Infinity;
-      }
+      // Revealing controls often focuses one of their buttons. Observe that
+      // success above before protecting interactive focus from another Enter.
+      if (!playbackFocus(doc, video)) return null;
       const now = win.Date?.now?.() ?? Date.now();
+      if (!session || session.video !== video || session.id !== id || session.controls !== controls) {
+        reset(); session = {video, id, controls}; windowStarted = now;
+      }
+      // A slow renderer can show and hide between observations. Bound ignored
+      // attempts within ten seconds, without permanently disabling the feature.
+      if (now - windowStarted >= 10000) { attempts = 0; windowStarted = now; }
       if (attempts >= 2 || now - lastAttempt < 1500) return null;
       attempts++; lastAttempt = now;
 
@@ -79,8 +109,18 @@ export function createPlaybackControlsReveal(doc, win) {
         return event;
       });
       let dispatched = false;
+      const request = session;
       try { doc.body.dispatchEvent(events[0]); dispatched = true; }
       finally { doc.body.dispatchEvent(events[1]); }
+      if (session === request && !observeSuccess(request)) {
+        clearSuccessCheck();
+        // One bounded observation handles asynchronous YouTube rendering; it
+        // never dispatches a key or schedules any further work.
+        successCheck = win.setTimeout(() => {
+          successCheck = null;
+          observeSuccess(request);
+        }, 600);
+      }
       return dispatched ? controls : null;
     } catch (_) { return null; }
   }

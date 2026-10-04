@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {createPlaybackControlsReveal} from '../src/playback-controls-visibility.mjs';
 
 function fixture() {
-  let time = 1000;
-  const events = [], listeners = new Map();
+  let time = 1000, sequence = 0;
+  const events = [], listeners = new Map(), timers = new Map();
   function node(tag = 'DIV', parent = null) {
     return {tagName: tag, parentElement: parent, style: {display: 'block', visibility: 'visible', opacity: '1'},
       rect: {width: 800, height: 100, top: 600, bottom: 700, left: 80, right: 880},
@@ -26,9 +26,19 @@ function fixture() {
     location: {href: 'https://www.youtube.com/tv?v=aaaaaaaaaaa'},
     getComputedStyle: target => target.style,
     KeyboardEvent: class {constructor(type, options) {Object.assign(this, {type}, options);}},
+    setTimeout(fn, delay) {const id = ++sequence; timers.set(id, {fn, at: time + delay}); return id;},
+    clearTimeout(id) {timers.delete(id);},
     addEventListener(type, fn) {listeners.set(type, fn);}};
   const show = createPlaybackControlsReveal(doc, win);
-  return {doc, win, show, controls, events, node, advance(ms) {time += ms;}, emit(type) {listeners.get(type)?.();}};
+  return {doc, win, show, controls, events, node, timers, advance(ms) {
+    const end = time + ms;
+    for (;;) {
+      const next = [...timers].filter(([, timer]) => timer.at <= end).sort((a,b) => a[1].at - b[1].at)[0];
+      if (!next) break;
+      time = next[1].at; timers.delete(next[0]); next[1].fn();
+    }
+    time = end;
+  }, emit(type) {listeners.get(type)?.();}};
 }
 
 test('hidden native controls get one identifiable Enter pair; visible controls never get another activation', () => {
@@ -52,6 +62,47 @@ test('hidden controls attempts are bounded and reset on navigation, new media or
   f.controls.style.opacity = '1'; f.show();
   f.controls.style.opacity = '0'; f.show(); assert.equal(f.events.length, 12);
   f.emit('loadedmetadata'); f.show(); assert.equal(f.events.length, 14);
+});
+
+test('successful asynchronous reveal cycles remain usable when YouTube focuses a native button', () => {
+  const f = fixture(), button = f.node('BUTTON', f.controls);
+  f.doc.body.dispatchEvent = event => {
+    f.events.push(event);
+    if (event.type === 'keyup') f.win.setTimeout(() => {
+      f.controls.style.opacity = '1'; f.doc.activeElement = button;
+    }, 100);
+    return true;
+  };
+  for (let cycle = 0; cycle < 4; cycle++) {
+    f.doc.activeElement = f.doc.body; f.controls.style.opacity = '0';
+    assert.equal(f.show(), f.controls, `cycle ${cycle}`);
+    f.advance(600);
+    assert.equal(f.doc.activeElement, button);
+    assert.equal(f.events.length, (cycle + 1) * 2);
+    assert.equal(f.timers.size, 0, 'success observation never starts polling');
+  }
+  assert.equal(f.show(), null, 'visible focused button never receives another Enter');
+  assert.equal(f.events.length, 8);
+});
+
+test('ignored reveal requests stay bounded within ten seconds and recover after a quiet interval', () => {
+  const f = fixture();
+  f.show(); f.advance(1500); f.show(); f.advance(600);
+  assert.equal(f.timers.size, 0);
+  f.advance(7899); f.show(); assert.equal(f.events.length, 4);
+  f.advance(1); f.show(); assert.equal(f.events.length, 6);
+  f.show(); assert.equal(f.events.length, 6);
+  f.advance(1500); f.show(); assert.equal(f.events.length, 8);
+});
+
+test('navigation cancels pending visibility observation and visible controls reset attempts before button focus guards', () => {
+  const f = fixture(); f.show(); assert.equal(f.timers.size, 1);
+  f.emit('hashchange'); assert.equal(f.timers.size, 0);
+  f.show(); f.advance(1500); f.show(); f.advance(600);
+  f.controls.style.opacity = '1'; f.doc.activeElement = f.node('BUTTON', f.controls);
+  assert.equal(f.show(), null);
+  f.controls.style.opacity = '0'; f.doc.activeElement = f.doc.body;
+  assert.equal(f.show(), f.controls, 'visible focused controls must reset the exhausted attempt budget');
 });
 
 test('actual ancestor visibility and geometry determine hidden controls, without relying on YouTube class hashes', () => {

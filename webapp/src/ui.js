@@ -442,6 +442,9 @@ export function userScriptStartUI() {
   uiContainer.appendChild(createPlaybackDiagnostics(document, window));
 
   const sections = createSettingsSections(document, Array.from(uiContainer.children).slice(1), () => {
+    const pendingChoiceRelease = choiceTools.resetKeys?.();
+    if (heldActivationControl || pendingChoiceRelease) closedActivationReleaseUntil = Date.now() + 1000;
+    heldActivationControl = null;
     choiceTools.close(false);
     if (menuScrollFrame !== null) window.cancelAnimationFrame(menuScrollFrame);
     menuScrollFrame = null;
