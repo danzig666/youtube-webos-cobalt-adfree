@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
-export function menuFixture() {
+export function menuFixture({now = () => Date.now()} = {}) {
   let open = true;
   const nodes = new Map(), listeners = new Map();
   const doc = {
@@ -27,7 +27,7 @@ export function menuFixture() {
   };
   doc.body = doc.createElement('div');
   doc.body.classList.contains = name => name === 'WEB_PAGE_TYPE_WATCH';
-  const context = vm.createContext({ document: doc, Date,
+  const context = vm.createContext({ document: doc, Date: {now},
     isContainerOpen: () => open, menuHasFocus: () => true, queueMenuItemScroll() {},
     getDirectionFromEvent: () => null, isGreenKey: () => false, getPlaybackRateShortcut: () => 0 });
   const choice = fs.readFileSync(new URL('../../src/choiceTools.js', import.meta.url), 'utf8');

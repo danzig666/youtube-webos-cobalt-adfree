@@ -200,3 +200,36 @@ test('mouse-only hover focuses the option that OK will select',()=>{
   const option=f.doc.body.children[0].children[2].children[0].children[2];
   option.listeners.mousemove();f.key('Enter',13);assert.deepEqual(f.writes,['c']);
 });
+
+test('a lost picker activation release does not swallow the next deliberate OK press', () => {
+  let time = 1000;
+  const f = menuFixture({now: () => time});
+  f.choices.add('test', 'Choice', 'a', [{value: 'a', label: 'First'}]);
+  f.choices.open('test');
+  const event = {type: 'keydown', keyCode: 13, preventDefault() {}, stopPropagation() {}};
+  assert.equal(f.choices.handleKey(event), true);
+  assert.equal(f.choices.isOpen(), false);
+  for (let i = 0; i < 20; i++) {
+    time += 100;
+    assert.equal(f.choices.handleKey(event), true);
+  }
+  time += 500;
+  assert.equal(f.choices.handleKey(event), false);
+});
+
+test('a lost opening keyup recovers while explicit repeats and the trailing release remain guarded', () => {
+  let time = 1000;
+  const f = menuFixture({now: () => time});
+  f.choices.add('test', 'Choice', 'a', [{value: 'a', label: 'First'}]);
+  f.choices.open('test', 13);
+  const event = {type: 'keydown', keyCode: 13, preventDefault() {}, stopPropagation() {}};
+  time += 2000;
+  f.choices.handleKey({...event, repeat: true});
+  assert.equal(f.choices.isOpen(), true);
+  time += 500;
+  f.choices.handleKey(event);
+  assert.equal(f.choices.isOpen(), false);
+  time += 2000;
+  assert.equal(f.choices.handleKey({...event, type: 'keyup'}), true);
+  assert.equal(f.choices.handleKey(event), false);
+});

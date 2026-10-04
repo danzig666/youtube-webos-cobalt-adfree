@@ -3,6 +3,7 @@ import './choiceTools.css';
 let choiceTabIndex = 100;
 const choices = {};
 let popup = null, held = null, released = null;
+let heldAt = 0, releasedAt = 0;
 let releaseGuardUntil = 0, pointerReleasePending = false, releaseGuardRoot = null;
 
 function guardRelease(event) {
@@ -126,7 +127,7 @@ function open(name, activationCode = null) {
   root.style.top = `${panel.top + Math.max(20, Math.min(anchor.bottom - panel.top + 6, panel.height - height - 20))}px`;
   viewport.style.height = `${Math.max(100, Math.min(entry.options.length * 50, height - 90))}px`;
   popup = {name, root, viewport, content, nodes, index, offset: 0, control};
-  held = activationCode;
+  held = activationCode; heldAt = Date.now();
   control.setAttribute('aria-expanded', 'true'); focusOption();
 }
 function handleWheel(event) {
@@ -142,8 +143,15 @@ function handleWheel(event) {
 }
 function handleKey(event) {
   const code = event.keyCode || event.which || ({Enter:13,Space:32,' ':32,ArrowUp:38,ArrowDown:40,Escape:27,Backspace:8,BrowserBack:461}[event.key]);
+  const now = Date.now();
   if (!popup) {
     if (released !== null && code === released) {
+      // Recover when a remote omits keyup. Continuing repeats extend the
+      // gesture; a fresh press after a quiet interval belongs to the menu.
+      if (event.type === 'keydown' && !event.repeat && now - releasedAt >= 500) {
+        released = null; return false;
+      }
+      releasedAt = now;
       consume(event); if (event.type === 'keyup') released = null; return true;
     }
     return false;
@@ -153,16 +161,17 @@ function handleKey(event) {
     popup.control.parentElement.dataset.ytafIgnoreClickUntil = String(Date.now() + 1000);
     held = null; return true;
   }
-  if (event.type !== 'keydown' || held === code) return true;
-  held = code;
+  if (event.type !== 'keydown') return true;
+  if (held === code && (event.repeat || now - heldAt < 500)) {heldAt = now; return true;}
+  held = code; heldAt = now;
   if (code === 38 || code === 40) {
     popup.index = Math.max(0, Math.min(popup.nodes.length - 1, popup.index + (code === 40 ? 1 : -1)));
     focusOption();
   } else if (code === 13 || code === 32) {
     const {name, index} = popup;
-    released = code; guardRelease(event); select(name, choices[name].options[index].value);
+    released = code; releasedAt = now; guardRelease(event); select(name, choices[name].options[index].value);
   } else if ([27,461,8,404,172].includes(code)) {
-    released = code; close();
+    released = code; releasedAt = now; close();
   }
   return true;
 }

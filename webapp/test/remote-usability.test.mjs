@@ -52,12 +52,13 @@ test('opening settings restores the previous menu item and a closed menu cannot 
   const context=vm.createContext({lastTabIndex:103, currentFocusIndex:-1,
     sections:{current:()=> 'general',currentButton:()=>items[0]},
     ensureSettingsMounted(){},renderResumeStatus(){},renderClockStatus(){},
-    uiContainer:{style:{},querySelectorAll:()=>items},menuContent:{style:{}},
+    uiContainer:{style:{},querySelectorAll:()=>items},menuContent:{style:{}},menuViewport:{scrollTop:75},
     divTitle:{},document:{activeElement:null,dispatchEvent(){}},CustomEvent:class{},
     queueMenuItemScroll(){},console:{info(){}},suspendSpatialNavigation(){},applyVisibleContainerStyles(){},
     isContainerOpen:()=>opened,setTimeout:fn=>frames.push(fn)});
   const from=source.indexOf('  function focusMenuItem('),to=source.indexOf('  function menuHasFocus()',from);
   vm.runInContext('let latestFocus=null,menuOffset=0;\n'+source.slice(from,to),context);
   vm.runInContext('openContainer()',context); frames.shift()(); assert.equal(focused,103);
+  assert.equal(context.menuViewport.scrollTop,0);
   focused=null; vm.runInContext('openContainer()',context); opened=false; frames.shift()(); assert.equal(focused,null);
 });

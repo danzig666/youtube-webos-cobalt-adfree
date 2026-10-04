@@ -114,6 +114,7 @@ export function userScriptStartUI() {
     // Cobalt resets an overflow container's scrollTop after programmatic focus.
     // Keep the viewport fixed and move its inner panel instead.
     uiContainer.scrollTop = 0;
+    menuViewport.scrollTop = 0;
 
     const visibleMargin = 8;
     const row = item.dataset?.ytafControl === 'reader' ? item : item.parentElement && uiContainer.contains(item.parentElement)
@@ -150,8 +151,13 @@ export function userScriptStartUI() {
     const active = document.activeElement;
     if (active?.dataset.ytafControl === 'reader' && (dir === 'up' || dir === 'down')) {
       const size = menuViewport.getBoundingClientRect().height;
-      menuOffset = Math.max(0, Math.min(Math.max(0, menuContent.scrollHeight - size), menuOffset + (dir === 'down' ? 1 : -1) * size * .7));
-      menuContent.style.top = `${-menuOffset}px`; menuViewport.scrollTop = 0; return;
+      const nextOffset = Math.max(0, Math.min(Math.max(0, menuContent.scrollHeight - size), menuOffset + (dir === 'down' ? 1 : -1) * size * .7));
+      if (nextOffset !== menuOffset || dir === 'down') {
+        menuOffset = nextOffset;
+        menuContent.style.top = `${-menuOffset}px`; menuViewport.scrollTop = 0; return;
+      }
+      // At the start of the report, Up returns to the preceding action.
+      // Otherwise keyboard users cannot reach Run capability test again.
     }
     if (sections.nav.contains(active)) {
       const tabs = Array.from(sections.nav.querySelectorAll('[tabindex]'));
@@ -291,7 +297,7 @@ export function userScriptStartUI() {
   divTitle.appendChild(closeButton);
   const menuHint = document.createElement('div');
   menuHint.className = 'ytaf-menu-hint';
-  menuHint.textContent = '↑ ↓ Navigate   ·   → Open category   ·   ← Categories   ·   OK Select   ·   BACK Close   ·   Wheel Scroll';
+  menuHint.textContent = '↑ ↓ Navigate   ·   → Options   ·   ← Categories   ·   OK Select   ·   BACK Close   ·   Wheel Scroll';
   divTitle.appendChild(menuHint);
   const saveStatus = document.createElement('div');
   saveStatus.className = 'ytaf-save-status';
@@ -474,7 +480,7 @@ export function userScriptStartUI() {
     choiceTools.close(false);
     if (menuScrollFrame !== null) window.cancelAnimationFrame(menuScrollFrame);
     menuScrollFrame = null;
-    menuOffset = 0; menuContent.style.top = '0';
+    menuOffset = 0; menuContent.style.top = '0'; menuViewport.scrollTop = 0;
     currentFocusIndex = -1;
     // A category can be changed by pointer while a hidden setting had focus.
     sections.currentButton().focus();
@@ -598,6 +604,7 @@ export function userScriptStartUI() {
     if (sections.current() === 'diagnostics') document.dispatchEvent(new CustomEvent('ytaf-diagnostics-opened'));
     menuOffset = 0;
     menuContent.style.top = '0';
+    menuViewport.scrollTop = 0;
     uiContainer.scrollTop = 0;
 
     setTimeout(() => {
@@ -891,6 +898,15 @@ export function userScriptStartUI() {
   // YouTube's visible player controls can reclaim focus after handling a key.
   // While our menu is open, keep focus modal and restore the last menu item.
   document.addEventListener('focus', guardMenuFocus, true);
+
+  function guardMenuPointer(event) {
+    if (!isContainerOpen() || uiContainer.contains(event.target) || choiceTools.contains(event.target)) return;
+    // The dimmed area belongs to the settings modal too. A cursor click there
+    // must not select a YouTube thumbnail or toggle playback behind the menu.
+    event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation?.();
+  }
+  for (const type of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click'])
+    document.addEventListener(type, guardMenuPointer, true);
 
   // Own the wheel only while our modal menu is open. Otherwise Cobalt's
   // native wheel event reaches YouTube unchanged.
