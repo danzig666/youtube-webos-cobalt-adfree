@@ -6,12 +6,12 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 ## Download and install
 
-**[Latest release: v2.6.19-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.19-beta.1)**
+**[Latest release: v2.6.20-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.20-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
-| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.19-beta.1/com.cobalt.youtube.adfree_2.6.19_arm.ipk) | Installs alongside official YouTube |
-| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.19-beta.1/youtube.leanback.v4_2.6.19_arm.ipk) | **Replaces official YouTube** |
+| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.20-beta.1/com.cobalt.youtube.adfree_2.6.20_arm.ipk) | Installs alongside official YouTube |
+| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.20-beta.1/youtube.leanback.v4_2.6.20_arm.ipk) | **Replaces official YouTube** |
 
 Install using webOS Device Manager or `ares-cli` with Developer Mode, or Homebrew Channel on a compatible setup. Update the same package ID you already use, then fully close and reopen the app. Checksums and build records accompany each release.
 
@@ -46,7 +46,7 @@ The original ad blocking, Return YouTube Dislike, automatic account selection, s
 
 Press **GREEN** to open settings. Use arrows and **OK**, the cursor or the wheel; **BACK** cancels an option list first, then closes settings without closing the video. Default numeric shortcuts: **0** captions, **1** slower, **3** faster. Assign **Reset playback speed to 1×** or **Refresh Home recommendations** under Remote. Home refresh works only on Home. Refresh sends YouTube’s `SOFT_RELOAD_PAGE` command, using the method from NicholasBly’s app; it does not require opening the sidebar. Older runtimes without the event API can use a sidebar round trip. YouTube decides which recommendations are returned.
 
-Use **Diagnostics → Run capability test** to inspect the TV’s reported panel/HDR flags and decoder limits in the existing scrolling log. Missing or denied queries stay unknown; the test changes no settings. See [test details](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/tv-capability-test.md).
+Use **Diagnostics → Run capability test** to inspect the TV’s reported panel/HDR flags and decoder limits in the existing scrolling log. The test uses direct, app-identified LS2 queries and explains denied/empty replies. Identical decoder ceilings are not proof of panel resolution or HDR. Missing fields stay unknown; the test changes no settings. See [test details](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/tv-capability-test.md).
 
 Choose a quality profile your TV supports; restart to apply it. Custom speeds require shared A/V and reset each video. Resume gives YouTube watch history priority: sign in and keep history enabled for account synchronization. Within the current app session, reopening a video also uses the confirmed position behind its red thumbnail bar if YouTube supplies none. This transient cache does not survive an app restart. Optional TV fallback gives YouTube priority and keeps up to 100 unfinished VODs for 90 days, excluding live/DVR and Shorts. Clearing TV bookmarks does not clear account history. Timers pause playback, not the TV.
 
@@ -69,7 +69,7 @@ YouTube default restores native caption styling. DeArrow sends visible video IDs
 - **Diagnostics and packaging:** replaced paged reports with one scrollable textbox and removed unusable clipboard copy. Fixed MSE trace attribution/error handling, dependency inspection, runtime-library inclusion and non-root package permissions.
 - **Development:** added SDK-free native host tests, a scheduled full Gold ARM build workflow, device-report templates and a compatibility-matrix generator. Scheduled builds activate on the default branch; they do not publish stable releases.
 
-The LG C3 user confirmed caption sizing/cursor selection in 2.6.5 and in-place Home refresh in 2.6.11. The user also confirmed cached resume in 2.6.17. Version 2.6.18 queues that position during loading to remove the delay after playback starts. Version 2.6.19 adds the read-only TV capability test. The current release passes browser checks, 317 web tests, native host regressions and both ARM builds. The capability queries still need TV validation. **Clock and thumbnail rendering, playback resume, fractional speeds, live/DVR, HDR, lifecycle recovery and intermittent disappearing controls still need device validation; the controls issue is not confirmed resolved.** AAC retains its existing decoder path; legacy playback and `YTAF_SHARED_AV=0` rollback remain available.
+The LG C3 user confirmed caption sizing/cursor selection in 2.6.5 and in-place Home refresh in 2.6.11. The user also confirmed cached resume in 2.6.17. Version 2.6.18 queues that position during loading to remove the delay after playback starts. Version 2.6.19 adds the read-only TV capability test; C3 returned identical Starfish ceilings but unreadable LG command replies. Version 2.6.20 uses direct LS2 queries and reports the failure stage/code, with less empty output and explicit shared-ceiling labels. The current release passes browser checks, 322 web tests, native host regressions and both ARM builds. The capability queries still need TV validation. **Clock and thumbnail rendering, playback resume, fractional speeds, live/DVR, HDR, lifecycle recovery and intermittent disappearing controls still need device validation; the controls issue is not confirmed resolved.** AAC retains its existing decoder path; legacy playback and `YTAF_SHARED_AV=0` rollback remain available.
 
 ## Screenshots
 
