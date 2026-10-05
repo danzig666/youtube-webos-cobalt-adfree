@@ -57,7 +57,7 @@ export function installCornerClock(doc, win, read) {
     // so the periodic movement never brings it back down into that band.
     const style = {
       position: 'fixed', display: 'block', visibility: 'visible', opacity: '1',
-      top: `${Math.round(height * .02 - shift[0] * scale)}px`, right: `${Math.round(width * .05 + shift[1] * scale)}px`,
+      top: `${Math.round(height * .02 - shift[0] * scale)}px`, right: `${Math.round(width * .02 + shift[1] * scale)}px`,
       bottom: 'auto', left: 'auto', width: `${Math.round(size * 4.1)}px`,
       height: `${Math.round(size * 1.3)}px`, boxSizing: 'border-box', margin: '0',
       zIndex: '2147483647', pointerEvents: 'none', color: '#fff',

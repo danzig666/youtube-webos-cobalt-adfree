@@ -118,3 +118,37 @@ test('the target is previewed on keydown before revealing controls and before th
   handler(f.key(39,'keyup'));f.advance(499);assert.equal(f.video.currentTime,100);
   f.advance(1);assert.equal(f.video.currentTime,110);
 });
+
+test('watch-page recommendation cards and their progress bars retain Left/Right navigation',()=>{
+ const f=fixture('immediate');
+ const host={tagName:'YTLR-WATCH-DEFAULT',parentElement:f.doc.body};
+ for(const kind of ['tile','grid','bare-child','card-progress']) {
+  const list={tagName:'DIV',parentElement:host,getAttribute:key=>key==='role'?'grid':null};
+  const card={tagName:kind==='tile'?'YTLR-TILE-RENDERER':'DIV',parentElement:kind==='bare-child'?host:list};
+  f.doc.activeElement=kind==='card-progress'?{tagName:'YTLR-PROGRESS-BAR',parentElement:card}:card;
+  for(const code of [37,39]) {
+   const event=f.key(code);assert.equal(f.handler(event),false,kind);
+   assert.equal(Boolean(event.consumed),false,kind);
+  }
+  f.advance(3000);assert.equal(f.video.currentTime,100,kind);
+ }
+});
+test('Down cancels the preview and pending seek before browsing the list below the timeline',()=>{
+ const f=fixture('immediate'),host={tagName:'YTLR-WATCH-DEFAULT',parentElement:null};host.parentElement=f.doc.body;
+ f.doc.activeElement=host;f.tap(39);assert.equal(f.previews.at(-1),110);
+ f.advance(200);assert.equal(f.handler(f.key(40)),false);assert.equal(f.previews.at(-1),null);
+ f.doc.activeElement={tagName:'YTLR-COMPACT-VIDEO-RENDERER',parentElement:host};
+ const left=f.key(37);assert.equal(f.handler(left),false);assert.equal(Boolean(left.consumed),false);
+ f.advance(3000);assert.equal(f.video.currentTime,100);
+});
+test('retained controls cannot authorize a recommendation link or card after focus leaves transport buttons',()=>{
+ for(const kind of ['card','link']) {
+  const f=playbackFixture();f.settings.seekBehavior='immediate';f.video.currentTime=100;
+  const button={tagName:'BUTTON'},card={tagName:kind==='card'?'YTLR-TILE-RENDERER':'A'};
+  const controls={contains:node=>[button,card].includes(node)};
+  const handler=createPlaybackSeek(f.doc,f.win,f.read,()=>{},f.notify,()=>{f.doc.activeElement=button;return controls;});
+  handler(f.key(39));handler(f.key(39,'keyup'));f.doc.activeElement=card;
+  f.advance(500);assert.equal(f.video.currentTime,100,kind);
+  assert.equal(handler(f.key(39)),false,kind);
+ }
+});

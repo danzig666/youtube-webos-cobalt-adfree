@@ -15,22 +15,32 @@ export function seekTarget(video, value) {
   return Number.isFinite(video.duration) && video.duration > 0
     ? Math.max(0, Math.min(video.duration - .1, value)) : null;
 }
-export function canSeekFromFocus(doc, video) {
+export function canSeekFromFocus(doc, video, retainedControls = null) {
   if (!doc.body?.classList.contains('WEB_PAGE_TYPE_WATCH')) return false;
   const focused = doc.activeElement;
   if (!focused || focused === doc.body || focused === video) return true;
+  let timeline = false, transport = false;
+  // Inspect the complete ancestry before granting player access. The watch
+  // host contains recommendation shelves as well as the video itself.
   for (let node=focused; node && node !== doc.body; node=node.parentElement) {
     const tag = (node.tagName || '').toUpperCase(), role = node.getAttribute?.('role');
-    if (['INPUT','TEXTAREA','SELECT'].includes(tag) || node.isContentEditable ||
-        ['textbox','searchbox','combobox','dialog','menu','listbox'].includes(role)) return false;
+    if (['INPUT','TEXTAREA','SELECT','A'].includes(tag) || node.isContentEditable ||
+        ['textbox','searchbox','combobox','dialog','menu','listbox','link','option','menuitem',
+         'grid','gridcell','row','list','listitem','tab','tablist','navigation'].includes(role) ||
+        /^YTLR-(?:TILE|COMPACT-VIDEO|VIDEO|SHELF|WATCH-NEXT|HORIZONTAL-LIST|VERTICAL-LIST).*RENDERER$/.test(tag)) return false;
     if (role === 'slider' || tag === 'YTLR-PROGRESS-BAR') {
-      return /(?:progress|seek|scrub|timeline)/i.test([tag,node.id,node.className,node.getAttribute?.('aria-label')].join(' '));
+      if (!/(?:progress|seek|scrub|timeline)/i.test([tag,node.id,node.className,node.getAttribute?.('aria-label')].join(' '))) return false;
+      timeline = true;
     }
-    if (['button','link','option','menuitem'].includes(role) || ['BUTTON','A'].includes(tag)) return false;
-    // YouTube focuses its watch host while the native controls are hidden.
-    if (node.id === 'ytlr-player__player-container-player' || ['YTLR-PLAYER','YTLR-WATCH-DEFAULT'].includes(tag)) return true;
+    if (role === 'button' || tag === 'BUTTON') transport = true;
   }
-  return false;
+  if (transport) return Boolean(retainedControls?.contains?.(focused));
+  if (timeline) return true;
+  // Only direct focus on a player/watch host means hidden player controls.
+  // An arbitrary child of that host may be a navigable video card.
+  const tag = (focused.tagName || '').toUpperCase();
+  return focused.id === 'ytlr-player__player-container-player' ||
+    ['YTLR-PLAYER','YTLR-WATCH-DEFAULT'].includes(tag);
 }
 export function createPlaybackSeek(doc, win, read, preview, notify, revealControls = () => null) {
   let pending = null, applied = null, revealed = null, timer = null, lastPress = 0, lastDirection = null;
@@ -59,8 +69,7 @@ export function createPlaybackSeek(doc, win, read, preview, notify, revealContro
       ticket.id === getCurrentVideoId(win, doc, false);
   }
   function seekFocus(ticket) {
-    return canSeekFromFocus(doc, ticket?.video) || Boolean(current(ticket) &&
-      ticket.controls?.contains?.(doc.activeElement));
+    return canSeekFromFocus(doc, ticket?.video, current(ticket) ? ticket.controls : null);
   }
   function commit() {
     const ticket = pending;

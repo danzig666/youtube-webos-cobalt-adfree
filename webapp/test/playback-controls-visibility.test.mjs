@@ -272,3 +272,15 @@ test('fast repeats while controls stay hidden do not cancel the first recovery',
   f.show.handleKey({type:'keydown', keyCode:38, repeat:true}); f.advance(60);
   assert.equal(f.events.length, 2);
 });
+
+test('arrows in recommendation cards never send synthetic Enter to hidden player controls',()=>{
+ for(const nested of [false,true]) {
+  const f=fixture(),host=f.node('YTLR-WATCH-DEFAULT',f.doc.body);
+  if(nested) f.controls.parentElement=host;
+  const card=f.node('YTLR-TILE-RENDERER',nested?f.controls:host);
+  f.doc.activeElement=f.node('DIV',card);
+  assert.equal(f.show(),null);
+  f.show.handleKey({type:'keydown',keyCode:39});f.advance(100);
+  assert.equal(f.events.length,0);
+ }
+});

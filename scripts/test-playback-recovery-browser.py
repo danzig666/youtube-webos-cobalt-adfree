@@ -78,7 +78,47 @@ with sync_playwright() as p:
   assert page.evaluate('fixtureSkips')==[140,620,1120],page.evaluate('fixtureSkips')
   assert page.evaluate('window.sponsorblock.pollErrors')==0
   assert page.evaluate('jobs.size')<15,page.evaluate('jobs.size')
+  # Automatic seeking belongs to the video/timeline, never the video shelf
+  # nested under the same watch/player host (or broad controls container).
+  page.evaluate("""()=>{
+   window.__ytafConfigState.seekBehavior='immediate';
+   const controls=document.querySelector('yt-focus-container');
+   const list=document.createElement('div');list.setAttribute('role','grid');
+   const card=document.createElement('ytlr-tile-renderer');card.id='recommendation';card.tabIndex=0;
+   list.append(card);controls.append(list);document.body.tabIndex=0;
+   window.fixtureListArrows=[];
+   document.body.addEventListener('keydown',e=>{
+    if(e.keyCode===40){card.focus();return;}
+    if([37,39].includes(e.keyCode)&&document.activeElement===card)fixtureListArrows.push(e.keyCode);
+   });
+   fixtureHideControls();document.body.focus();
+  }""")
+  writes=page.evaluate('fixtureSkips.length')
+  page.keyboard.press('ArrowRight')
+  assert page.locator('.ytaf-seek-preview').count()==1
+  page.keyboard.press('ArrowDown')
+  assert page.locator('#recommendation').evaluate('n=>n===document.activeElement')
+  assert page.locator('.ytaf-seek-preview').count()==0
+  for key in ['ArrowLeft','ArrowRight','ArrowRight']:page.keyboard.press(key)
+  page.evaluate('fixtureAdvance(3000)')
+  assert page.evaluate('fixtureSkips.length')==writes,'List navigation changed playback position'
+  assert page.evaluate('fixtureListArrows')==[37,39,39],'List arrows were intercepted'
+  # Focus may change without Down (for example, pointer/YouTube navigation).
+  page.evaluate('fixtureHideControls();document.body.focus();fixtureAdvance(1600)')
+  page.keyboard.press('ArrowRight');page.locator('#recommendation').focus()
+  page.evaluate('fixtureAdvance(500)')
+  assert page.evaluate('fixtureSkips.length')==writes,'Pending seek followed focus into the shelf'
+  # Returning to the player retains the configured 500-ms delay.
+  page.evaluate('document.body.focus()');target=page.evaluate("document.querySelector('video').currentTime+10")
+  page.keyboard.press('ArrowRight');page.evaluate('fixtureAdvance(499)')
+  assert page.evaluate('fixtureSkips.length')==writes
+  page.evaluate('fixtureAdvance(1)')
+  assert page.evaluate('fixtureSkips.length')==writes+1
+  assert abs(page.evaluate('fixtureSkips.at(-1)')-target)<0.001
+  page.evaluate("window.__ytafConfigState.clockDisplay='controls';window.__ytafCornerClock.refresh()")
+  right=page.locator('#ytaf-corner-clock').evaluate('n=>parseFloat(n.style.right)')
+  assert round(width*.02)<=right<=round(width*.02)+9
   assert not errors,errors
-  print(f'{width}x{height}: production bundle passed 20 simulated playback minutes, three sponsor skips, three hidden-focus recovery cycles, Up dismissal through held/released keys, fresh-key recovery and GREEN/BACK isolation',flush=True)
+  print(f'{width}x{height}: production bundle passed 20 simulated playback minutes, three sponsor skips, three hidden-focus recovery cycles, Up dismissal through held/released keys, fresh-key recovery and GREEN/BACK isolation; video-shelf arrow navigation, seek cancellation/delay and right clock margin',flush=True)
   context.close()
  browser.close()

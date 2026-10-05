@@ -1,3 +1,4 @@
+import {canSeekFromFocus} from './playback-seek.mjs';
 import {getCurrentVideoId} from './sponsorblock-channels.mjs';
 
 const controlsSelector = 'yt-focus-container[idomkey="controls"]';
@@ -41,20 +42,9 @@ export function playbackMenuVisible(doc, win) {
 }
 
 function playbackFocus(doc, video, hiddenControls) {
-  const focused = doc.activeElement;
-  if (!focused || focused === doc.body || focused === video) return true;
-  // YouTube retains focus on transport buttons after fading their parent.
-  // Only accept that focus after every actual control was confirmed hidden.
-  const retainedFocus = hiddenControls?.contains?.(focused);
-  for (let node = focused; node && node !== doc.body; node = node.parentElement) {
-    const tag = (node.tagName || '').toUpperCase(), role = node.getAttribute?.('role');
-    if (node.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) ||
-        ['textbox', 'searchbox', 'combobox', 'dialog', 'menu', 'listbox'].includes(role)) return false;
-    if (['BUTTON', 'A'].includes(tag) || ['button', 'link', 'option', 'menuitem'].includes(role)) return Boolean(retainedFocus);
-    if (node.id === 'ytlr-player__player-container-player' ||
-        ['YTLR-PLAYER', 'YTLR-WATCH-DEFAULT'].includes(tag)) return true;
-  }
-  return Boolean(retainedFocus);
+  // A retained transport button is eligible only inside confirmed hidden
+  // controls. Recommendation cards are protected even inside the watch host.
+  return canSeekFromFocus(doc, video, hiddenControls);
 }
 
 export function createPlaybackControlsReveal(doc, win) {
