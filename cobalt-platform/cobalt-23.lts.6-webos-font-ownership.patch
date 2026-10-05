@@ -1,0 +1,20 @@
+diff --git a/cobalt/renderer/rasterizer/skia/skia/src/ports/SkFontMgr_cobalt.cc b/cobalt/renderer/rasterizer/skia/skia/src/ports/SkFontMgr_cobalt.cc
+--- a/cobalt/renderer/rasterizer/skia/skia/src/ports/SkFontMgr_cobalt.cc
++++ b/cobalt/renderer/rasterizer/skia/skia/src/ports/SkFontMgr_cobalt.cc
+@@ -414,11 +414,11 @@
+       }
+     }
+ 
+-    // If there was a duplicate font we would not add the family
+-    // again but re-use the original family.
+-    if (!is_duplicate_font) {
+-      families_.push_back().reset(SkRef(new_family.get()));
+-    }
++    // Retain every available family. A duplicate family name still leaves
++    // unique aliases and font-face names pointing at this object below.
++    // Named matching keeps its first registration, but those raw pointers
++    // must never outlive their owning family (LG and bundled fonts overlap).
++    families_.push_back().reset(SkRef(new_family.get()));
+ 
+     bool is_duplicate_font_face = false;
+     for (sk_sp<SkFontStyleSet_Cobalt::SkFontStyleSetEntry_Cobalt>*

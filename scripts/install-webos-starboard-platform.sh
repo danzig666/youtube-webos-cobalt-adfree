@@ -226,6 +226,13 @@ if ! grep -q "StartYtafCapabilityTest" "$cobalt_root/cobalt/h5vcc/h5vcc_system.c
   git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-capability-test.patch"
 fi
 
+# System and bundled families overlap: retain owners of unique aliases/faces.
+font_ownership_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-font-ownership.patch"
+if ! git -C "$cobalt_root" apply --reverse --check "$font_ownership_patch" 2>/dev/null; then
+  git -C "$cobalt_root" apply --check "$font_ownership_patch"
+  git -C "$cobalt_root" apply "$font_ownership_patch"
+fi
+
 python3 - "$repo_root" "$platform_target/arm/webos_build_metadata.h" <<'PYMETA'
 from pathlib import Path
 import json, re, subprocess, sys

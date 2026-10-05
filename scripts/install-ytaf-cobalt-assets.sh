@@ -99,7 +99,7 @@ python3 - "$cobalt_root/cobalt/adblock/BUILD.gn" <<'PY_FONTS'
 from pathlib import Path
 import sys
 path = Path(sys.argv[1]); source = path.read_text()
-if '"system_fonts:copy_webos_system_fonts"' not in source:
+if '"//cobalt/adblock/system_fonts:copy_webos_system_fonts"' not in source:
     # The adblock target already supplies content assets to the runtime bundle.
     marker = '"//cobalt/adblock/content:copy_adblock_web_files"'
     if source.count(marker) != 1:

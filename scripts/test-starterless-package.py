@@ -137,6 +137,8 @@ class StarterlessPackageTests(unittest.TestCase):
             for _ in range(2):
                 installed = subprocess.run(command, env=env, text=True, capture_output=True)
                 self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)
+                self.assertEqual((cobalt / 'cobalt/adblock/BUILD.gn').read_text().count(
+                    '"//cobalt/adblock/system_fonts:copy_webos_system_fonts"'), 1)
                 for font in ('Inter-Regular.woff2', 'Inter-SemiBold.woff2'):
                     self.assertEqual(content.read_text().count('"fonts/' + font + '"'), 1)
                     self.assertEqual((content.parent / 'fonts' / font).read_bytes(), font.encode())

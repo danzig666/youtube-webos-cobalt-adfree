@@ -20,6 +20,7 @@ run_test() {
   "$test_dir/$name"
 }
 platform="$repo_root/cobalt-platform/webos/arm"
+python3 "$repo_root/scripts/test-webos-font-ownership.py" "$cobalt_root"
 python3 "$repo_root/scripts/test-webos-capability-bridge.py"
 run_test webos-capability-process
 run_test starfish-av-session-state

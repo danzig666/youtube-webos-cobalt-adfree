@@ -18,7 +18,8 @@ this change preserves the existing controls, SponsorBlock and seek fixes.
   families have priority; missing files fall back to the complete existing
   Cobalt font package. Inter remains the settings-menu font. We deliberately
   keep bundled fonts until representative firmware is tested. No LG font
-  binaries are redistributed.
+  binaries are redistributed. Overlapping named families retain their owners,
+  preventing dangling unique font-face/alias pointers in Cobalt.
 - Native-build concurrency now includes the source branch, so a build on one
   branch cannot cancel a build on another branch.
 
