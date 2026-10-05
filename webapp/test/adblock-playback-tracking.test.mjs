@@ -1,3 +1,4 @@
+import {markStartup} from '../src/startup-timing.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
@@ -8,7 +9,7 @@ import {stripSponsoredQrCodePopups} from '../src/sponsored-qr-code-block.mjs';
 import * as shortsFilters from '../src/shorts-response-filter.mjs';
 
 test('combined preload and ad filters preserve YouTube playback and watch-time tracking', () => {
-  const context = vm.createContext({
+  const context = vm.createContext({markStartup,
     rememberPlaybackMetadata, rememberPlayerChannel, stripSponsoredQrCodePopups, ...shortsFilters,
     configRead: key => key === 'enableAdBlock' || key === 'enableSponsoredQrCodeBlock',
     document: {addEventListener() {}, querySelector: () => null}, window: {},

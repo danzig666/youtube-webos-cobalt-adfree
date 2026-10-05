@@ -1,0 +1,293 @@
+diff --git a/cobalt/dom/document.cc b/cobalt/dom/document.cc
+--- a/cobalt/dom/document.cc
++++ b/cobalt/dom/document.cc
+@@ -75,8 +75,8 @@
+ namespace dom {
+ namespace {
+ 
++#if defined(YTAF_COBALT_DEBUG)
+ void YtafFileLog(const std::string& message) {
+-#if defined(YTAF_COBALT_DEBUG)
+   bool created = false;
+   SbFileError error = kSbFileOk;
+   SbFile file = SbFileOpen("/tmp/ytaf-cobalt.log",
+@@ -89,10 +89,8 @@
+   std::string line = message + "\n";
+   SbFileWrite(file, line.data(), static_cast<int>(line.size()));
+   SbFileClose(file);
+-#else
+-  (void)message;
++}
+ #endif
+-}
+ csp::SecurityCallback CreateSecurityCallback(
+     web::CspDelegate* csp_delegate, web::CspDelegate::ResourceType type) {
+   csp::SecurityCallback callback;
+@@ -1261,10 +1259,14 @@
+   scoped_refptr<HTMLHeadElement> current_head = this->head();
+   if (!current_head) {
+     LOG(ERROR) << "[YTAF] DispatchOnLoadEvent: missing head, skipping adblock injection";
++#if defined(YTAF_COBALT_DEBUG)
+     YtafFileLog("[YTAF] DispatchOnLoadEvent: missing head, skipping adblock injection");
++#endif
+   } else {
++#if defined(YTAF_COBALT_DEBUG)
+     LOG(ERROR) << "[YTAF] DispatchOnLoadEvent: injecting adblock assets";
+     YtafFileLog("[YTAF] DispatchOnLoadEvent: injecting adblock assets");
++#endif
+ 
+     // <link rel="stylesheet" type="text/css" href="index.css" />
+     scoped_refptr<HTMLLinkElement> link = this->CreateElement("link")->AsHTMLElement()->AsHTMLLinkElement();
+@@ -1272,16 +1274,20 @@
+     link->set_type("text/css");
+     link->set_href("file:///adblock/adblockMain.css");
+     current_head->AppendChild(link);
++#if defined(YTAF_COBALT_DEBUG)
+     LOG(ERROR) << "[YTAF] DispatchOnLoadEvent: appended file:///adblock/adblockMain.css";
+     YtafFileLog("[YTAF] DispatchOnLoadEvent: appended file:///adblock/adblockMain.css");
++#endif
+ 
+     // <script async="" src="index.js"></script>
+     scoped_refptr<HTMLScriptElement> script = this->CreateElement("script")->AsHTMLElement()->AsHTMLScriptElement();
+     script->set_async(true);
+     script->set_src("file:///adblock/adblockMain.js");
+     current_head->AppendChild(script);
++#if defined(YTAF_COBALT_DEBUG)
+     LOG(ERROR) << "[YTAF] DispatchOnLoadEvent: appended file:///adblock/adblockMain.js";
+     YtafFileLog("[YTAF] DispatchOnLoadEvent: appended file:///adblock/adblockMain.js");
++#endif
+   }
+ 
+   if (HasBrowsingContext()) {
+diff --git a/cobalt/dom/html_script_element.cc b/cobalt/dom/html_script_element.cc
+--- a/cobalt/dom/html_script_element.cc
++++ b/cobalt/dom/html_script_element.cc
+@@ -46,8 +46,8 @@
+ 
+ bool PermitAnyURL(const GURL&, bool) { return true; }
+ 
++#if defined(YTAF_COBALT_DEBUG)
+ void YtafFileLog(const std::string& message) {
+-#if defined(YTAF_COBALT_DEBUG)
+   bool created = false;
+   SbFileError error = kSbFileOk;
+   SbFile file = SbFileOpen("/tmp/ytaf-cobalt.log",
+@@ -60,10 +60,8 @@
+   std::string line = message + "\n";
+   SbFileWrite(file, line.data(), static_cast<int>(line.size()));
+   SbFileClose(file);
+-#else
+-  (void)message;
++}
+ #endif
+-}
+ 
+ loader::RequestMode GetRequestMode(
+     const base::Optional<std::string>& cross_origin_attribute) {
+@@ -636,8 +634,10 @@
+   if (error_) {
+     LOG(ERROR) << "[YTAF] HTMLScriptElement::ExecuteExternal failed url="
+                << url_.spec() << " error=" << *error_;
++#if defined(YTAF_COBALT_DEBUG)
+     YtafFileLog("[YTAF] HTMLScriptElement::ExecuteExternal failed url=" +
+                 url_.spec() + " error=" + *error_);
++#endif
+     // If the load resulted in an error (for example a DNS error, or an HTTP
+     // 404 error)
+     // Executing the script block must just consist of firing a simple event
+@@ -670,11 +670,13 @@
+   // outerHTML attributes, they do not execute at all.
+   // https://www.w3.org/TR/2018/SPSD-html5-20180327/scripting-1.html#the-script-element.
+   if (!should_execute_) {
++#if defined(YTAF_COBALT_DEBUG)
+     LOG(ERROR) << "[YTAF] HTMLScriptElement::Execute skipped should_execute=false file="
+                << script_location.file_path << ":" << script_location.line_number;
+     YtafFileLog("[YTAF] HTMLScriptElement::Execute skipped should_execute=false file=" +
+                 script_location.file_path + ":" +
+                 std::to_string(script_location.line_number));
++#endif
+     return;
+   }
+ 
+@@ -685,6 +687,7 @@
+   // Since error is already handled, it is guaranteed the load is successful.
+   DCHECK(!error_);
+ 
++#if defined(YTAF_COBALT_DEBUG)
+   LOG(ERROR) << "[YTAF] HTMLScriptElement::Execute begin file="
+              << script_location.file_path << ":" << script_location.line_number
+              << " bytes=" << content.size() << " external=" << is_external;
+@@ -693,6 +696,7 @@
+               std::to_string(script_location.line_number) + " bytes=" +
+               std::to_string(content.size()) + " external=" +
+               std::to_string(is_external));
++#endif
+ 
+   // The script is now being run. Track it in the global stats.
+   GlobalStats::GetInstance()->StartJavaScriptEvent();
+@@ -715,11 +719,13 @@
+   bool succeeded = false;
+   html_element_context()->script_runner()->Execute(
+       content, script_location, mute_errors, &succeeded);
++#if defined(YTAF_COBALT_DEBUG)
+   LOG(ERROR) << "[YTAF] HTMLScriptElement::Execute done file="
+              << script_location.file_path << " succeeded=" << succeeded;
+   YtafFileLog("[YTAF] HTMLScriptElement::Execute done file=" +
+               script_location.file_path + " succeeded=" +
+               std::to_string(succeeded));
++#endif
+ 
+   // 5. 6. Not needed by Cobalt.
+ 
+diff --git a/cobalt/script/script_runner.cc b/cobalt/script/script_runner.cc
+--- a/cobalt/script/script_runner.cc
++++ b/cobalt/script/script_runner.cc
+@@ -35,8 +35,8 @@
+ 
+ namespace {
+ 
++#if defined(YTAF_COBALT_DEBUG)
+ void YtafFileLog(const std::string& message) {
+-#if defined(YTAF_COBALT_DEBUG)
+   bool created = false;
+   SbFileError error = kSbFileOk;
+   SbFile file = SbFileOpen("/tmp/ytaf-cobalt.log",
+@@ -49,10 +49,8 @@
+   std::string line = message + "\n";
+   SbFileWrite(file, line.data(), static_cast<int>(line.size()));
+   SbFileClose(file);
+-#else
+-  (void)message;
++}
+ #endif
+-}
+ 
+ #if defined(HANDLE_CORE_DUMP)
+ 
+@@ -113,9 +111,11 @@
+   if (!source_code) {
+     LOG(ERROR) << "[YTAF] Failed to pre-process JavaScript source at "
+                << script_location.file_path << ":" << script_location.line_number;
++#if defined(YTAF_COBALT_DEBUG)
+     YtafFileLog("[YTAF] Failed to pre-process JavaScript source at " +
+                 script_location.file_path + ":" +
+                 std::to_string(script_location.line_number));
++#endif
+     NOTREACHED() << "Failed to pre-process JavaScript source.";
+     return "";
+   }
+@@ -124,18 +124,22 @@
+     LOG(ERROR) << "[YTAF] Failed to execute JavaScript at "
+                << script_location.file_path << ":" << script_location.line_number
+                << ": " << result;
++#if defined(YTAF_COBALT_DEBUG)
+     YtafFileLog("[YTAF] Failed to execute JavaScript at " +
+                 script_location.file_path + ":" +
+                 std::to_string(script_location.line_number) + ": " + result);
++#endif
+ #if defined(HANDLE_CORE_DUMP)
+     script_runner_log.Get().IncrementFailCount();
+ #endif
+     return result;
+   }
++#if defined(YTAF_COBALT_DEBUG)
+   LOG(ERROR) << "[YTAF] Executed JavaScript at "
+              << script_location.file_path << ":" << script_location.line_number;
+   YtafFileLog("[YTAF] Executed JavaScript at " + script_location.file_path +
+               ":" + std::to_string(script_location.line_number));
++#endif
+ #if defined(HANDLE_CORE_DUMP)
+   script_runner_log.Get().IncrementSuccessCount();
+ #endif
+diff --git a/cobalt/script/v8c/v8c_global_environment.cc b/cobalt/script/v8c/v8c_global_environment.cc
+--- a/cobalt/script/v8c/v8c_global_environment.cc
++++ b/cobalt/script/v8c/v8c_global_environment.cc
+@@ -72,8 +72,8 @@
+   return *v8::String::Utf8Value(isolate, value.As<v8::String>());
+ }
+ 
++#if defined(YTAF_COBALT_DEBUG)
+ void YtafFileLog(const std::string& message) {
+-#if defined(YTAF_COBALT_DEBUG)
+   bool created = false;
+   SbFileError error = kSbFileOk;
+   SbFile file = SbFileOpen("/tmp/ytaf-cobalt.log",
+@@ -86,12 +86,11 @@
+   std::string line = message + "\n";
+   SbFileWrite(file, line.data(), static_cast<int>(line.size()));
+   SbFileClose(file);
+-#else
+-  (void)message;
++}
+ #endif
+-}
+ 
+ void YtafLogCallback(const v8::FunctionCallbackInfo<v8::Value>& args) {
++#if defined(YTAF_COBALT_DEBUG)
+   v8::Isolate* isolate = args.GetIsolate();
+   v8::Local<v8::Context> context = isolate->GetCurrentContext();
+   std::string message;
+@@ -107,7 +106,12 @@
+       }
+     }
+   }
++#if defined(YTAF_COBALT_DEBUG)
+   YtafFileLog("[YTAF-JS-NATIVE] " + message);
++#endif
++#else
++  (void)args;
++#endif
+ }
+ 
+ uint32_t CreateJavaScriptCacheKey(const std::string& javascript_engine_version,
+diff --git a/cobalt/script/v8c/v8c_script_debugger.cc b/cobalt/script/v8c/v8c_script_debugger.cc
+--- a/cobalt/script/v8c/v8c_script_debugger.cc
++++ b/cobalt/script/v8c/v8c_script_debugger.cc
+@@ -85,8 +85,8 @@
+ constexpr int kContextGroupId = 1;
+ constexpr char kContextName[] = "Cobalt";
+ 
++#if defined(YTAF_COBALT_DEBUG)
+ void YtafFileLog(const std::string& message) {
+-#if defined(YTAF_COBALT_DEBUG)
+   bool created = false;
+   SbFileError error = kSbFileOk;
+   SbFile file = SbFileOpen("/tmp/ytaf-cobalt.log",
+@@ -99,11 +99,10 @@
+   std::string line = message + "\n";
+   SbFileWrite(file, line.data(), static_cast<int>(line.size()));
+   SbFileClose(file);
+-#else
+-  (void)message;
++}
+ #endif
+-}
+-
++
++#if defined(YTAF_COBALT_DEBUG)
+ bool ShouldWriteConsoleMessageToYtafLog(v8::Isolate::MessageErrorLevel level,
+                                         const std::string& msg) {
+   if (level == v8::Isolate::kMessageError ||
+@@ -113,6 +112,7 @@
+   return msg.find("ytaf") != std::string::npos ||
+          msg.find("YTAF") != std::string::npos;
+ }
++#endif
+ 
+ V8cTracingController* GetTracingController() {
+   return base::polymorphic_downcast<V8cTracingController*>(
+@@ -409,9 +409,13 @@
+   }
+ 
+   std::string msg(FromStringView(message));
++#if defined(YTAF_COBALT_DEBUG)
+   if (ShouldWriteConsoleMessageToYtafLog(level, msg)) {
++#if defined(YTAF_COBALT_DEBUG)
+     YtafFileLog("[YTAF-JS]" + source + " " + msg);
+-  }
++#endif
++  }
++#endif
+ 
+   switch (level) {
+     case v8::Isolate::kMessageLog:

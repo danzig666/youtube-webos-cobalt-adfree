@@ -30,6 +30,8 @@ for rate_override in common full-range invalid; do
 done
 run_test webos-ui-preferences
 run_test webos-scroll-input
+run_test webos-direct-log "$platform/webos_direct_log.cc"
+run_test webos-startup-timing "$platform/webos_startup_timing.cc"
 run_test webos-lifecycle "$platform/webos_lifecycle.cc"
 run_test webos-media-diagnostics "$platform/webos_media_diagnostics.cc"
 "$test_dir/webos-media-diagnostics" --log-budget \

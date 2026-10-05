@@ -1,15 +1,18 @@
 #include <time.h>
 
-#include <algorithm>
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <thread>
 #include <vector>
 
 #include <unistd.h>
 
 #include "starboard/webos/arm/webos_capability_test.h"
+#include "starboard/webos/arm/webos_direct_log.h"
+#include "starboard/webos/arm/webos_startup_timing.h"
+#include "starboard/webos/arm/webos_build_metadata.h"
 #include "starboard/configuration.h"
 #include "starboard/shared/signal/crash_signals.h"
 #include "starboard/shared/signal/debug_signals.h"
@@ -26,81 +29,35 @@ extern "C" SB_EXPORT_PLATFORM int main(int argc, char** argv) {
   if (argc == 2 && std::strcmp(argv[1], "--ytaf-lg-system-probe") == 0)
     return starboard::shared::webos::RunWebOsLgCapabilityProbe(false);
 
+  using starboard::shared::webos::RecordStartupStage;
+  using starboard::shared::webos::StartupStage;
+  RecordStartupStage(StartupStage::kProcessEntry);
+
   // webOS exposes its system PulseAudio server here.  XDG_RUNTIME_DIR points
   // at the compositor runtime owned by root, so libpulse cannot discover the
   // socket automatically and would otherwise fall back to the incompatible
   // raw ALSA device.
   setenv("PULSE_SERVER", "unix:/var/run/pulse/native", 1);
 
-  // Keep Cobalt diagnostics bounded. /tmp is memory-backed on webOS, so an
-  // unbounded append-only log can otherwise consume the complete tmpfs during
-  // a long-running session. Once the log reaches 16 MiB, retain the newest
-  // 8 MiB and continue appending so the file always stays chronological.
-  constexpr size_t kMaxLogBytes = 16 * 1024 * 1024;
-  constexpr size_t kRetainedLogBytes = 8 * 1024 * 1024;
-  const char* log_path = "/tmp/cobalt-starterless.log";
-  int log_pipe[2] = {-1, -1};
-  if (pipe(log_pipe) == 0) {
-    dup2(log_pipe[1], STDOUT_FILENO);
-    dup2(log_pipe[1], STDERR_FILENO);
-    close(log_pipe[1]);
-
-    std::thread([read_fd = log_pipe[0], log_path, kMaxLogBytes,
-      kRetainedLogBytes]() {
-      FILE* log = std::fopen(log_path, "a+b");
-
-      auto trim_log = [&]() {
-        if (!log) return;
-
-        if (std::fseek(log, 0, SEEK_END) != 0) return;
-        const long size = std::ftell(log);
-        if (size < 0 || static_cast<size_t>(size) < kMaxLogBytes) return;
-
-        const long keep =
-            static_cast<long>(std::min(kRetainedLogBytes,
-                                       static_cast<size_t>(size)));
-        std::vector<char> tail(static_cast<size_t>(keep));
-        if (std::fseek(log, size - keep, SEEK_SET) != 0) return;
-
-        const size_t bytes_read =
-            std::fread(tail.data(), 1, tail.size(), log);
-        std::fclose(log);
-        log = std::fopen(log_path, "wb");
-        if (!log) return;
-
-        std::fwrite(tail.data(), 1, bytes_read, log);
-        std::fflush(log);
-      };
-
-      trim_log();
-
-      char buffer[16 * 1024];
-      ssize_t count = 0;
-      while ((count = read(read_fd, buffer, sizeof(buffer))) > 0) {
-        if (!log) {
-          log = std::fopen(log_path, "a+b");
-          if (!log) continue;
-        }
-
-        if (std::fseek(log, 0, SEEK_END) == 0) {
-          const long size = std::ftell(log);
-          if (size >= 0 &&
-              static_cast<size_t>(size) + static_cast<size_t>(count) >
-                  kMaxLogBytes) {
-            trim_log();
-          }
-        }
-
-        if (!log) continue;
-        std::fseek(log, 0, SEEK_END);
-        std::fwrite(buffer, 1, static_cast<size_t>(count), log);
-        std::fflush(log);
+  // Upstream PR #98 removes pipe backpressure. Rotate whole segments so raw
+  // SbLogRaw/write(2) callers cannot race an in-place copy and truncation.
+  const std::string log_path = std::strcmp(YTAF_APP_ID, "youtube.leanback.v4") == 0
+      ? "/tmp/cobalt-starterless.log"
+      : std::string("/tmp/cobalt-starterless-") + YTAF_APP_ID + ".log";
+  auto log = std::make_shared<starboard::shared::webos::WebOsDirectLog>(log_path);
+  if (log->Initialize()) {
+    std::setvbuf(stdout, nullptr, _IOLBF, 0);
+    // SbLogRaw bypasses FILE buffering, so do not promise buffering its writes.
+    std::thread([log]() {
+      while (true) {
+        sleep(1);
+        std::fflush(stdout);
+        std::fflush(stderr);
+        log->RotateIfNeeded();
       }
-
-      if (log) std::fclose(log);
-      close(read_fd);
     }).detach();
   }
+  RecordStartupStage(StartupStage::kLoggingReady);
   std::fprintf(stderr, "\n=== Cobalt starterless process started ===\n");
 
   tzset();

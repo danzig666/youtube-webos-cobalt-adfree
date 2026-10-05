@@ -1,3 +1,5 @@
+import { markStartup, watchStartupScreen } from './startup-timing.mjs';
+markStartup(window, 'script');
 console.info('[ytaf] adblock-main.js LOADING');
 
 import './text-data-guard';
@@ -61,6 +63,7 @@ export async function startUserScript() {
     userScriptStartShortsBlockUI();
     userScriptStartSponsoredQrCodeUI();
     startDebugOverlay();
+    markStartup(window, 'settings');
     console.info('[ytaf] UI started');
   } catch (err) {
     console.warn('[ytaf] Failed to start UI');
@@ -72,6 +75,8 @@ export async function startUserScript() {
       enableSponsorBlock: userScriptStartSponsorBlock,
       enableReturnYouTubeDislike: userScriptStartReturnYouTubeDislike
     }, key => console.warn('[ytaf] Feature initialization failed:',key));
+    markStartup(window, 'hooks');
+    watchStartupScreen(document, window);
     console.info('[ytaf] All hooks loaded successfully');
   } catch (err) {
     console.warn('[ytaf] Failed loading hooks');

@@ -11,7 +11,7 @@ test('relaunch and global error logging omit launch URLs, reasons, messages and 
   const context = vm.createContext({Date: {now: () => now}, console: {info: log, warn: log, error: log},
     window: {launchParams: {url: secret}, addEventListener: (name, fn) => handlers.set(name, fn)},
     document: {addEventListener: (name, fn) => handlers.set(name, fn)},
-    resetAutoLogin() {}, handleRelaunch: detail => {relaunched = detail;}, handleInitialLaunch() {throw new Error(secret);},
+    markStartup() {}, watchStartupScreen() {}, resetAutoLogin() {}, handleRelaunch: detail => {relaunched = detail;}, handleInitialLaunch() {throw new Error(secret);},
     userScriptStartUI() {throw new Error(secret);}, configRead() {}, startConfiguredFeatures() {throw new Error(secret);},
     userScriptStartAdBlock() {}, userScriptStartSponsorBlock() {}, userScriptStartReturnYouTubeDislike() {}});
   vm.runInContext(source, context);

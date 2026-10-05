@@ -1,4 +1,5 @@
 #include "webos_media_report.h"
+#include "webos_startup_timing.h"
 #include "webos_media_diagnostics.h"
 #include "webos_media_capabilities.h"
 #include "webos_build_metadata.h"
@@ -42,6 +43,8 @@ std::string CopyWebOsMediaReport() {
       "\nCobalt: 23.lts.6\nStarboard API: 13\nBuild architecture: ARMv7 softfp\nKernel architecture: " +
       KernelArchitecture() + "\nwebOS: " + WebOsVersion() +
       "\nVideo capability policy: " + VideoCapabilityTierName(caps.tier) + "\n";
+  report += CopyStartupReport();
+  report += "Fonts: LG system families when available; complete bundled fallback retained\n";
   const WebOsVideoCapability* codecs[] = {&caps.h264, &caps.vp9, &caps.av1};
   const char* names[] = {"H264", "VP9", "AV1"};
   for (int i = 0; i < 3; ++i) {

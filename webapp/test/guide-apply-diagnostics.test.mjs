@@ -1,3 +1,4 @@
+import {markStartup} from '../src/startup-timing.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
@@ -9,7 +10,7 @@ const source = readFileSync(new URL('../src/adblock-preload.js', import.meta.url
 
 test('class constructor call site discovers J without invoking the constructor', () => {
   let enabled = true;
-  const context = vm.createContext({rememberPlaybackMetadata,
+  const context = vm.createContext({markStartup,rememberPlaybackMetadata,
     ...filters,
     configRead: () => enabled,
     window: {},
@@ -24,7 +25,7 @@ test('class constructor call site discovers J without invoking the constructor',
       calls: 0,
       J(state) { this.calls++; this.state = state; }
     };
-    const document = {querySelector() {return {__instance: app};}};
+    const document = {addEventListener() {}, querySelector() {return {__instance: app};}};
   `, context);
   vm.runInContext(source.slice(source.indexOf('if (!window.__ytafPreloadExecuted)')), context);
   context.responseJson = JSON.stringify({
@@ -45,7 +46,7 @@ test('class constructor call site discovers J without invoking the constructor',
 for (const failInCaller of [true, false]) {
   test(`guide failure reports target exception even when caller would throw: ${failInCaller}`, () => {
     const logs = [];
-    const context = vm.createContext({rememberPlaybackMetadata,
+    const context = vm.createContext({markStartup,rememberPlaybackMetadata,
       ...filters,
       configRead: () => false,
       window: {},
@@ -60,7 +61,7 @@ for (const failInCaller of [true, false]) {
         },
         J(state) { throw new Error('missing renderer context'); }
       };
-      const document = {querySelector() {return {__instance: app};}};
+      const document = {addEventListener() {}, querySelector() {return {__instance: app};}};
     `, context);
     vm.runInContext(source.slice(source.indexOf('if (!window.__ytafPreloadExecuted)')), context);
     vm.runInContext('JSON.parse(\'{"items":[{"guideSectionRenderer":{"items":[]}}]}\')', context);

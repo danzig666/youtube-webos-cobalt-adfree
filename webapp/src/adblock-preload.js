@@ -1,3 +1,4 @@
+import { markStartup } from './startup-timing.mjs';
 import {rememberPlaybackMetadata} from './playback-metadata.mjs';
 import { installMediaSourceDiagnostics } from './media-source-diagnostics.mjs';
 installMediaSourceDiagnostics(window);
@@ -9,6 +10,8 @@ import {
 } from './shorts-response-filter.mjs';
 
 if (!window.__ytafPreloadExecuted) {
+  markStartup(window, 'preload');
+  document.addEventListener('DOMContentLoaded', () => markStartup(window, 'document'), {once: true});
   window.__ytafPreloadExecuted = true;
 
   if (!window.__ytafShortsResponseFilterInstalled) {

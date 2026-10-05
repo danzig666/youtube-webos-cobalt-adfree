@@ -1,0 +1,69 @@
+diff --git a/starboard/linux/shared/system_get_path.cc b/starboard/linux/shared/system_get_path.cc
+--- a/starboard/linux/shared/system_get_path.cc
++++ b/starboard/linux/shared/system_get_path.cc
+@@ -236,9 +236,22 @@
+     case kSbSystemPathExecutableFile:
+       return GetExecutablePath(out_path, path_size);
+ 
++    case kSbSystemPathFontDirectory:
++#if defined(STARBOARD_WEBOS)
++      // Use LG's installed fonts without bundling proprietary font files.
++      if (starboard::strlcpy(path.data(), "/usr/share/fonts", kPathSize) >= kPathSize) {
++        return false;
++      }
++      break;
++#endif
+     case kSbSystemPathFontConfigurationDirectory:
+-    case kSbSystemPathFontDirectory:
+-#if SB_IS(EVERGREEN_COMPATIBLE)
++#if defined(STARBOARD_WEBOS)
++      if (!GetContentDirectory(path.data(), kPathSize) ||
++          starboard::strlcat(path.data(), "/system_fonts", kPathSize) >= kPathSize) {
++        return false;
++      }
++      break;
++#elif SB_IS(EVERGREEN_COMPATIBLE)
+       if (!GetContentDirectory(path.data(), kPathSize)) {
+         return false;
+       }
+diff --git a/cobalt/renderer/rasterizer/skia/skia/src/ports/SkFontMgr_cobalt.cc b/cobalt/renderer/rasterizer/skia/skia/src/ports/SkFontMgr_cobalt.cc
+--- a/cobalt/renderer/rasterizer/skia/skia/src/ports/SkFontMgr_cobalt.cc
++++ b/cobalt/renderer/rasterizer/skia/skia/src/ports/SkFontMgr_cobalt.cc
+@@ -52,7 +52,19 @@
+ 
+   PriorityStyleSetArrayMap priority_fallback_families;
+ 
+-  // Cobalt fonts are loaded first.
++#if defined(STARBOARD_WEBOS)
++  // Prefer installed LG fonts, but ALWAYS load the complete bundled fallback
++  // below. Older firmware may lack any subset of the system font files.
++  if (system_font_config_directory && *system_font_config_directory &&
++      system_font_files_directory && *system_font_files_directory &&
++      strcmp(cobalt_font_files_directory, system_font_files_directory) != 0) {
++    ParseConfigAndBuildFamilies(system_font_config_directory,
++                                system_font_files_directory,
++                                &priority_fallback_families);
++  }
++#endif
++
++  // Cobalt fonts remain available when a system family/file is missing.
+   {
+     TRACE_EVENT0("cobalt::renderer", "LoadCobaltFontFamilies");
+     ParseConfigAndBuildFamilies(cobalt_font_config_directory,
+@@ -60,6 +72,7 @@
+                                 &priority_fallback_families);
+   }
+ 
++#if !defined(STARBOARD_WEBOS)
+   // Only attempt to load the system font families if the system directories
+   // have been populated and if the system font directory is not equal to the
+   // cobalt directory.
+@@ -73,6 +86,8 @@
+                                 system_font_files_directory,
+                                 &priority_fallback_families);
+   }
++
++#endif
+ 
+   // Load local fallback fonts if available.
+   // The fonts are added in addition to the Cobalt and System fonts.

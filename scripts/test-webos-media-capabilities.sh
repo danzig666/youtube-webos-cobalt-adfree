@@ -26,6 +26,7 @@ trap 'rm -rf "$temporary"' EXIT
   -fsanitize=undefined -fno-sanitize-recover=all \
   "$repo_root/scripts/test-webos-media-report.cc" \
   "$repo_root/cobalt-platform/webos/arm/webos_media_report.cc" \
+  "$repo_root/cobalt-platform/webos/arm/webos_startup_timing.cc" \
   "$repo_root/cobalt-platform/webos/arm/starfish_playback_rate.cc" \
   "$repo_root/cobalt-platform/webos/arm/webos_media_diagnostics.cc" \
   "$repo_root/cobalt-platform/webos/arm/webos_media_capabilities.cc" \

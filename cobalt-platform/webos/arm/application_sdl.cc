@@ -15,6 +15,7 @@
 #include "starboard/key.h"
 #include "starboard/shared/starboard/audio_sink/audio_sink_internal.h"
 #include "starboard/webos/arm/window_internal.h"
+#include "starboard/webos/arm/webos_startup_timing.h"
 #include "starboard/webos/arm/webos_media_diagnostics.h"
 #include "starboard/webos/arm/webos_scroll_input.h"
 
@@ -147,6 +148,7 @@ void ApplicationSdl::Initialize() {
     Stop(10);
     return;
   }
+  RecordStartupStage(StartupStage::kSdlReady);
   sdl_initialized_ = true;
   wake_event_type_ = SDL_RegisterEvents(1);
   SB_LOG(INFO) << "webOS SDL initialized with driver "
@@ -258,6 +260,7 @@ SbWindow ApplicationSdl::CreateWindow(const SbWindowOptions* options) {
   window_ = new SbWindowPrivate(sdl_window, info.info.wl.display,
                                 info.info.wl.egl_window, width, height,
                                 video_pixel_ratio);
+  RecordStartupStage(StartupStage::kGraphicsReady);
   return window_;
 }
 

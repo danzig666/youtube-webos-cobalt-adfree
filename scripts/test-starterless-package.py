@@ -45,6 +45,9 @@ class StarterlessPackageTests(unittest.TestCase):
             for path in (build / 'content/web/adblock/fonts', runtime, commands, assets / 'fonts'):
                 path.mkdir(parents=True)
             (build / 'content/web/adblock/fonts/obsolete.woff2').write_bytes(b'old font')
+            bundled = build / 'content/fonts'; bundled.mkdir()
+            (bundled / 'fonts.xml').write_text('<familyset><family><font>fallback.ttf</font></family></familyset>')
+            (bundled / 'fallback.ttf').write_bytes(b'bundled-fallback')
             (build / 'cobalt').write_text('/web/adblock/adblockPreload.js\0com.cobalt.youtube.adfree')
             (build / 'cobalt').chmod(0o755)
             for name in ('libstdc++.so.6', 'libgcc_s.so.1'):
@@ -57,7 +60,8 @@ class StarterlessPackageTests(unittest.TestCase):
             (commands / 'ares-package').write_text('#!' + sys.executable + '\n' +
                 'import json,os,sys\nfrom pathlib import Path\n' +
                 'fonts=Path(sys.argv[-1])/"content/web/adblock/fonts"\n' +
-                'Path(os.environ["YTAF_STAGE_REPORT"]).write_text(json.dumps({p.name:p.read_text() for p in fonts.iterdir()}))\n' +
+                'stage=Path(sys.argv[-1])\n' +
+                'Path(os.environ["YTAF_STAGE_REPORT"]).write_text(json.dumps({"custom":{p.name:p.read_text() for p in fonts.iterdir()},"system":(stage/"content/system_fonts/fonts.xml").read_text(),"bundled":(stage/"content/fonts/fallback.ttf").read_text()}))\n' +
                 'sys.exit(91)\n')
             for command in commands.iterdir(): command.chmod(0o755)
             report = root / 'staged-fonts.json'
@@ -74,7 +78,10 @@ class StarterlessPackageTests(unittest.TestCase):
             (assets / 'fonts/Inter-SemiBold.woff2').write_bytes(b'semibold-font')
             packaged = subprocess.run(command, env=env, text=True, capture_output=True)
             self.assertEqual(packaged.returncode, 91, packaged.stdout + packaged.stderr)
-            self.assertEqual(json.loads(report.read_text()), {
+            staged = json.loads(report.read_text())
+            self.assertEqual(staged['system'], (ROOT / 'cobalt-platform/webos/system_fonts/fonts.xml').read_text())
+            self.assertEqual(staged['bundled'], 'bundled-fallback')
+            self.assertEqual(staged['custom'], {
                 'Inter-Regular.woff2': 'regular-font', 'Inter-SemiBold.woff2': 'semibold-font'})
 
     def test_font_sources_preserve_preload_patch_and_upgrade_existing_gn_target(self):
@@ -93,17 +100,35 @@ class StarterlessPackageTests(unittest.TestCase):
                 (assets / 'fonts' / font).write_bytes(font.encode())
             for asset in ('adblockMain.js', 'adblockMain.css', 'adblockPreload.js'):
                 (assets / asset).write_text(asset)
-            (cobalt / 'cobalt/adblock/BUILD.gn').write_text('// base integration fixture\n')
+            (cobalt / 'cobalt/adblock/BUILD.gn').write_text('static_library("adblock") { deps = ["//cobalt/adblock/content:copy_adblock_web_files"] }\n')
             browser = cobalt / 'cobalt/browser'; browser.mkdir()
             (browser / 'web_module.cc').write_text('void ReadYtafPreloadScript();\n')
             csp = cobalt / 'cobalt/csp'; csp.mkdir()
             patch = (ROOT / 'cobalt-platform/cobalt-23.lts.6-ytaf-dearrow-csp.patch').read_text()
             before = ''.join(line[1:] + '\n' for line in patch.splitlines()[3:] if line.startswith((' ', '-')))
             (csp / 'directive_list.cc').write_text('// fixture\n' * 905 + before + '// end\n')
+            # Recreate pre-upgrade native files from the actual logging patch.
+            import re
+            quiet = (ROOT / 'cobalt-platform/cobalt-23.lts.6-ytaf-quiet-script-logging.patch').read_text()
+            for diff in quiet.split('diff --git ')[1:]:
+                name = diff.splitlines()[0].split()[0][2:]
+                lines = []
+                for hunk in re.split(r'(?m)^@@ ', diff)[1:]:
+                    header, body = hunk.split('\n', 1)
+                    position = int(re.match(r'-(\d+)', header).group(1)) - 1
+                    lines.extend(['\n'] * max(0, position - len(lines)))
+                    lines.extend(line[1:] + '\n' for line in body.splitlines()
+                                 if line.startswith((' ', '-')))
+                path = cobalt / name; path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(''.join(lines))
             env = dict(os.environ, WEBAPP_OUTPUT_DIR=str(assets))
             command = ['bash', str(ROOT / 'scripts/install-ytaf-cobalt-assets.sh'), str(cobalt)]
             fresh = subprocess.run(command, env=env, text=True, capture_output=True)
             self.assertEqual(fresh.returncode, 0, fresh.stdout + fresh.stderr)
+            self.assertEqual((cobalt / 'cobalt/adblock/system_fonts/fonts.xml').read_bytes(),
+                             (ROOT / 'cobalt-platform/webos/system_fonts/fonts.xml').read_bytes())
+            subprocess.run(['git', '-C', str(cobalt), 'apply', '--reverse', '--check',
+                            str(ROOT / 'cobalt-platform/cobalt-23.lts.6-ytaf-quiet-script-logging.patch')], check=True)
             # Simulate an older, already-patched checkout that has no font sources.
             source = content.read_text()
             start = source.index('  sources += [')

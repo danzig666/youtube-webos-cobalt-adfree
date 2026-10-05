@@ -79,6 +79,15 @@ printf '%s\n' "$appinfo_json" > "$package_root/appinfo.json"
 cp "$build_dir/cobalt" "$package_root/cobalt"
 cp -R "$build_dir/content" "$package_root/content"
 
+# Adapted from upstream PR #104. Keep every bundled fallback font too.
+system_fonts_source="$repo_root/cobalt-platform/webos/system_fonts/fonts.xml"
+if [[ ! -s "$system_fonts_source" ]]; then
+  echo "Missing LG system-font metadata: $system_fonts_source" >&2
+  exit 6
+fi
+mkdir -p "$package_root/content/system_fonts"
+cp -p "$system_fonts_source" "$package_root/content/system_fonts/fonts.xml"
+
 # Always overlay the selected web assets at packaging time. For artifact-based
 # packaging WEBAPP_OUTPUT_DIR may point at the runtime artifact itself, which
 # keeps the IPK byte-for-byte aligned with the tested Cobalt content bundle.
@@ -119,6 +128,8 @@ find "$package_root" -type f -exec chmod 644 {} +
 chmod 755 "$package_root/cobalt"
 
 # Final guard on the exact package tree, not only the source/output directories.
+test -s "$package_root/content/system_fonts/fonts.xml"
+cmp -s "$system_fonts_source" "$package_root/content/system_fonts/fonts.xml"
 for asset in adblockPreload.js fonts/Inter-Regular.woff2 fonts/Inter-SemiBold.woff2; do
   test -s "$adblock_target/$asset"
 done

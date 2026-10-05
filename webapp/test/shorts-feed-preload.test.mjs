@@ -1,3 +1,4 @@
+import {markStartup} from '../src/startup-timing.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
@@ -12,10 +13,10 @@ const shortTile = { tileRenderer: { onSelectCommand: { reelWatchEndpoint: {
 } } } };
 
 function parser(enabled = false, downstream = false) {
-  const context = vm.createContext({rememberPlaybackMetadata,
+  const context = vm.createContext({markStartup,rememberPlaybackMetadata,
     ...filters,
     configRead: () => enabled,
-    document: { querySelector: () => null },
+    document: { addEventListener() {}, querySelector: () => null },
     window: {},
     console: { info() {}, log() {}, warn() {}, error() {} }
   });

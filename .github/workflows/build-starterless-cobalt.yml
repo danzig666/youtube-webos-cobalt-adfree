@@ -31,7 +31,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: cobalt-main-${{ inputs.cobalt_ref || '23.lts.6' }}-${{ inputs.build_type || 'gold' }}
+  group: cobalt-${{ github.ref_name }}-${{ inputs.cobalt_ref || '23.lts.6' }}-${{ inputs.build_type || 'gold' }}
   cancel-in-progress: false
 
 jobs:

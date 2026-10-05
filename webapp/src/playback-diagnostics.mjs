@@ -1,3 +1,4 @@
+import { startupReport } from './startup-timing.mjs';
 import { createCapabilityTest } from './capability-test.mjs';
 import { homeRefreshReport } from './home-refresh.mjs';
 function clockReport(win) {
@@ -31,7 +32,7 @@ export function frontendPlaybackReport(doc,win) {
   const number=value=>Number.isFinite(value)?Math.round(value*100)/100:'unknown';
   const attached=Boolean(video && doc.documentElement?.contains(video));
   const statuses=['idle','disabled','fetching','segments-loaded','no-segments','fetch-error','channel-excluded','waiting-for-channel'];
-  return ['App playback state:',
+  return [startupReport(win), '', 'App playback state:',
     `Video element: ${video?'present':'absent'} / ${attached?'attached':'detached'}`,
     video ? `Media: ready ${number(video.readyState)} paused ${Boolean(video.paused)} seeking ${Boolean(video.seeking)} ended ${Boolean(video.ended)}` : 'Media: unavailable',
     video ? `Position: ${number(video.currentTime)} / ${number(video.duration)} seconds` : 'Position: unavailable',

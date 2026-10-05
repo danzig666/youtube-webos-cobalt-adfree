@@ -47,6 +47,11 @@ mkdir -p "$platform_target"
 # and force Ninja to rebuild almost the entire dependency graph.
 rsync -ac --exclude=webos_build_metadata.h "$overlay/" "$platform_target/"
 
+if ! grep -q "Use LG's installed fonts" "$cobalt_root/starboard/linux/shared/system_get_path.cc"; then
+  git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-system-fonts.patch"
+  git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-system-fonts.patch"
+fi
+
 if ! grep -q "'webos-arm': 'starboard/webos/arm'" "$platforms_file"; then
   git -C "$cobalt_root" apply --check "$registration_patch"
   git -C "$cobalt_root" apply "$registration_patch"

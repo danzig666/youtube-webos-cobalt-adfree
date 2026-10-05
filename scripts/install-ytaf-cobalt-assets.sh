@@ -51,6 +51,14 @@ if [[ "$has_preload_hook" == "0" ]]; then
   git -C "$cobalt_root" apply "$preload_patch"
 fi
 
+# Upgrade existing base integrations as well as fresh checkouts. Production
+# builds omit per-script success tracing and debug argument serialization.
+quiet_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-ytaf-quiet-script-logging.patch"
+if ! git -C "$cobalt_root" apply --reverse --check "$quiet_patch" 2>/dev/null; then
+  git -C "$cobalt_root" apply --check "$quiet_patch"
+  git -C "$cobalt_root" apply "$quiet_patch"
+fi
+
 # Permit the fixed DeArrow thumbnail host for images on fresh and existing trees.
 dearrow_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-ytaf-dearrow-csp.patch"
 if ! git -C "$cobalt_root" apply --reverse --check "$dearrow_patch" 2>/dev/null; then
@@ -75,6 +83,30 @@ if missing:
     source = source.replace(marker, '  sources += [\n' + entries + '  ]\n\n' + marker)
     path.write_text(source)
 PY_GN
+
+# Include LG font metadata in native build artifacts as well as final IPKs.
+# The executable expects it at content/system_fonts; bundled fonts stay intact.
+system_font_dir="$cobalt_root/cobalt/adblock/system_fonts"
+mkdir -p "$system_font_dir"
+cp -p "$repo_root/cobalt-platform/webos/system_fonts/fonts.xml" "$system_font_dir/fonts.xml"
+cat > "$system_font_dir/BUILD.gn" <<'GN_FONTS'
+copy("copy_webos_system_fonts") {
+  sources = [ "fonts.xml" ]
+  outputs = [ "$sb_static_contents_output_data_dir/system_fonts/fonts.xml" ]
+}
+GN_FONTS
+python3 - "$cobalt_root/cobalt/adblock/BUILD.gn" <<'PY_FONTS'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1]); source = path.read_text()
+if '"system_fonts:copy_webos_system_fonts"' not in source:
+    # The adblock target already supplies content assets to the runtime bundle.
+    marker = '"//cobalt/adblock/content:copy_adblock_web_files"'
+    if source.count(marker) != 1:
+        raise SystemExit('Cannot find adblock content dependency for system fonts')
+    source = source.replace(marker, marker + ', "//cobalt/adblock/system_fonts:copy_webos_system_fonts"')
+    path.write_text(source)
+PY_FONTS
 
 mkdir -p "$content_target/fonts"
 for asset in adblockMain.js adblockMain.css adblockPreload.js fonts/Inter-Regular.woff2 fonts/Inter-SemiBold.woff2; do
