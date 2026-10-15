@@ -1,3 +1,4 @@
+import {capabilityQueryReport} from './media-capability-queries.mjs';
 import { startupReport } from './startup-timing.mjs';
 import { createCapabilityTest } from './capability-test.mjs';
 import { homeRefreshReport } from './home-refresh.mjs';
@@ -39,6 +40,7 @@ export function frontendPlaybackReport(doc,win) {
     `Resume: ${win.__ytafResume?.status || 'not initialized'}`,
     `Local fallback: ${win.__ytafResume?.localStatus || 'not initialized'}`,
     clockReport(win),
+    capabilityQueryReport(win),
     `Thumbnail progress: ${win.__ytafThumbnailProgress?.status || 'not initialized'}`,
     healthReport(win),
     `Settings initialized: ${Boolean(win.__ytafUiInitialized)}`,

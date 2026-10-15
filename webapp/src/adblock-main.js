@@ -1,3 +1,5 @@
+import {installMediaCapabilityQueries} from './media-capability-queries.mjs';
+installMediaCapabilityQueries(window,document);
 import { markStartup, watchStartupScreen } from './startup-timing.mjs';
 markStartup(window, 'script');
 console.info('[ytaf] adblock-main.js LOADING');

@@ -1,3 +1,5 @@
+import {installMediaCapabilityQueries} from './media-capability-queries.mjs';
+installMediaCapabilityQueries(window,document);
 import { markStartup } from './startup-timing.mjs';
 import {rememberPlaybackMetadata} from './playback-metadata.mjs';
 import { installMediaSourceDiagnostics } from './media-source-diagnostics.mjs';
