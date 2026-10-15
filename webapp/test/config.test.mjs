@@ -111,3 +111,9 @@ test('playback bookmarks persist silently without resetting settings or emitting
   assert.equal(again.context.configRead('seekBehavior'),'delayed');
   assert.equal(load('{}',true).context.persistPlaybackPositions([]),false);
 });
+
+test('optional display filters default off and survive a fresh settings load',()=>{
+ const keys=['hideEndScreens','enhanceThumbnails','hideGuestPrompts','hideYouTubeLogo'];
+ const f=load('{}');for(const key of keys){assert.equal(f.context.configRead(key),false);f.context.configWrite(key,true);}
+ const next=load(f.saved());for(const key of keys)assert.equal(next.context.configRead(key),true);
+});

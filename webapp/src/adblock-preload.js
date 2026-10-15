@@ -1,3 +1,4 @@
+import {applyDisplayFilters} from './display-filters.mjs';
 import {installMediaCapabilityQueries} from './media-capability-queries.mjs';
 installMediaCapabilityQueries(window,document);
 import { markStartup } from './startup-timing.mjs';
@@ -217,6 +218,12 @@ if (!window.__ytafPreloadExecuted) {
       try {
         const value = downstreamParse.apply(this, arguments);
         rememberPlaybackMetadata(window, value);
+        if(configRead('hideEndScreens')||configRead('enhanceThumbnails')||configRead('hideGuestPrompts')) {
+          try {applyDisplayFilters(value,{
+            hideEndScreens:configRead('hideEndScreens'), enhanceThumbnails:configRead('enhanceThumbnails'),
+            hideGuestPrompts:configRead('hideGuestPrompts')
+          });} catch(_){/* Display options must not interrupt parsing/playback. */}
+        }
         const guideResponse = isGuideResponse(value);
 
         if (guideResponse) {

@@ -1,3 +1,4 @@
+import {applyDisplayFilters} from '../src/display-filters.mjs';
 import {markStartup} from '../src/startup-timing.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -43,4 +44,16 @@ test('combined preload and ad filters preserve YouTube playback and watch-time t
   assert.deepEqual(filtered.contents.items, []);
   assert.deepEqual(filtered.playerOverlays.playerOverlayRenderer.timelyActionRenderers,
     [{timelyActionRenderer: {type: 'TIMELY_ACTION_TYPE_SURVEY'}}]);
+});
+
+test('early response hook applies optional display filters and preserves watch history data',()=>{
+ const ctx=vm.createContext({markStartup,rememberPlaybackMetadata,applyDisplayFilters,...shortsFilters,
+  configRead:key=>['enableShorts','hideEndScreens','hideGuestPrompts','enhanceThumbnails'].includes(key),
+  document:{addEventListener(){},querySelector:()=>null},window:{},console:{log(){},warn(){},info(){}}});
+ const source=readFileSync(new URL('../src/adblock-preload.js',import.meta.url),'utf8');
+ vm.runInContext(source.slice(source.indexOf('if (!window.__ytafPreloadExecuted)')),ctx);
+ ctx.input=JSON.stringify({videoDetails:{videoId:'aaaaaaaaaaa',lengthSeconds:'300'},playabilityStatus:{status:'OK'},
+  endscreen:{endscreenRenderer:{}},playbackTracking:{videostatsWatchtimeUrl:{baseUrl:'history-preserved'}}});
+ const response=JSON.parse(vm.runInContext('JSON.stringify(JSON.parse(input))',ctx));
+ assert.equal(response.endscreen,undefined);assert.equal(response.playbackTracking.videostatsWatchtimeUrl.baseUrl,'history-preserved');
 });

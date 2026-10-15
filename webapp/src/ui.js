@@ -1,3 +1,4 @@
+import {installDisplayPreferences,createDisplaySettings} from './display-filters.mjs';
 /*global navigate*/
 
 // import './spatial-navigation-polyfill.js';
@@ -359,6 +360,8 @@ export function userScriptStartUI() {
   }
   renderClockStatus();document.addEventListener('ytaf-config-changed',renderClockStatus);
   uiContainer.appendChild(clockStatus);
+  installDisplayPreferences(document,configRead);
+  uiContainer.appendChild(createDisplaySettings(document,checkboxTools,configRead,configWrite));
   const videoQuality = createVideoCapabilitySetting(document, window, choiceTools);
   videoQuality.dataset.ytafSection = 'playback';
   uiContainer.appendChild(videoQuality);
