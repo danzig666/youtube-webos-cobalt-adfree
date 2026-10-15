@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Exercise the real container entrypoint with controlled compiler tools."""
-import json,os,subprocess,tempfile,unittest
+import json,os,shutil,subprocess,tempfile,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 class CacheTests(unittest.TestCase):
@@ -10,8 +10,8 @@ class CacheTests(unittest.TestCase):
    for name,exit_code in [('git',0),('gn',gn_exit),('ninja',ninja_exit)]+([('ccache',0)] if installed else []):
     p=commands/name;p.write_text('#!'+os.sys.executable+'\nimport os,json,sys\n'+
      'with open(os.environ["CALL_LOG"],"a") as f:f.write(json.dumps({"tool":'+repr(name)+',"args":sys.argv[1:],"sloppiness":os.getenv("CCACHE_SLOPPINESS"),"compiler":os.getenv("CCACHE_COMPILERCHECK")})+"\\n")\n'+f'sys.exit({exit_code})\n');p.chmod(0o755)
-   env=dict(os.environ,PATH=str(commands)+':/usr/bin:/bin',CALL_LOG=str(log),OUT_DIR='out/test',BUILD_TYPE='gold',PARALLEL='4',YTAF_CCACHE=cache,CCACHE_SLOPPINESS='file_stat_matches')
-   result=subprocess.run(['bash',str(ROOT/'scripts/run-cobalt-compile.sh')],env=env,capture_output=True,text=True)
+   env=dict(os.environ,PATH=str(commands),CALL_LOG=str(log),OUT_DIR='out/test',BUILD_TYPE='gold',PARALLEL='4',YTAF_CCACHE=cache,CCACHE_SLOPPINESS='file_stat_matches')
+   result=subprocess.run([shutil.which('bash'),str(ROOT/'scripts/run-cobalt-compile.sh')],env=env,capture_output=True,text=True)
    return result,[json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
  def test_enabled_caches_compilation_with_content_checks_and_no_sloppiness(self):
   result,calls=self.run_build();self.assertEqual(result.returncode,0,result.stderr)
