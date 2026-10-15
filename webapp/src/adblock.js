@@ -25,7 +25,10 @@ const AD_TILE_SELECTOR = [
 let adSlotObserver = null;
 
 function findAdTile(adRenderer) {
-  const semanticTile = adRenderer.closest(AD_TILE_SELECTOR);
+  // Cobalt exposes matches(), but not Element.closest().
+  let semanticTile = adRenderer;
+  while (semanticTile && !semanticTile.matches(AD_TILE_SELECTOR))
+    semanticTile = semanticTile.parentElement;
   if (semanticTile) return semanticTile;
 
   /*
@@ -68,17 +71,20 @@ function processAddedNode(node) {
     hideAdRenderer(node);
   }
 
-  node.querySelectorAll(AD_RENDERER_SELECTOR).forEach(hideAdRenderer);
+  const children = node.querySelectorAll(AD_RENDERER_SELECTOR);
+  for (let i = 0; i < children.length; i++) hideAdRenderer(children[i]);
 }
 
 function startAdSlotObserver() {
   if (adSlotObserver || !document.body) return;
 
-  document.querySelectorAll(AD_RENDERER_SELECTOR).forEach(hideAdRenderer);
+  const renderers = document.querySelectorAll(AD_RENDERER_SELECTOR);
+  for (let i = 0; i < renderers.length; i++) hideAdRenderer(renderers[i]);
 
   adSlotObserver = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
-      mutation.addedNodes.forEach(processAddedNode);
+      for (let i = 0; i < mutation.addedNodes.length; i++)
+        processAddedNode(mutation.addedNodes[i]);
     });
   });
   adSlotObserver.observe(document.body, {
@@ -93,9 +99,9 @@ function stopAdSlotObserver() {
     adSlotObserver = null;
   }
 
-  document.querySelectorAll('.ytaf-hidden-ad-tile').forEach((tile) => {
-    tile.classList.remove('ytaf-hidden-ad-tile');
-  });
+  const tiles = document.querySelectorAll('.ytaf-hidden-ad-tile');
+  for (let i = 0; i < tiles.length; i++)
+    tiles[i].classList.remove('ytaf-hidden-ad-tile');
 }
 
 function syncAdblockStyles() {

@@ -661,7 +661,7 @@ class ReturnYouTubeDislike {
             );
         }
 
-        document.querySelectorAll('.ytaf-ryd-ready').forEach(container => {
+        Array.from(document.querySelectorAll('.ytaf-ryd-ready')).forEach(container => {
             container.classList.remove('ytaf-ryd-ready');
         });
         this.dislikeButton = null;
