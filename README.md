@@ -6,12 +6,12 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 ## Download and install
 
-**[Latest release: v2.6.26-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.26-beta.1)**
+**[Latest release: v2.6.27-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.27-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
-| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.26-beta.1/com.cobalt.youtube.adfree_2.6.26_arm.ipk) | Installs alongside official YouTube |
-| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.26-beta.1/youtube.leanback.v4_2.6.26_arm.ipk) | **Replaces official YouTube** |
+| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.27-beta.1/com.cobalt.youtube.adfree_2.6.27_arm.ipk) | Installs alongside official YouTube |
+| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.27-beta.1/youtube.leanback.v4_2.6.27_arm.ipk) | **Replaces official YouTube** |
 
 Install using webOS Device Manager or `ares-cli` with Developer Mode, or Homebrew Channel on a compatible setup. Update the same package ID you already use, then fully close and reopen the app. Checksums and build records accompany each release.
 
@@ -43,10 +43,13 @@ The original ad blocking, Return YouTube Dislike, automatic account selection, s
 | System fonts | Prefers LG’s installed fonts; retains bundled fallback fonts and Inter settings typography |
 | Scrollable diagnostics | App/runtime versions, capability policy, codecs, rates, queues, resume/SponsorBlock state, script/update delivery, Home-refresh reasons and bounded playback events |
 | TV capability test | Read-only LG panel/UHD/OLED/HDR flags and optional Starfish decoder limits; configured Cobalt support is shown separately |
+| Optional display controls | Hide end screens, recommendation sign-in prompts or the YouTube logo; prefer sharper standard thumbnails; all off by default |
 | Durable preferences | Private per-install saves, migration from older browser settings and visible save-failure feedback |
 | Two installable variants | Original-ID and separate-ID IPKs with matching runtime identities, build records and SHA-256 checksums |
 
 Press **GREEN** to open settings. Use arrows and **OK**, the cursor or the wheel; **BACK** cancels an option list first, then closes settings without closing the video. Default numeric shortcuts: **0** captions, **1** slower, **3** faster. Assign **Reset playback speed to 1×** or **Refresh Home recommendations** under Remote. Home refresh works only on Home. Refresh sends YouTube’s `SOFT_RELOAD_PAGE` command, using the method from NicholasBly’s app; it does not require opening the sidebar. Older runtimes without the event API can use a sidebar round trip. YouTube decides which recommendations are returned.
+
+Four optional display controls are under **General** and default off. Logo visibility changes immediately; feed/video filters apply when the next response loads. Use Home refresh when desired. Sharper thumbnails depend on YouTube’s available image variants. These options do not automatically refresh the Home feed or disable normal sign-in.
 
 Use **Diagnostics → Run capability test** to inspect the TV’s reported panel/HDR flags and decoder limits in the existing scrolling log. The test uses ordinary LS2 client queries and explains denied/empty replies. Identical decoder ceilings are not proof of panel resolution or HDR. Missing fields stay unknown; the test changes no settings. See [test details](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/tv-capability-test.md).
 
@@ -55,6 +58,8 @@ Choose a quality profile your TV supports; restart to apply it. Custom speeds re
 YouTube default restores native caption styling. DeArrow sends visible video IDs to public services when enabled. Backup/restore and the separate comments reader are excluded; use YouTube’s comments.
 
 ## Fixes and playback hardening
+
+- **Community adaptations:** fixed ad hiding on Cobalt DOM collections without `closest()`/NodeList `forEach()`, normalized valid decimal-bitrate capability queries, added bounded query diagnostics and enabled conservative native compiler caching. Frame-rate/hardware policy stays unchanged; C3 speed/quality behavior needs device testing. See [fork sources and validation](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/fork-improvements-2026-10.md).
 
 - **Startup and fonts:** adapted upstream direct logging and system-font support, with concurrent-safe file rotation, debug-only per-script success tracing, startup timings, retained bundled fallbacks and an overlapping-family ownership fix. See [startup findings](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/upstream-startup-improvements.md).
 
@@ -74,7 +79,7 @@ YouTube default restores native caption styling. DeArrow sends visible video IDs
 - **Optional integrations:** cancelled stale auto-login keys and Return YouTube Dislike requests; Stop after video now follows replacement media elements.
 - **Development:** enabled ordinary CI on the release-development branch. Added SDK-free native host tests, a scheduled full Gold ARM build workflow, device-report templates and a compatibility-matrix generator. Scheduled builds activate on the default branch; they do not publish stable releases.
 
-C3 feedback confirms caption sizing/cursor selection (2.6.5), in-place Home refresh (2.6.11), cached resume (2.6.17) and LG model/panel/HDR queries (2.6.21). Version 2.6.26 passes 372 web tests, the complete native host suite, settings checks across six categories and 30 dropdowns at 720p/1080p, 20 simulated playback minutes at each resolution, package checks, both ARM builds and GitHub CI. The C3 tester reports **no recent playback freezes**. Startup overhead was reduced in code; speedup is not yet measured on a TV. Read startup timings under **GREEN → Diagnostics**. See the [project audit and recommendations](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/project-audit-2026-10.md) and [playback recovery details](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/c3-playback-recovery.md). Account resume, fractional speeds, live/DVR, HDR and lifecycle recovery still need device validation. AAC keeps its existing decoder path; legacy playback and `YTAF_SHARED_AV=0` rollback remain available.
+C3 feedback confirms caption sizing/cursor selection (2.6.5), in-place Home refresh (2.6.11), cached resume (2.6.17) and LG model/panel/HDR queries (2.6.21). Version 2.6.27 passes 386 web tests, the complete native host suite, settings checks across six categories and 30 dropdowns at 720p/1080p, 20 simulated playback minutes at each resolution, package checks, both ARM builds and GitHub CI. The C3 tester reports **no recent playback freezes**. Startup overhead was reduced in code; speedup is not yet measured on a TV. Read startup timings under **GREEN → Diagnostics**. See the [project audit and recommendations](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/project-audit-2026-10.md) and [playback recovery details](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/c3-playback-recovery.md). Account resume, fractional speeds, live/DVR, HDR and lifecycle recovery still need device validation. AAC keeps its existing decoder path; legacy playback and `YTAF_SHARED_AV=0` rollback remain available.
 
 ## Screenshots
 
@@ -99,6 +104,8 @@ npm --prefix webapp ci
 npm --prefix webapp test
 npm --prefix webapp run build -- --env production
 ```
+
+Native compilation uses ccache when installed, with content-based compiler checks; set `YTAF_CCACHE=0` to disable it.
 
 Native checks: `bash scripts/test-native-host.sh /path/to/disposable-cobalt-23.lts.6` (prepares that checkout). Build/package helpers: [Cobalt build](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/scripts/build-starterless-cobalt-docker.sh), [SDL build](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/scripts/build-sdl-webos-docker.sh), [IPK packaging](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/scripts/package-starterless-cobalt.sh). Keep `YTAF_PACKAGE_ID` identical for native build and packaging.
 
