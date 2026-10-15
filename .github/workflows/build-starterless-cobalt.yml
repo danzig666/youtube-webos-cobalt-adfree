@@ -41,6 +41,8 @@ jobs:
     timeout-minutes: 360
 
     env:
+      CCACHE_HOST_DIR: ${{ github.workspace }}/workdir/ccache
+      CCACHE_MAXSIZE: 5G
       COBALT_SOURCE_DIR: ${{ github.workspace }}/workdir/cobalt-source
       SDL2_BUNDLE_DIR: ${{ github.workspace }}/workdir/deps/SDL2-2.30.12-webos-abi
       WEBOS_LINUX_SDK_VOLUME: ytaf-webos-linux-sdk
@@ -177,7 +179,7 @@ jobs:
           set -euo pipefail
           docker build -t cobalt-build-evergreen:latest - <<'EOF'
           FROM cobalt-build-evergreen:latest
-          RUN apt update -qqy && apt install -qqy --no-install-recommends cmake gawk libwayland-bin && /opt/clean-after-apt.sh
+          RUN apt update -qqy && apt install -qqy --no-install-recommends cmake gawk libwayland-bin ccache && /opt/clean-after-apt.sh
           EOF
 
       - name: Build patched SDL-webOS bundle
@@ -191,12 +193,27 @@ jobs:
           git -C "$COBALT_SOURCE_DIR" restore --source=HEAD --worktree -- docker-compose.yml docker/linux/base/Dockerfile docker/linux/base/build/Dockerfile
           git -C "$COBALT_SOURCE_DIR" diff --quiet -- docker-compose.yml docker/linux/base/Dockerfile docker/linux/base/build/Dockerfile
 
+      - name: Restore native compiler cache
+        uses: actions/cache/restore@v4
+        with:
+          path: workdir/ccache
+          key: ccache-webos-arm-v1-${{ steps.meta.outputs.cobalt_slug }}-${{ inputs.build_type || 'gold' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ccache-webos-arm-v1-${{ steps.meta.outputs.cobalt_slug }}-${{ inputs.build_type || 'gold' }}-
+
       - name: Build Cobalt
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p output
           bash scripts/build-starterless-cobalt-docker.sh
+
+      - name: Save native compiler cache
+        if: ${{ always() }}
+        uses: actions/cache/save@v4
+        with:
+          path: workdir/ccache
+          key: ccache-webos-arm-v1-${{ steps.meta.outputs.cobalt_slug }}-${{ inputs.build_type || 'gold' }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Create Cobalt runtime archive
         id: archive

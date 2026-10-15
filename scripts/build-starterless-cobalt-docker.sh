@@ -60,16 +60,23 @@ rm -rf "$cobalt_root/$out_dir/content/web/adblock"
 
 echo "Starting the long Cobalt webos-arm build with $parallel jobs."
 echo "Complete build log: $build_log"
+cache_dir="${CCACHE_HOST_DIR:-$repo_root/workdir/ccache}"
+mkdir -p "$cache_dir"
 docker run --rm --platform linux/amd64 \
   -v "$cobalt_root:/code" \
   -v "$sdk_volume:/sdk" \
   -v "$sdl_root:/sdl:ro" \
+  -v "$cache_dir:/ccache" \
+  -v "$repo_root/scripts/run-cobalt-compile.sh:/run/ytaf-compile.sh:ro" \
   -w /code \
   -e PYTHONPATH=/code \
   -e WEBOS_SDK_ROOT=/sdk/arm-webos-linux-gnueabi_sdk-buildroot \
   -e SDL2_BUNDLE_DIR=/sdl \
+  -e OUT_DIR="$out_dir" -e BUILD_TYPE="$build_type" -e PARALLEL="$parallel" \
+  -e YTAF_CCACHE="${YTAF_CCACHE:-1}" -e CCACHE_DIR=/ccache \
+  -e CCACHE_BASEDIR=/code -e CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-5G}" \
   cobalt-build-evergreen:latest \
-  sh -c "umask 022 && git config --global --add safe.directory /code && gn --script-executable=python3 gen '$out_dir' --args='target_platform=\"webos-arm\" build_type=\"$build_type\" target_cpu=\"arm\" sb_api_version=13 is_clang=false' && ninja -v -j '$parallel' -C '$out_dir' cobalt" \
+  bash /run/ytaf-compile.sh \
   2>&1 | tee "$build_log"
 
 cobalt_binary="$cobalt_root/$out_dir/cobalt"
