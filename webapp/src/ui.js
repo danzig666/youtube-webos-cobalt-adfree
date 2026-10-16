@@ -9,6 +9,7 @@ import './corner-clock.css';
 import { installCornerClock, clockDisplayMode } from './corner-clock.mjs';
 import { startPlaybackResume } from './playback-resume.mjs';
 import { createPlaybackSeek } from './playback-seek.mjs';
+import { startAutoQuality } from './auto-quality.mjs';
 import { startPlaybackHealth } from './playback-health.mjs';
 import { createPlaybackControlsReveal } from './playback-controls-visibility.mjs';
 import { createSeekPreview } from './seek-preview.mjs';
@@ -370,6 +371,13 @@ export function userScriptStartUI() {
     configRead, persistPlaybackPositions, showNotification));
   const playbackPreferences = document.createElement('div');
   playbackPreferences.dataset.ytafSection = 'playback';
+  const autoQuality = window.__ytafAutoQuality || (window.__ytafAutoQuality = startAutoQuality(document,window,configRead));
+  playbackPreferences.appendChild(checkboxTools.add('__high_quality_auto_startup',
+    'Higher-quality Auto startup',configRead('highQualityAutoStartup'),callbackConfig('highQualityAutoStartup')));
+  const qualityStatus=document.createElement('div');qualityStatus.className='ytaf-setting-help';
+  qualityStatus.id='__auto_quality_status';
+  autoQuality.render=()=>{qualityStatus.textContent='When YouTube quality is Auto, briefly request the highest available level, then let Auto adapt to your connection. Manual choices stay unchanged. '+autoQuality.status;};
+  autoQuality.render();playbackPreferences.appendChild(qualityStatus);
   const playbackSpeed = startPlaybackSpeed(document,window,configRead,configWrite,showNotification);
   playbackPreferences.appendChild(choiceTools.add('__playback_speed','Playback speed',configRead('playbackSpeed'),
     [{value:'youtube',label:'YouTube choice'},...playbackRates.map(rate=>({value:String(rate),label:`${rate}×`}))],
@@ -396,14 +404,14 @@ export function userScriptStartUI() {
   function renderResumeStatus() {resumeStatus.textContent=`${resume.status} ${resume.localStatus || ''}`;}
   renderResumeStatus();document.addEventListener('ytaf-config-changed',renderResumeStatus);
   playbackPreferences.appendChild(resumeStatus);
-  playbackPreferences.appendChild(choiceTools.add('__seek_behavior', 'Left / Right seeking', configRead('seekBehavior'), [
-    {value:'youtube',label:'YouTube default (OK to confirm)'},
+  playbackPreferences.appendChild(choiceTools.add('__seek_behavior', 'Channel + / − quick seek', configRead('channelSeekBehavior'), [
+    {value:'youtube',label:'Off'},
     {value:'immediate',label:'Automatic — 0.5 seconds after release'},
     {value:'delayed',label:'Automatic — 0.8 seconds after release'},
     {value:'relaxed',label:'Automatic — 1 second after release'}
-  ], callbackConfig('seekBehavior')));
+  ], callbackConfig('channelSeekBehavior')));
   const playbackHint = document.createElement('div'); playbackHint.className='ytaf-setting-help';
-  playbackHint.textContent='YouTube manages account resume through watch history. Sign in and keep watch history enabled to sync across devices. Optional TV fallback stores unfinished videos on this app install, and gives YouTube priority. Automatic seeking previews 10-second steps before the delayed jump.';
+  playbackHint.textContent='YouTube manages account resume through watch history. Sign in and keep watch history enabled to sync across devices. Optional TV fallback stores unfinished videos on this app install, and gives YouTube priority. Left/Right always use YouTube’s normal seek controls. Channel + seeks forward and Channel − backward in 10-second steps, previewing the target before the delayed jump.';
   playbackPreferences.appendChild(playbackHint);
   const clearRow=document.createElement('div'), clearPositions=document.createElement('div');
   clearPositions.id='__clear_playback_positions';clearPositions.tabIndex=903;clearPositions.className='ytaf-diagnostic-action';

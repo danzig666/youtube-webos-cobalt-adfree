@@ -99,16 +99,16 @@ test('native preferences survive lost browser storage, migrate old preferences, 
 
 test('playback bookmarks persist silently without resetting settings or emitting history events',()=>{
   const f=load('{}');assert.equal(f.context.configRead('rememberPlaybackPosition'),true);
-  assert.equal(f.context.configRead('seekBehavior'),'youtube');
+  assert.equal(f.context.configRead('channelSeekBehavior'),'immediate');
   f.context.configWrite('enableAdBlock',false);const count=f.events.length;
   assert.equal(f.context.persistPlaybackPositions([{id:'aaaaaaaaaaa',position:42,duration:300,updated:Date.now()}]),true);
   assert.equal(f.events.length,count);
   const next=load(f.saved());assert.equal(next.context.configRead('playbackPositions')[0].position,42);
   assert.equal(next.context.configRead('enableAdBlock'),false);
   next.context.configWrite('rememberPlaybackPosition',false);
-  next.context.configWrite('seekBehavior','delayed');
+  next.context.configWrite('channelSeekBehavior','delayed');
   const again=load(next.saved());assert.equal(again.context.configRead('rememberPlaybackPosition'),false);
-  assert.equal(again.context.configRead('seekBehavior'),'delayed');
+  assert.equal(again.context.configRead('channelSeekBehavior'),'delayed');
   assert.equal(load('{}',true).context.persistPlaybackPositions([]),false);
 });
 
@@ -116,4 +116,18 @@ test('optional display filters default off and survive a fresh settings load',()
  const keys=['hideEndScreens','enhanceThumbnails','hideGuestPrompts','hideYouTubeLogo'];
  const f=load('{}');for(const key of keys){assert.equal(f.context.configRead(key),false);f.context.configWrite(key,true);}
  const next=load(f.saved());for(const key of keys)assert.equal(next.context.configRead(key),true);
+});
+
+test('channel seeking defaults on, inherits earlier automatic delays and preserves explicit channel-off',()=>{
+ for(const old of [undefined,'youtube','broken','immediate','delayed','relaxed']) {
+  const f=load(JSON.stringify({seekBehavior:old}));
+  assert.equal(f.context.configRead('channelSeekBehavior'),['delayed','relaxed'].includes(old)?old:'immediate');
+  f.context.configWrite('channelSeekBehavior','youtube');
+  assert.equal(load(f.saved()).context.configRead('channelSeekBehavior'),'youtube');
+ }
+});
+test('higher-quality Auto startup defaults off and persists independently of video capability settings',()=>{
+ const f=load('{}');assert.equal(f.context.configRead('highQualityAutoStartup'),false);
+ f.context.configWrite('highQualityAutoStartup',true);
+ assert.equal(load(f.saved()).context.configRead('highQualityAutoStartup'),true);
 });

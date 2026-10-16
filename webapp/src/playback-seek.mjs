@@ -49,7 +49,7 @@ export function createPlaybackSeek(doc, win, read, preview, notify, revealContro
   const delays = {immediate: 500, delayed: 800, relaxed: 1000};
   function consume(event) {event.preventDefault();event.stopPropagation();event.stopImmediatePropagation?.();}
   function releaseDirections() {
-    for (const code of [37,39]) if (held.has(code)) {
+    for (const code of [427,428]) if (held.has(code)) {
       held.delete(code);orphanedReleases.add(code);
     }
   }
@@ -58,7 +58,7 @@ export function createPlaybackSeek(doc, win, read, preview, notify, revealContro
     if (timer !== null) win.clearTimeout(timer);
     // Wait until release, including the slower first repeat from a held remote
     // key. A lost release must still recover after two seconds without input.
-    const delay = held.has(37) || held.has(39) ? 2000 : delays[read('seekBehavior')];
+    const delay = held.has(427) || held.has(428) ? 2000 : delays[read('channelSeekBehavior')];
     timer = pending ? win.setTimeout(() => {
       releaseDirections();
       commit();
@@ -85,7 +85,7 @@ export function createPlaybackSeek(doc, win, read, preview, notify, revealContro
     } catch (_) {applied=null;preview(null);notify('Could not seek. Use YouTube’s seek controls.',4000,'yellow');}
   }
   function handler(event, allowNew = true) {
-    const code = event.keyCode || event.which || ({ArrowLeft:37,ArrowRight:39,Enter:13,Escape:27,BrowserBack:461,Backspace:8}[event.key]);
+    const code = event.keyCode || event.which || ({ChannelUp:427,ChannelDown:428,Enter:13,Escape:27,BrowserBack:461,Backspace:8}[event.key]);
     if (orphanedReleases.has(code)) {
       if (event.type === 'keydown') orphanedReleases.delete(code);
       else {consume(event);if(event.type==='keyup')orphanedReleases.delete(code);return true;}
@@ -94,18 +94,18 @@ export function createPlaybackSeek(doc, win, read, preview, notify, revealContro
       consume(event);
       if(event.type==='keyup') {
         held.delete(code);lastDirection=null;
-        if (pending && [37,39].includes(code)) schedule();
+        if (pending && [427,428].includes(code)) schedule();
       }
       return true;
     }
     if (pending && [13,27,461,8].includes(code) && event.type === 'keydown') {
       consume(event);held.add(code);if(code===13)commit();else cancel();return true;
     }
-    if (![37,39].includes(code) || event.type !== 'keydown') {
+    if (![427,428].includes(code) || event.type !== 'keydown') {
       if (event.type === 'keydown') cancel();
       return false;
     }
-    if (!allowNew || !Object.prototype.hasOwnProperty.call(delays,read('seekBehavior')) ||
+    if (!allowNew || !Object.prototype.hasOwnProperty.call(delays,read('channelSeekBehavior')) ||
         event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {cancel();return false;}
     const video = doc.querySelector('video'), id = getCurrentVideoId(win, doc, false);
     const previous = current(pending) ? pending : current(applied) && now()-applied.at < 1000 ? applied : null;
@@ -114,7 +114,7 @@ export function createPlaybackSeek(doc, win, read, preview, notify, revealContro
     // direction changes stay responsive. Accumulate against the latest request.
     if (held.has(code) && lastDirection === code && now()-lastPress < 100) {consume(event);schedule();return true;}
     const base = previous ? previous.target : Number(video.currentTime);
-    const target = seekTarget(video, base+(code===39?10:-10));
+    const target = seekTarget(video, base+(code===427?10:-10));
     if (target === null) return false;
     consume(event);held.add(code);lastDirection=code;lastPress=now();
     const extending = current(pending);
@@ -137,7 +137,7 @@ export function createPlaybackSeek(doc, win, read, preview, notify, revealContro
   for (const type of ['pointerdown','mousedown']) doc.addEventListener(type,cancel,true);
   win.addEventListener('hashchange',cancel);
   win.addEventListener('blur',()=>{cancel();held.clear();orphanedReleases.clear();lastDirection=null;});
-  doc.addEventListener('ytaf-config-changed',event=>{if(event.detail?.key==='seekBehavior')cancel();});
+  doc.addEventListener('ytaf-config-changed',event=>{if(event.detail?.key==='channelSeekBehavior')cancel();});
   doc.addEventListener('seeked',event=>{
     if (event.target === applied?.video && Math.abs(event.target.currentTime-applied.target)<1) applied=null;
   },true);

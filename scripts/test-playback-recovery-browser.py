@@ -81,7 +81,7 @@ with sync_playwright() as p:
   # Automatic seeking belongs to the video/timeline, never the video shelf
   # nested under the same watch/player host (or broad controls container).
   page.evaluate("""()=>{
-   window.__ytafConfigState.seekBehavior='immediate';
+   window.__ytafConfigState.channelSeekBehavior='immediate';
    const controls=document.querySelector('yt-focus-container');
    const list=document.createElement('div');list.setAttribute('role','grid');
    const card=document.createElement('ytlr-tile-renderer');card.id='recommendation';card.tabIndex=0;
@@ -93,8 +93,10 @@ with sync_playwright() as p:
    });
    fixtureHideControls();document.body.focus();
   }""")
+  def channel(code=427):
+   page.evaluate('''code=>{for(const type of ['keydown','keypress','keyup'])document.activeElement.dispatchEvent(new KeyboardEvent(type,{key:code===427?'ChannelUp':'ChannelDown',keyCode:code,which:code,bubbles:true,cancelable:true}));}''',code)
   writes=page.evaluate('fixtureSkips.length')
-  page.keyboard.press('ArrowRight')
+  channel()
   assert page.locator('.ytaf-seek-preview').count()==1
   page.keyboard.press('ArrowDown')
   assert page.locator('#recommendation').evaluate('n=>n===document.activeElement')
@@ -105,20 +107,28 @@ with sync_playwright() as p:
   assert page.evaluate('fixtureListArrows')==[37,39,39],'List arrows were intercepted'
   # Focus may change without Down (for example, pointer/YouTube navigation).
   page.evaluate('fixtureHideControls();document.body.focus();fixtureAdvance(1600)')
-  page.keyboard.press('ArrowRight');page.locator('#recommendation').focus()
+  channel();page.locator('#recommendation').focus()
   page.evaluate('fixtureAdvance(500)')
   assert page.evaluate('fixtureSkips.length')==writes,'Pending seek followed focus into the shelf'
   # Returning to the player retains the configured 500-ms delay.
   page.evaluate('document.body.focus()');target=page.evaluate("document.querySelector('video').currentTime+10")
-  page.keyboard.press('ArrowRight');page.evaluate('fixtureAdvance(499)')
+  channel();page.evaluate('fixtureAdvance(499)')
   assert page.evaluate('fixtureSkips.length')==writes
   page.evaluate('fixtureAdvance(1)')
   assert page.evaluate('fixtureSkips.length')==writes+1
   assert abs(page.evaluate('fixtureSkips.at(-1)')-target)<0.001
+  # Native Left/Right pass through on the player too, even during a channel preview.
+  page.evaluate("window.fixturePlayerArrows=[];document.body.addEventListener('keydown',e=>{if([37,39].includes(e.keyCode))fixturePlayerArrows.push(e.keyCode);});document.body.focus()")
+  writes=page.evaluate('fixtureSkips.length');channel(428)
+  assert page.locator('.ytaf-seek-preview').count()==1
+  for key in ['ArrowLeft','ArrowRight']:page.keyboard.press(key)
+  page.evaluate('fixtureAdvance(1500)')
+  assert page.evaluate('fixturePlayerArrows')==[37,39]
+  assert page.evaluate('fixtureSkips.length')==writes
   page.evaluate("window.__ytafConfigState.clockDisplay='controls';window.__ytafCornerClock.refresh()")
   right=page.locator('#ytaf-corner-clock').evaluate('n=>parseFloat(n.style.right)')
   assert round(width*.02)<=right<=round(width*.02)+9
   assert not errors,errors
-  print(f'{width}x{height}: production bundle passed 20 simulated playback minutes, three sponsor skips, three hidden-focus recovery cycles, Up dismissal through held/released keys, fresh-key recovery and GREEN/BACK isolation; video-shelf arrow navigation, seek cancellation/delay and right clock margin',flush=True)
+  print(f'{width}x{height}: production bundle passed 20 simulated playback minutes, three sponsor skips, three hidden-focus recovery cycles, Up dismissal through held/released keys, fresh-key recovery and GREEN/BACK isolation; native arrows on player/shelf, Channel +/− seek preview/cancellation/delay and right clock margin',flush=True)
   context.close()
  browser.close()

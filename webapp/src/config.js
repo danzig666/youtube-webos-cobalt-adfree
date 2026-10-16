@@ -4,7 +4,8 @@ const defaultConfig = {
   rememberPlaybackPosition: true,
   playbackResumeMode: 'youtube',
   playbackPositions: [],
-  seekBehavior: 'youtube',
+  channelSeekBehavior: 'immediate',
+  highQualityAutoStartup: false,
   clockDisplay: 'off',
   hideEndScreens: false,
   enhanceThumbnails: false,
@@ -40,7 +41,9 @@ function normalize(value) {
   const result = {};
   const valid = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   for (const key of Object.keys(defaultConfig)) {
-    const candidate = valid[key], fallback = defaultConfig[key];
+    const candidate = valid[key], fallback = key === 'channelSeekBehavior' &&
+      ['immediate', 'delayed', 'relaxed'].includes(valid.seekBehavior)
+      ? valid.seekBehavior : defaultConfig[key];
     result[key] = candidate !== undefined && candidate !== null && typeof candidate === typeof fallback &&
       !(candidate && typeof candidate === 'object' && Array.isArray(candidate) !== Array.isArray(fallback))
       ? candidate : fallback;

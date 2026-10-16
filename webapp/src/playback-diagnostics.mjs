@@ -39,6 +39,7 @@ export function frontendPlaybackReport(doc,win) {
     video ? `Position: ${number(video.currentTime)} / ${number(video.duration)} seconds` : 'Position: unavailable',
     `Resume: ${win.__ytafResume?.status || 'not initialized'}`,
     `Local fallback: ${win.__ytafResume?.localStatus || 'not initialized'}`,
+    `Auto quality startup: ${win.__ytafAutoQuality?.status || 'not initialized'}`,
     clockReport(win),
     capabilityQueryReport(win),
     `Thumbnail progress: ${win.__ytafThumbnailProgress?.status || 'not initialized'}`,
