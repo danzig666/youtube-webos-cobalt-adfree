@@ -67,3 +67,24 @@ controls reveal are retained.
 
 Browser player/media/timing APIs are explicit fixtures; these checks do not claim
 on-TV validation of the quality switch or physical Channel + / − delivery.
+
+## Visible-controls fix — 2.6.29
+
+Channel + / − previously accepted transport-button focus only after our shortcut
+had revealed the controls and retained that container. When YouTube opened its
+seekbar independently, or native arrow navigation cleared the retained gesture,
+the same buttons were rejected. The admission guard and delayed commit now look
+up the current `yt-focus-container[idomkey="controls"]` each time. Direct focus on
+that container and descendants of its recognized progress-bar wrapper are also
+supported. Redrawn controls do not invalidate an otherwise valid seek.
+
+The ancestry scan still excludes recommendation cards, grids, links, menus,
+editable fields and unrelated sliders. Generic descendants of the full-screen
+controls shell do not gain permission to seek. Visible controls receive no extra
+synthetic OK, so a channel seek does not accidentally pause playback.
+
+Four added host regressions first reproduced the rejected visible-button state,
+then passed with the fix (405 total web tests). Production browser checks at
+720p/1080p now cover already-visible buttons, button children, the controls root,
+the progress wrapper, controls replacement during a pending seek, native arrows,
+500ms delay and recommendation protection. Physical LG behavior awaits retest.

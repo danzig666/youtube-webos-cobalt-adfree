@@ -95,6 +95,40 @@ with sync_playwright() as p:
   }""")
   def channel(code=427):
    page.evaluate('''code=>{for(const type of ['keydown','keypress','keyup'])document.activeElement.dispatchEvent(new KeyboardEvent(type,{key:code===427?'ChannelUp':'ChannelDown',keyCode:code,which:code,bubbles:true,cancelable:true}));}''',code)
+  # YouTube can open the transport UI itself, without our channel shortcut.
+  # Start on its focused button, timeline wrapper and controls container; never
+  # send an extra OK to an already-visible transport UI.
+  page.evaluate("""()=>{
+   const controls=document.querySelector('yt-focus-container');controls.tabIndex=0;
+   document.querySelector('#native-control').style.opacity='1';
+   const timeline=document.querySelector('ytlr-progress-bar');timeline.style.opacity='1';
+   const wrapper=document.createElement('div');wrapper.id='native-timeline-wrapper';
+   wrapper.setAttribute('idomkey','progress-bar');wrapper.tabIndex=0;controls.appendChild(wrapper);
+   const icon=document.createElement('span');icon.id='native-control-icon';icon.tabIndex=0;
+   document.querySelector('#native-control').appendChild(icon);
+  }""")
+  reveals=page.evaluate('fixtureNativeReveals')
+  for selector,code in [('#native-control',427),('#native-control-icon',428),('yt-focus-container',427),('#native-timeline-wrapper',428)]:
+   # A genuine native arrow clears the previous gesture/retained controls.
+   page.keyboard.press('ArrowRight');page.locator(selector).focus()
+   target=page.evaluate('document.querySelector("video").currentTime')+(10 if code==427 else -10)
+   before=page.evaluate('fixtureSkips.length');channel(code)
+   assert page.locator('.ytaf-seek-preview').count()==1,(selector,'Visible controls blocked channel preview')
+   page.evaluate('fixtureAdvance(499)');assert page.evaluate('fixtureSkips.length')==before
+   page.evaluate('fixtureAdvance(1)');assert page.evaluate('fixtureSkips.length')==before+1
+   assert abs(page.evaluate('fixtureSkips.at(-1)')-target)<0.001
+  # Controls may be replaced while a delayed seek is pending.
+  page.locator('#native-control').focus();before=page.evaluate('fixtureSkips.length');channel()
+  page.evaluate("""()=>{
+   const old=document.querySelector('yt-focus-container'),fresh=old.cloneNode(false);
+   old.replaceWith(fresh);while(old.firstChild)fresh.appendChild(old.firstChild);
+   const button=document.createElement('button');button.id='redrawn-control';button.textContent='Pause';
+   fresh.appendChild(button);button.focus();
+  }""")
+  page.evaluate('fixtureAdvance(500)');assert page.evaluate('fixtureSkips.length')==before+1
+  assert page.evaluate('fixtureNativeReveals')==reveals,'Channel seek injected OK into visible controls'
+  page.keyboard.press('ArrowLeft');page.locator('#redrawn-control').evaluate('n=>n.remove()')
+  page.evaluate('fixtureHideControls();document.body.focus()')
   writes=page.evaluate('fixtureSkips.length')
   channel()
   assert page.locator('.ytaf-seek-preview').count()==1
@@ -102,6 +136,7 @@ with sync_playwright() as p:
   assert page.locator('#recommendation').evaluate('n=>n===document.activeElement')
   assert page.locator('.ytaf-seek-preview').count()==0
   for key in ['ArrowLeft','ArrowRight','ArrowRight']:page.keyboard.press(key)
+  channel(427);channel(428)
   page.evaluate('fixtureAdvance(3000)')
   assert page.evaluate('fixtureSkips.length')==writes,'List navigation changed playback position'
   assert page.evaluate('fixtureListArrows')==[37,39,39],'List arrows were intercepted'
@@ -129,6 +164,6 @@ with sync_playwright() as p:
   right=page.locator('#ytaf-corner-clock').evaluate('n=>parseFloat(n.style.right)')
   assert round(width*.02)<=right<=round(width*.02)+9
   assert not errors,errors
-  print(f'{width}x{height}: production bundle passed 20 simulated playback minutes, three sponsor skips, three hidden-focus recovery cycles, Up dismissal through held/released keys, fresh-key recovery and GREEN/BACK isolation; native arrows on player/shelf, Channel +/− seek preview/cancellation/delay and right clock margin',flush=True)
+  print(f'{width}x{height}: production bundle passed 20 simulated playback minutes, three sponsor skips, three hidden-focus recovery cycles, Up dismissal through held/released keys, fresh-key recovery and GREEN/BACK isolation; native arrows on player/shelf, Channel +/− with hidden/visible/redrawn controls, target preview and 500ms delay, protected shelf navigation and right clock margin',flush=True)
   context.close()
  browser.close()

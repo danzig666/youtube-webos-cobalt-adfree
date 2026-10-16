@@ -28,8 +28,9 @@ export function canSeekFromFocus(doc, video, retainedControls = null) {
         ['textbox','searchbox','combobox','dialog','menu','listbox','link','option','menuitem',
          'grid','gridcell','row','list','listitem','tab','tablist','navigation'].includes(role) ||
         /^YTLR-(?:TILE|COMPACT-VIDEO|VIDEO|SHELF|WATCH-NEXT|HORIZONTAL-LIST|VERTICAL-LIST).*RENDERER$/.test(tag)) return false;
-    if (role === 'slider' || tag === 'YTLR-PROGRESS-BAR') {
-      if (!/(?:progress|seek|scrub|timeline)/i.test([tag,node.id,node.className,node.getAttribute?.('aria-label')].join(' '))) return false;
+    const idomkey = node.getAttribute?.('idomkey');
+    if (role === 'slider' || tag === 'YTLR-PROGRESS-BAR' || idomkey === 'progress-bar') {
+      if (!/(?:progress|seek|scrub|timeline)/i.test([tag,node.id,node.className,idomkey,node.getAttribute?.('aria-label')].join(' '))) return false;
       timeline = true;
     }
     if (role === 'button' || tag === 'BUTTON') transport = true;
@@ -39,7 +40,7 @@ export function canSeekFromFocus(doc, video, retainedControls = null) {
   // Only direct focus on a player/watch host means hidden player controls.
   // An arbitrary child of that host may be a navigable video card.
   const tag = (focused.tagName || '').toUpperCase();
-  return focused.id === 'ytlr-player__player-container-player' ||
+  return focused === retainedControls || focused.id === 'ytlr-player__player-container-player' ||
     ['YTLR-PLAYER','YTLR-WATCH-DEFAULT'].includes(tag);
 }
 export function createPlaybackSeek(doc, win, read, preview, notify, revealControls = () => null) {
@@ -69,7 +70,11 @@ export function createPlaybackSeek(doc, win, read, preview, notify, revealContro
       ticket.id === getCurrentVideoId(win, doc, false);
   }
   function seekFocus(ticket) {
-    return canSeekFromFocus(doc, ticket?.video, current(ticket) ? ticket.controls : null);
+    // YouTube may open or redraw its controls independently of our shortcut.
+    // Resolve the current container on every press and again before committing;
+    // the complete ancestry check still excludes shelves, menus and editors.
+    const controls = doc.querySelector('yt-focus-container[idomkey="controls"]');
+    return canSeekFromFocus(doc, ticket?.video, controls || (current(ticket) ? ticket.controls : null));
   }
   function commit() {
     const ticket = pending;
@@ -109,7 +114,7 @@ export function createPlaybackSeek(doc, win, read, preview, notify, revealContro
         event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {cancel();return false;}
     const video = doc.querySelector('video'), id = getCurrentVideoId(win, doc, false);
     const previous = current(pending) ? pending : current(applied) && now()-applied.at < 1000 ? applied : null;
-    if (!video || !id || !(canSeekFromFocus(doc, video) || (current(revealed) && seekFocus(revealed)))) {cancel();return false;}
+    if (!video || !id || !seekFocus({video,id,controls:current(revealed) ? revealed.controls : null})) {cancel();return false;}
     // Avoid hammering native seek on unflagged repeats, while separate taps and
     // direction changes stay responsive. Accumulate against the latest request.
     if (held.has(code) && lastDirection === code && now()-lastPress < 100) {consume(event);schedule();return true;}

@@ -171,3 +171,61 @@ test('channel key names work when legacy numeric codes are absent; Page Up/Down 
  for(const code of [33,34])assert.equal(f.handler(f.key(code)),false);
  for(const code of [427,428])assert.equal(fixture('youtube').handler(f.key(code)),false);
 });
+
+function nativeControlsFixture() {
+ const f=fixture('immediate');
+ const node=(tag,parent=null,role=null)=>({tagName:tag,parentElement:parent,
+  getAttribute:key=>key==='role'?role:null});
+ const controls=node('YT-FOCUS-CONTAINER',f.doc.body);
+ controls.contains=target=>{for(let n=target;n;n=n.parentElement)if(n===controls)return true;return false;};
+ f.doc.controls=controls;
+ f.doc.querySelector=selector=>selector==='video'?f.doc.video:
+  selector==='yt-focus-container[idomkey="controls"]'?f.doc.controls:f.doc.player;
+ return {...f,controls,node};
+}
+test('channel seeking starts on already-open native transport controls without first revealing them',()=>{
+ for(const kind of ['button','button-child','controls-root','timeline-wrapper']) {
+  const f=nativeControlsFixture(),button=f.node('BUTTON',f.controls);
+  let focus=kind==='button-child'?f.node('SPAN',button):kind==='controls-root'?f.controls:button;
+  if(kind==='timeline-wrapper') {
+   const timeline=f.node('DIV',f.controls);timeline.getAttribute=key=>key==='idomkey'?'progress-bar':null;
+   focus=f.node('DIV',timeline);
+  }
+  f.doc.activeElement=focus;
+  assert.equal(f.handler(f.key(427)),true,kind);f.handler(f.key(427,'keyup'));
+  assert.equal(f.previews.at(-1),110,kind);f.advance(499);assert.equal(f.video.currentTime,100,kind);
+  f.advance(1);assert.equal(f.video.currentTime,110,kind);
+  f.tap(428);f.advance(500);assert.equal(f.video.currentTime,100,kind);
+ }
+});
+test('native arrow navigation does not permanently disable channel seeking on visible controls',()=>{
+ const f=nativeControlsFixture();f.doc.activeElement=f.node('BUTTON',f.controls);
+ for(const code of [37,39,38]) {
+  assert.equal(f.handler(f.key(code)),false);f.handler(f.key(code,'keyup'));
+  f.tap(427);f.advance(500);
+ }
+ assert.equal(f.video.currentTime,130);
+});
+test('newly rendered transport controls remain eligible before and during a delayed channel seek',()=>{
+ const f=nativeControlsFixture();f.doc.activeElement=f.node('BUTTON',f.controls);
+ f.tap(427);
+ const fresh=f.node('YT-FOCUS-CONTAINER',f.doc.body);
+ fresh.contains=target=>target.parentElement===fresh;
+ f.doc.controls=fresh;f.doc.activeElement=f.node('BUTTON',fresh);
+ f.advance(500);assert.equal(f.video.currentTime,110);
+ f.tap(428);f.advance(500);assert.equal(f.video.currentTime,100);
+});
+test('known controls never authorize recommendation, menu, editable or unrelated slider descendants',()=>{
+ for(const kind of ['card','grid','link','dialog','menu','input','volume']) {
+  const f=nativeControlsFixture();f.doc.activeElement=f.node('BUTTON',f.controls);f.tap(427);
+  let focus;
+  if(kind==='card')focus=f.node('BUTTON',f.node('YTLR-TILE-RENDERER',f.controls));
+  if(kind==='grid')focus=f.node('BUTTON',f.node('DIV',f.controls,'grid'));
+  if(kind==='link')focus=f.node('A',f.controls);
+  if(['dialog','menu'].includes(kind))focus=f.node('BUTTON',f.node('DIV',f.controls,kind));
+  if(kind==='input')focus=f.node('INPUT',f.controls);
+  if(kind==='volume'){focus=f.node('DIV',f.controls,'slider');focus.id='volume';}
+  f.doc.activeElement=focus;f.advance(500);assert.equal(f.video.currentTime,100,kind);
+  for(const code of [427,428,37,39])assert.equal(f.handler(f.key(code)),false,kind);
+ }
+});
