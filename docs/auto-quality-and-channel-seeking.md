@@ -87,4 +87,10 @@ Four added host regressions first reproduced the rejected visible-button state,
 then passed with the fix (405 total web tests). Production browser checks at
 720p/1080p now cover already-visible buttons, button children, the controls root,
 the progress wrapper, controls replacement during a pending seek, native arrows,
-500ms delay and recommendation protection. Physical LG behavior awaits retest.
+500ms delay and recommendation protection.
+
+On 2026-10-16, the user confirmed the visible-seekbar channel-seeking fix works
+on an LG C3 after testing v2.6.29-beta.1. The tested package identity and current
+firmware were not supplied with this confirmation. This verifies the reported
+channel-seeking fix; higher-quality Auto startup remains separately unconfirmed
+on the TV.

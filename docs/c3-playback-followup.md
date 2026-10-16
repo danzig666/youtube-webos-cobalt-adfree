@@ -145,3 +145,12 @@ assets. This environment has no LG TV. Browser/native fake-firmware checks do
 not establish physical Magic Remote behavior, C3 caption renderer compatibility,
 firmware fractional-rate timing or YouTube account history synchronization.
 The follow-up release needs a C3 retest of those paths.
+
+## 2.6.29 user confirmation — 2026-10-16
+
+After the fix for Channel + / − seeking being rejected on an already-visible
+seekbar, the user reported “Confirmed on c3”. Record this as confirmation of
+that specific channel-seeking fix on the LG C3. The package variant and current
+firmware were not restated. It does not establish validation of higher-quality
+Auto startup or the other historical playback paths above. See
+[the fix and regression coverage](auto-quality-and-channel-seeking.md#visible-controls-fix--2629).
