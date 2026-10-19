@@ -15,6 +15,14 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 Install using webOS Device Manager or `ares-cli` with Developer Mode, or Homebrew Channel on a compatible setup. Update the same package ID you already use, then fully close and reopen the app. Checksums and build records accompany each release.
 
+**Homebrew Channel:** under **Settings → Add repository**, enter:
+
+```text
+https://raw.githubusercontent.com/danzig666/youtube-webos-cobalt-adfree/main/repo.json
+```
+
+The catalog lists both variants and updates automatically from verified published releases. Choose **Separate ID** to keep official YouTube, or update the ID you already use. [Catalog details](docs/homebrew-catalog.md).
+
 Both variants have identical features and separate storage. YouTube sign-in remains available; **separate-ID sign-in/phone pairing are not TV-verified**. Use this fork’s separate-ID IPK to keep official YouTube.
 
 ## Features added in this fork
@@ -46,6 +54,7 @@ The original ad blocking, Return YouTube Dislike, automatic account selection, s
 | TV capability test | Read-only LG panel/UHD/OLED/HDR flags and optional Starfish decoder limits; configured Cobalt support is shown separately |
 | Optional display controls | Hide end screens, recommendation sign-in prompts or the YouTube logo; prefer sharper standard thumbnails; all off by default |
 | Durable preferences | Private per-install saves, migration from older browser settings and visible save-failure feedback |
+| Homebrew updates | Maintained catalog for both IDs, generated from verified release packages with exact sizes and checksums |
 | Two installable variants | Original-ID and separate-ID IPKs with matching runtime identities, build records and SHA-256 checksums |
 
 Press **GREEN** to open settings. Use arrows and **OK**, the cursor or the wheel; **BACK** cancels an option list first, then closes settings without closing the video. Default numeric shortcuts: **0** captions, **1** slower, **3** faster. Assign **Reset playback speed to 1×** or **Refresh Home recommendations** under Remote. Home refresh works only on Home. Refresh sends YouTube’s `SOFT_RELOAD_PAGE` command, using the method from NicholasBly’s app; it does not require opening the sidebar. Older runtimes without the event API can use a sidebar round trip. YouTube decides which recommendations are returned.

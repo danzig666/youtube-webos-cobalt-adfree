@@ -1,0 +1,62 @@
+name: Update Homebrew catalog
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release tag with both package variants
+        required: true
+        type: string
+  push:
+    branches: [main, playback/host-tested-v2]
+    paths:
+      - .github/workflows/homebrew-catalog.yml
+      - scripts/update-homebrew-catalog.py
+      - scripts/test-homebrew-catalog.py
+      - scripts/verify-ipk-container.py
+  pull_request:
+    paths:
+      - .github/workflows/homebrew-catalog.yml
+      - scripts/update-homebrew-catalog.py
+      - scripts/test-homebrew-catalog.py
+      - scripts/verify-ipk-container.py
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Older release tags predate the updater; test the trusted main tools.
+          ref: ${{ github.event_name == 'release' && 'main' || github.sha }}
+      - name: Test package verification and catalog publication guards
+        run: python3 scripts/test-homebrew-catalog.py
+
+  publish:
+    needs: test
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: homebrew-catalog-main-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - name: Verify published packages and update the public catalog
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: >-
+          python3 scripts/update-homebrew-catalog.py
+          --tag "$RELEASE_TAG"
+          --output "$RUNNER_TEMP/homebrew-repo.json"
+          --publish

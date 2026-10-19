@@ -79,6 +79,7 @@ jobs:
           python3 scripts/test-device-compatibility.py
           python3 scripts/test-cobalt-artifact.py
           python3 scripts/test-cobalt-compile-cache.py
+          python3 scripts/test-homebrew-catalog.py
 
       - name: Build injected web app
         working-directory: webapp
