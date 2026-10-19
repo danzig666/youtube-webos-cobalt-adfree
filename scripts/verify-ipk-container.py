@@ -44,6 +44,8 @@ def read_members(package: Path) -> dict[str, tuple[int, bytes]]:
         name = raw_name
         mtime = parse_decimal(header[16:28], "mtime")
         size = parse_decimal(header[48:58], "size")
+        if size < 0:
+            raise ValueError("IPK member size must not be negative")
         if mtime <= 0:
             raise ValueError(f"IPK member {name} has an invalid epoch timestamp")
 
@@ -81,6 +83,10 @@ def verify_data_metadata(contents: bytes) -> None:
                         f"{member.uid}:{member.gid}; expected "
                         f"{EXPECTED_UID}:{EXPECTED_GID}"
                     )
+                if member.isfile() and member.mode & 0o044 != 0o044:
+                    raise ValueError(f"Package file is not readable by the app: {member.name}")
+                if member.isfile() and member.name.rsplit('/', 1)[-1] == 'cobalt' and member.mode & 0o011 != 0o011:
+                    raise ValueError(f"Native cobalt is not executable by the app: {member.name}")
                 if member.isdir() and member.mode != EXPECTED_DIRECTORY_MODE:
                     raise ValueError(
                         f"Unexpected directory mode for {member.name}: "
