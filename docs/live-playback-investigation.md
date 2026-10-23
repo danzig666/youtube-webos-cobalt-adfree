@@ -44,9 +44,9 @@ MediaSourceConfigFailed/MediaSourceAppendFailed
 without exception text. Read-only native bindings continue with their original
 operation. Payloads, MIME strings, exception text and object URLs never enter the bridge.
 Methods retain their arguments, return values and thrown exceptions. No finite
-duration or terminal EOS rule is introduced. Direct Cobalt demuxer-level tracing
-and buffering classification remain follow-up work if a device trace locates
-a gap below the JS/native boundaries. Do not assume finite duration, terminal EOS or one initialization
+duration or terminal EOS rule is introduced. Bounded Cobalt demuxer-read tracing is included in the October diagnostic
+update below. Further buffering classification remains follow-up work if a
+device trace locates a gap below the JS/native boundaries. Do not assume finite duration, terminal EOS or one initialization
 segment for live input.
 
 ## Required device scenarios
@@ -107,3 +107,25 @@ by the host fixture is synthetic; it is not a result from the supplied TV log.
 A new TV capture is still required to identify and repair the actual livestream
 failure. No compressed AAC implementation for shared Starfish is justified by
 this evidence; its existing decoder fallback remains in place.
+
+### Diagnostic release and ARM verification
+
+[2.6.30 beta 1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.30-beta.1)
+is compiled from `ab32e9578fb9f701ca11e90a24c8cba1ec83d658`.
+[ARM Gold run 39968901024](https://github.com/danzig666/youtube-webos-cobalt-adfree/actions/runs/39968901024)
+compiled each app identity and validated both IPKs. Source CI, 406 web tests,
+the full native host suite, seven package tests and five compiler-cache tests
+passed. The new build regressions reproduce the prior cross-step asset-path
+leak and verify that generated hard links are refreshed inside the build
+container without deleting their source assets.
+
+Both public IPKs, their source/identity-specific build records and SHA256SUMS
+were checked before publication. The report excludes raw error messages and
+media URLs. The supplied log was confirmed to come from the LG C3; this new
+release has not yet been tested on that TV.
+
+Install the same app-ID variant, fully close and reopen it, try the failing
+livestream once, and retrieve the new native log or the **Recent playback
+failures** section of GREEN → Diagnostics. No further capability-profile
+changes are needed for this capture. This release improves evidence collection;
+it does not claim a livestream repair.

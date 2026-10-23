@@ -92,3 +92,38 @@ SHA and artifact checksums; this document retains the original full-build eviden
 The later [video quality setting validation](playback-diagnostics.md#video-setting-validation-2026-10-02)
 records the current package after adding native persistence and the GREEN-menu
 control, including the new source SHA and checksums.
+
+## Diagnostic beta verification — 23 October 2026
+
+The original evidence above is historical. The later **2.6.30 beta 1** is built
+from `ab32e9578fb9f701ca11e90a24c8cba1ec83d658`, with the same pinned Cobalt,
+Starboard, SDL and SDK versions. The manual workflow is now registered and
+[ARM Gold run 39968901024](https://github.com/danzig666/youtube-webos-cobalt-adfree/actions/runs/39968901024)
+completed successfully. It compiled and packaged the separate and original
+application identities in sequence, using a generated identity header for each.
+This does not establish that scheduled builds are active on the default branch.
+
+The first run compiled and linked successfully but failed during the second
+identity's asset installation: the packaging-only WEBAPP_OUTPUT_DIR leaked
+into the native rebuild, and GN had hard-linked those generated files to their
+sources. The corrected workflow scopes that override to each package command.
+Generated-asset cleanup now runs inside the compiler container, which owns the
+output directories. Two regressions fail against the previous scripts and pass
+with these changes. Packaging logs are retained alongside compiler logs.
+
+Both downloaded packages passed container/ownership, ELF32 ARM, embedded source
+SHA/version/own-ID/opposite-ID exclusion, runtime dependency, exact font and
+matching web-bundle checks. Runner checksums, artifact ZIP digest and all five
+public release-asset digests were verified.
+
+| Package | IPK SHA-256 | ELF SHA-256 |
+| --- | --- | --- |
+| `com.cobalt.youtube.adfree_2.6.30_arm.ipk` | `794a66bb91ca0dbd0c3a9a6302ce49378ae83bdd197195c250269338ecd92ff3` | `52f7efe8df2af52c676c7b374999b217c780b57ff8caef21bfd35ab99712b4dc` |
+| `youtube.leanback.v4_2.6.30_arm.ipk` | `39bbf42031b4e4590a0fed5313ed2695f3d9268be4274828eb4ef3f84c2d9ec8` | `fe6e8d16313d3bb3769cce2d56429a2a7c438dbccdf96c0f2cf27d5f6c0b2bac` |
+
+[Release and build records](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.30-beta.1).
+Source CI, 406 web tests, production web build, the full native host suite,
+seven package tests, five compiler-cache tests, four artifact-provenance tests,
+three IPK-container tests and sixteen Homebrew catalog tests passed. This is a
+diagnostic update, without new TV validation or a confirmed livestream fix.
+See [the C3 log investigation](live-playback-investigation.md#c3-log-investigation--23-october-2026).
