@@ -23,7 +23,7 @@ jobs:
           set -euo pipefail
           [[ "$JOB_ID" =~ ^[0-9]+$ ]]
           mkdir -p output
-          gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$JOB_ID/logs" > output/job.log
+          gh api --allow-escape-sequences "repos/$GITHUB_REPOSITORY/actions/jobs/$JOB_ID/logs" > output/job.log
       - uses: actions/upload-artifact@v4
         with:
           name: build-job-${{ inputs.job_id }}
