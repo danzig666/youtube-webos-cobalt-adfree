@@ -28,6 +28,7 @@ jobs:
             cobalt
             net
             third_party/de265_includes
+            third_party/libfdkaac
       - name: Install host tools
         run: |
           sudo apt-get update

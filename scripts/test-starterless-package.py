@@ -87,8 +87,13 @@ bash() {
             bundled = build / 'content/fonts'; bundled.mkdir()
             (bundled / 'fonts.xml').write_text('<familyset><family><font>fallback.ttf</font></family></familyset>')
             (bundled / 'fallback.ttf').write_bytes(b'bundled-fallback')
-            (build / 'cobalt').write_text('/web/adblock/adblockPreload.js\0com.cobalt.youtube.adfree')
+            (build / 'cobalt').write_text('/web/adblock/adblockPreload.js\0com.cobalt.youtube.adfree\0$ORIGIN/lib/libfdk-aac.so')
             (build / 'cobalt').chmod(0o755)
+            (build / 'lib').mkdir()
+            (build / 'lib/libfdk-aac.so').write_text('private ARM AAC library')
+            (build / 'lib/fdk-aac-build.txt').write_text('pinned AAC source')
+            (build / 'content/licenses').mkdir()
+            (build / 'content/licenses/fdk-aac.txt').write_text('AAC license notice')
             for name in ('libstdc++.so.6', 'libgcc_s.so.1'):
                 (runtime / name).touch()
             for name, data in [('adblockMain.js', b'__shorts'), ('adblockMain.css', b'fonts/Inter-Regular.woff2'),
@@ -100,7 +105,7 @@ bash() {
                 'import json,os,sys\nfrom pathlib import Path\n' +
                 'fonts=Path(sys.argv[-1])/"content/web/adblock/fonts"\n' +
                 'stage=Path(sys.argv[-1])\n' +
-                'Path(os.environ["YTAF_STAGE_REPORT"]).write_text(json.dumps({"custom":{p.name:p.read_text() for p in fonts.iterdir()},"system":(stage/"content/system_fonts/fonts.xml").read_text(),"bundled":(stage/"content/fonts/fallback.ttf").read_text()}))\n' +
+                'Path(os.environ["YTAF_STAGE_REPORT"]).write_text(json.dumps({"custom":{p.name:p.read_text() for p in fonts.iterdir()},"system":(stage/"content/system_fonts/fonts.xml").read_text(),"bundled":(stage/"content/fonts/fallback.ttf").read_text(),"aac":(stage/"lib/libfdk-aac.so").read_text(),"aac_notice":(stage/"content/licenses/fdk-aac.txt").read_text(),"aac_source":(stage/"lib/fdk-aac-build.txt").read_text()}))\n' +
                 'sys.exit(91)\n')
             for command in commands.iterdir(): command.chmod(0o755)
             report = root / 'staged-fonts.json'
@@ -120,6 +125,9 @@ bash() {
             staged = json.loads(report.read_text())
             self.assertEqual(staged['system'], (ROOT / 'cobalt-platform/webos/system_fonts/fonts.xml').read_text())
             self.assertEqual(staged['bundled'], 'bundled-fallback')
+            self.assertEqual(staged['aac'], 'private ARM AAC library')
+            self.assertEqual(staged['aac_notice'], 'AAC license notice')
+            self.assertEqual(staged['aac_source'], 'pinned AAC source')
             self.assertEqual(staged['custom'], {
                 'Inter-Regular.woff2': 'regular-font', 'Inter-SemiBold.woff2': 'semibold-font'})
 
@@ -231,6 +239,10 @@ bash() {
     def test_required_atomic_is_detected_without_a_pipefail_race(self):
         self.check_rejected("printf '[libatomic.so.1]\\n'\nhead -c 200000 /dev/zero | tr '\\000' x\n",
                             'Missing ARM runtime library:')
+
+    def test_new_runtime_cannot_be_packaged_without_its_aac_dependency(self):
+        self.check_rejected('exit 0\n', 'Missing bundled AAC runtime asset:',
+                            binary_id='$ORIGIN/lib/libfdk-aac.so')
 
 
 if __name__ == '__main__':

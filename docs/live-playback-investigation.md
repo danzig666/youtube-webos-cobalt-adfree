@@ -129,3 +129,35 @@ livestream once, and retrieve the new native log or the **Recent playback
 failures** section of GREEN → Diagnostics. No further capability-profile
 changes are needed for this capture. This release improves evidence collection;
 it does not claim a livestream repair.
+
+## C3 diagnostic capture — AAC decoder unavailable
+
+The supplied 2.6.30 capture establishes a concrete failure sequence. Audio and
+video demuxer reads succeed (354 audio bytes and 66,974 video bytes in the first
+attempt). AAC creation then reports `AudioDecoderUnavailable`, immediately
+followed by `pipeline_error code=3`. Repeated attempts show the same failure.
+This rules out lack of media data for those attempts and locates the initial
+failure before the video decoder's Load. No FDK/FFmpeg decoder-selection event
+occurs because neither existing AAC backend can be constructed.
+
+The Linux factory relies on dynamically loaded firmware FDK-AAC or FFmpeg.
+The app previously packaged neither AAC decoder. The pinned SDK contains no
+FDK-AAC runtime either. The log does not establish why each firmware backend
+is absent or incompatible; an ARMv7 app cannot assume the aarch64 TV firmware
+supplies its dependencies.
+
+The fix supplies FDK-AAC 2.0.3 from pinned source
+`716f4394641d53f0d79c9ddac3fa93b03a49f278`, built with the same SDK and ARMv7
+softfp flags as Cobalt. The existing loader prefers its private library via
+`$ORIGIN/lib/libfdk-aac.so`; its system-library fallback stays available. The
+runtime archive carries the library, source metadata and complete license
+notice. Packaging refuses a new runtime whose dependency or notices are missing.
+
+Host tests exercise the real loader with missing/private/system/incomplete
+libraries and execute Cobalt's real FDK initialization, feed, decode and delay
+trimming against generated stereo AAC-LC. The decoder is recreated and tested
+again. The full ARM workflow also runs that real-library host check.
+
+This supplies the missing software AAC dependency; it adds no shared Starfish
+AAC path and changes no packet framing, seek, clock or EOS behavior. A new C3
+playback test remains necessary to confirm live playback and detect later issues.

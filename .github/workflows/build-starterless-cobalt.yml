@@ -215,6 +215,16 @@ jobs:
           path: workdir/ccache
           key: ccache-webos-arm-v1-${{ steps.meta.outputs.cobalt_slug }}-${{ inputs.build_type || 'gold' }}-${{ github.run_id }}-${{ github.run_attempt }}
 
+      - name: Validate actual AAC decoding on the host
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S "$COBALT_SOURCE_DIR/out/fdk-aac-source" -B "$RUNNER_TEMP/fdk-aac-host" \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DBUILD_PROGRAMS=OFF
+          cmake --build "$RUNNER_TEMP/fdk-aac-host" --parallel 4
+          python3 scripts/test-fdk-aac-decoder.py "$COBALT_SOURCE_DIR" \
+            --library "$RUNNER_TEMP/fdk-aac-host/libfdk-aac.so" | tee output/fdk-aac-host-test.log
+
       - name: Create Cobalt runtime archive
         id: archive
         env:
@@ -232,7 +242,7 @@ jobs:
           test -d "$build_dir/content"
           archive="cobalt-${COBALT_SLUG}-sb13-${BUILD_TYPE}-${SHORT_SHA}.tar.xz"
           archive_path="$GITHUB_WORKSPACE/output/$archive"
-          tar -C "$build_dir" -cJf "$archive_path" cobalt content
+          tar -C "$build_dir" -cJf "$archive_path" cobalt content lib/libfdk-aac.so lib/fdk-aac-build.txt
           sha256sum "$archive_path" > "$archive_path.sha256"
           sha256sum "$build_dir/cobalt" > "$GITHUB_WORKSPACE/output/cobalt-binary.sha256"
           printf '%s\n' "repository=$GITHUB_REPOSITORY" "source_ref=$SOURCE_REF" "source_sha=$SOURCE_SHA" "cobalt_ref=$COBALT_REF" "cobalt_source_sha=$(git -C "$COBALT_SOURCE_DIR" rev-parse HEAD)" "starboard_api=13" "build_type=$BUILD_TYPE" "archive=$archive" > "$GITHUB_WORKSPACE/output/cobalt-build.txt"
@@ -314,6 +324,7 @@ jobs:
           path: |
             output/cobalt-${{ inputs.build_type || 'gold' }}*.log
             output/gold-package.log
+            output/fdk-aac-host-test.log
           if-no-files-found: warn
           retention-days: 14
 

@@ -30,5 +30,13 @@ rm -rf -- "$OUT_DIR/content/web/adblock"
 rc=0
 gn --script-executable=python3 gen "$OUT_DIR" --args="target_platform=\"webos-arm\" build_type=\"$BUILD_TYPE\" target_cpu=\"arm\" sb_api_version=13 is_clang=false$wrapper_arg" &&
   ninja -v -j "$PARALLEL" -C "$OUT_DIR" cobalt || rc=$?
+if [[ "$rc" == 0 && -n "${FDK_BUNDLE:-}" ]]; then
+  # The container owns these generated directories. Archive the AAC library
+  # with its runtime so later packaging cannot depend on the TV's firmware.
+  mkdir -p "$OUT_DIR/lib" "$OUT_DIR/content/licenses"
+  cp "$FDK_BUNDLE/libfdk-aac.so" "$OUT_DIR/lib/libfdk-aac.so"
+  cp "$FDK_BUNDLE/fdk-aac-build.txt" "$OUT_DIR/lib/fdk-aac-build.txt"
+  cp "$FDK_BUNDLE/fdk-aac.txt" "$OUT_DIR/content/licenses/fdk-aac.txt"
+fi
 if [[ "$use_cache" == 1 ]]; then ccache --show-stats || true; fi
 exit "$rc"

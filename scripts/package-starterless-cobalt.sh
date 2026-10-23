@@ -41,6 +41,19 @@ for library in "${runtime_libraries[@]}"; do
   fi
 done
 
+# New runtimes load their private AAC dependency before firmware libraries.
+# Earlier artifacts without this hook retain the original packaging inputs.
+bundled_aac=0
+if grep -aFq '$ORIGIN/lib/libfdk-aac.so' "$build_dir/cobalt"; then
+  bundled_aac=1
+  for asset in lib/libfdk-aac.so lib/fdk-aac-build.txt content/licenses/fdk-aac.txt; do
+    if [[ ! -s "$build_dir/$asset" ]]; then
+      echo "Missing bundled AAC runtime asset: $build_dir/$asset" >&2
+      exit 4
+    fi
+  done
+fi
+
 # Never package a starterless binary from before the early-preload integration.
 # Gold builds compile non-fatal LOG() strings out, so verify the runtime path
 # that ReadYtafPreloadScript() must retain in the binary instead.
@@ -120,6 +133,10 @@ mkdir -p "$package_root/lib"
 for library in "${runtime_libraries[@]}"; do
   cp "$runtime_dir/$library" "$package_root/lib/$library"
 done
+if [[ "$bundled_aac" == 1 ]]; then
+  cp "$build_dir/lib/libfdk-aac.so" "$package_root/lib/libfdk-aac.so"
+  cp "$build_dir/lib/fdk-aac-build.txt" "$package_root/lib/fdk-aac-build.txt"
+fi
 cp "$repo_root/assets/icon.png" "$package_root/icon.png"
 cp "$repo_root/assets/largeIcon.png" "$package_root/largeIcon.png"
 # A developer's restrictive umask or SDK modes must not create root-only assets

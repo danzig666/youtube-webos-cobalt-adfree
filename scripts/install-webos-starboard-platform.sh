@@ -197,6 +197,11 @@ if ! grep -q 'webos_pipeline_diagnostics_' "$cobalt_root/cobalt/media/base/sbpla
   git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-pipeline-diagnostics.patch"
 fi
 
+if ! grep -Fq '$ORIGIN/lib/libfdk-aac.so' "$cobalt_root/starboard/shared/libfdkaac/libfdkaac_library_loader.cc"; then
+  git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-bundled-aac.patch"
+  git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-bundled-aac.patch"
+fi
+
 if ! grep -q 'GetYtafMediaReport' "$cobalt_root/cobalt/h5vcc/h5vcc_system.h"; then
   git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-diagnostics-ui.patch"
   git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-diagnostics-ui.patch"

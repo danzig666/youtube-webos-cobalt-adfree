@@ -44,6 +44,8 @@ VPX_PARALLEL="$parallel" \
 DAV1D_PARALLEL="$parallel" \
   "$repo_root/scripts/build-webos-video-codecs-docker.sh"
 
+bash "$repo_root/scripts/build-fdk-aac-webos-docker.sh"
+
 echo "Building YTAF web assets."
 make -C "$repo_root" docker-make.npm
 
@@ -69,6 +71,7 @@ docker run --rm --platform linux/amd64 \
   -e WEBOS_SDK_ROOT=/sdk/arm-webos-linux-gnueabi_sdk-buildroot \
   -e SDL2_BUNDLE_DIR=/sdl \
   -e OUT_DIR="$out_dir" -e BUILD_TYPE="$build_type" -e PARALLEL="$parallel" \
+  -e FDK_BUNDLE=/code/out/fdk-aac-webos/bundle \
   -e YTAF_CCACHE="${YTAF_CCACHE:-1}" -e CCACHE_DIR=/ccache \
   -e CCACHE_BASEDIR=/code -e CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-5G}" \
   cobalt-build-evergreen:latest \

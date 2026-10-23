@@ -4,10 +4,13 @@ import json,os,shutil,subprocess,tempfile,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 class CacheTests(unittest.TestCase):
- def run_build(self,cache='1',installed=True,gn_exit=0,ninja_exit=0,stale_assets=False):
+ def run_build(self,cache='1',installed=True,gn_exit=0,ninja_exit=0,stale_assets=False,bundled_aac=False):
   with tempfile.TemporaryDirectory(prefix='ytaf-ccache-') as directory:
    root=Path(directory);log=root/'calls';commands=root/'bin';commands.mkdir()
-   (commands/'rm').symlink_to(shutil.which('rm'))
+   for name in ['rm','mkdir','cp']:(commands/name).symlink_to(shutil.which(name))
+   if bundled_aac:
+    (root/'bundle').mkdir()
+    for name in ['libfdk-aac.so','fdk-aac-build.txt','fdk-aac.txt']:(root/'bundle'/name).write_text(name)
    if stale_assets:
     source=root/'source.js';source.write_text('current web asset')
     generated=root/'out/test/content/web/adblock';generated.mkdir(parents=True)
@@ -16,7 +19,14 @@ class CacheTests(unittest.TestCase):
     p=commands/name;p.write_text('#!'+os.sys.executable+'\nimport os,json,sys\n'+
      'with open(os.environ["CALL_LOG"],"a") as f:f.write(json.dumps({"tool":'+repr(name)+',"args":sys.argv[1:],"sloppiness":os.getenv("CCACHE_SLOPPINESS"),"compiler":os.getenv("CCACHE_COMPILERCHECK"),"generated_asset":os.path.exists("out/test/content/web/adblock/adblockMain.js"),"source_asset":os.path.exists("source.js")})+"\\n")\n'+f'sys.exit({exit_code})\n');p.chmod(0o755)
    env=dict(os.environ,PATH=str(commands),CALL_LOG=str(log),OUT_DIR='out/test',BUILD_TYPE='gold',PARALLEL='4',YTAF_CCACHE=cache,CCACHE_SLOPPINESS='file_stat_matches')
+   env.pop('FDK_BUNDLE',None)
+   if bundled_aac:env['FDK_BUNDLE']=str(root/'bundle')
    result=subprocess.run([shutil.which('bash'),str(ROOT/'scripts/run-cobalt-compile.sh')],env=env,cwd=root,capture_output=True,text=True)
+   if bundled_aac:
+    for name,target in [('libfdk-aac.so','lib/libfdk-aac.so'),('fdk-aac-build.txt','lib/fdk-aac-build.txt'),('fdk-aac.txt','content/licenses/fdk-aac.txt')]:
+     output=root/'out/test'/target
+     if gn_exit or ninja_exit:self.assertFalse(output.exists())
+     else:self.assertEqual(output.read_text(),name)
    return result,[json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
  def test_enabled_caches_compilation_with_content_checks_and_no_sloppiness(self):
   result,calls=self.run_build();self.assertEqual(result.returncode,0,result.stderr)
@@ -38,4 +48,8 @@ class CacheTests(unittest.TestCase):
   result,calls=self.run_build(stale_assets=True);self.assertEqual(result.returncode,0,result.stderr)
   gn=next(c for c in calls if c['tool']=='gn')
   self.assertFalse(gn['generated_asset']);self.assertTrue(gn['source_asset'])
+ def test_aac_dependency_and_notice_follow_only_a_successful_compile(self):
+  for gn_exit in [0,17]:
+   result,_=self.run_build(gn_exit=gn_exit,bundled_aac=True)
+   self.assertEqual(result.returncode,gn_exit,result.stderr)
 if __name__=='__main__':unittest.main()

@@ -16,8 +16,9 @@ buildroot-nc4 SDK release `webos-a38c582`, Linux x86-64 archive.
 - The custom shared player explicitly accepts `kSbMediaAudioCodecOpus`,
   requires WebM timing side data, and serializes OpusHead into Load's opusInfo.
   AAC is ineligible for that path.
-- Cobalt's existing Linux factory retains FfmpegAudioDecoder for AAC. Legacy
-  StarfishVideoDecoder supplies video separately. AAC fallback is preserved.
+- Cobalt's existing Linux factory selects its FDK-AAC software decoder when
+  available, with FFmpeg as the existing fallback. Legacy StarfishVideoDecoder
+  supplies video separately. Neither path feeds compressed AAC to Starfish.
 - Generic session epochs and queues are now separate from Opus configuration
   and timing, but no AAC codec/configuration/framing implementation is added.
 
