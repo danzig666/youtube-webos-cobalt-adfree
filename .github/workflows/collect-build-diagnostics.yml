@@ -1,0 +1,32 @@
+name: Collect build job diagnostics
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: Numeric Actions job ID from this repository
+        type: string
+        required: true
+permissions:
+  contents: read
+  actions: read
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Download the selected job log
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_ID: ${{ inputs.job_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$JOB_ID" =~ ^[0-9]+$ ]]
+          mkdir -p output
+          gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$JOB_ID/logs" > output/job.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-job-${{ inputs.job_id }}
+          path: output/job.log
+          if-no-files-found: error
+          retention-days: 3
