@@ -145,6 +145,9 @@ class StarterlessPackageTests(unittest.TestCase):
 
     def test_release_identities_and_invalid_override(self):
         renderer = str(ROOT / 'scripts/starterless-appinfo.py')
+        installer = (ROOT / 'scripts/install-webos-starboard-platform.sh').read_text()
+        metadata = installer.split("<<'PYMETA'\n", 1)[1].split('\nPYMETA', 1)[0]
+        source_sha = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
         for app_id, title in (
                 ('youtube.leanback.v4', 'YouTube AdFree (Original ID)'),
                 ('com.cobalt.youtube.adfree', 'YouTube Cobalt AdFree')):
@@ -156,6 +159,20 @@ class StarterlessPackageTests(unittest.TestCase):
             self.assertEqual(info['title'], title)
             self.assertEqual(info['version'], json.loads(
                 (ROOT / 'starterless-cobalt/appinfo.json').read_text())['version'])
+            # Execute the actual generator used before Cobalt compilation.
+            # Both identities must be native builds of the same source/version.
+            with tempfile.TemporaryDirectory() as directory:
+                target = Path(directory) / 'webos_build_metadata.h'
+                command = ['python3', '-', str(ROOT), str(target)]
+                env = dict(os.environ, YTAF_PACKAGE_ID=app_id)
+                subprocess.run(command, input=metadata, text=True, env=env, check=True)
+                header = target.read_text()
+                self.assertIn('#define YTAF_APP_ID "' + app_id + '"', header)
+                self.assertIn('#define YTAF_APP_VERSION "' + info['version'] + '"', header)
+                self.assertIn('#define YTAF_SOURCE_SHA "' + source_sha + '"', header)
+                mtime = target.stat().st_mtime_ns
+                subprocess.run(command, input=metadata, text=True, env=env, check=True)
+                self.assertEqual(target.stat().st_mtime_ns, mtime)
         for invalid in ('', 'wrong.app', 'youtube.leanback.v4"'):
             result = subprocess.run(['bash', str(ROOT / 'scripts/package-starterless-cobalt.sh')],
                                     env=dict(os.environ, YTAF_PACKAGE_ID=invalid),

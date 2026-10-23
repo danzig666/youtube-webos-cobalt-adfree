@@ -277,6 +277,15 @@ jobs:
           export COBALT_RUNTIME_DIR="$runtime_dir"
           export WEBAPP_OUTPUT_DIR="$COBALT_BUILD_DIR/content/web/adblock"
           bash scripts/package-starterless-cobalt.sh
+          # Package the first runtime before rebuilding the same target with
+          # the original ID. The generated native identity comes from the same
+          # validated renderer as appinfo.json; changing a filename is not enough.
+          YTAF_PACKAGE_ID=youtube.leanback.v4 \
+            COBALT_BUILD_LOG="$GITHUB_WORKSPACE/output/cobalt-${COBALT_BUILD_TYPE}-original-id.log" \
+            bash scripts/build-starterless-cobalt-docker.sh
+          YTAF_PACKAGE_ID=youtube.leanback.v4 bash scripts/package-starterless-cobalt.sh
+          test -s "output/com.cobalt.youtube.adfree_$(jq -r .version starterless-cobalt/appinfo.json)_arm.ipk"
+          test -s "output/youtube.leanback.v4_$(jq -r .version starterless-cobalt/appinfo.json)_arm.ipk"
           for package in output/*.ipk; do
             python3 scripts/verify-ipk-container.py "$package"
             sha256sum "$package" > "$package.sha256"
@@ -299,7 +308,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cobalt-build-log-${{ steps.meta.outputs.short_sha }}
-          path: output/cobalt-${{ inputs.build_type || 'gold' }}.log
+          path: output/cobalt-${{ inputs.build_type || 'gold' }}*.log
           if-no-files-found: warn
           retention-days: 14
 
