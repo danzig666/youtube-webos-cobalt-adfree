@@ -12,6 +12,45 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 class StarterlessPackageTests(unittest.TestCase):
+    def test_gold_workflow_scopes_artifact_assets_to_each_package(self):
+        import textwrap
+        workflow = (ROOT / '.github/workflows/build-starterless-cobalt.yml').read_text()
+        step = workflow.split('      - name: Validate Gold IPK (artifact only)\n', 1)[1].split('\n      - name:', 1)[0]
+        script = textwrap.dedent(step.split('        run: |\n', 1)[1])
+        with tempfile.TemporaryDirectory(prefix='ytaf-gold-sequence-') as temporary:
+            root = Path(temporary)
+            (root / 'output').mkdir()
+            version = json.loads((ROOT / 'starterless-cobalt/appinfo.json').read_text())['version']
+            # Execute the real workflow shell; replace only external tool and
+            # native compilation boundaries. Record the environment each sees.
+            harness = r'''
+npm() { :; }
+docker() { :; }
+python3() { :; }
+sha256sum() { :; }
+jq() { printf '%s\n' "$EXPECTED_VERSION"; }
+bash() {
+  printf '%s|%s|%s\n' "$1" "${YTAF_PACKAGE_ID-com.cobalt.youtube.adfree}" "${WEBAPP_OUTPUT_DIR-unset}" >> "$CALL_LOG"
+  if [[ "$1" == scripts/package-starterless-cobalt.sh ]]; then
+    : > "output/${YTAF_PACKAGE_ID-com.cobalt.youtube.adfree}_${EXPECTED_VERSION}_arm.ipk"
+    printf 'fixture' > "output/${YTAF_PACKAGE_ID-com.cobalt.youtube.adfree}_${EXPECTED_VERSION}_arm.ipk"
+  fi
+}
+'''
+            env = dict(os.environ, GITHUB_WORKSPACE=str(root), COBALT_SOURCE_DIR=str(root / 'cobalt'),
+                       COBALT_BUILD_TYPE='gold', WEBOS_LINUX_SDK_VOLUME='fixture-sdk',
+                       EXPECTED_VERSION=version, CALL_LOG=str(root / 'calls'))
+            env.pop('WEBAPP_OUTPUT_DIR', None)
+            env.pop('YTAF_PACKAGE_ID', None)
+            result = subprocess.run(['bash', '-c', harness + script], env=env, cwd=root,
+                                    text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            assets = str(root / 'cobalt/out/webos-arm-sbversion-13_gold/content/web/adblock')
+            self.assertEqual((root / 'calls').read_text().splitlines(), [
+                'scripts/package-starterless-cobalt.sh|com.cobalt.youtube.adfree|' + assets,
+                'scripts/build-starterless-cobalt-docker.sh|youtube.leanback.v4|unset',
+                'scripts/package-starterless-cobalt.sh|youtube.leanback.v4|' + assets])
+
     def check_rejected(self, readelf_body, message, code=4, binary_id="",
                        package_id="com.cobalt.youtube.adfree"):
         with tempfile.TemporaryDirectory(prefix='ytaf-package-') as temporary:

@@ -23,6 +23,10 @@ fi
 # commands stay uncached. No platform toolchain or playback behavior changes.
 git config --global --add safe.directory /code
 umask 022
+# Generated content directories belong to the container user. Refresh them
+# here so a host user can also perform a second build of another app identity.
+# GN uses hard links for these assets; remove only the generated directory.
+rm -rf -- "$OUT_DIR/content/web/adblock"
 rc=0
 gn --script-executable=python3 gen "$OUT_DIR" --args="target_platform=\"webos-arm\" build_type=\"$BUILD_TYPE\" target_cpu=\"arm\" sb_api_version=13 is_clang=false$wrapper_arg" &&
   ninja -v -j "$PARALLEL" -C "$OUT_DIR" cobalt || rc=$?

@@ -4,14 +4,19 @@ import json,os,shutil,subprocess,tempfile,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 class CacheTests(unittest.TestCase):
- def run_build(self,cache='1',installed=True,gn_exit=0,ninja_exit=0):
+ def run_build(self,cache='1',installed=True,gn_exit=0,ninja_exit=0,stale_assets=False):
   with tempfile.TemporaryDirectory(prefix='ytaf-ccache-') as directory:
    root=Path(directory);log=root/'calls';commands=root/'bin';commands.mkdir()
+   (commands/'rm').symlink_to(shutil.which('rm'))
+   if stale_assets:
+    source=root/'source.js';source.write_text('current web asset')
+    generated=root/'out/test/content/web/adblock';generated.mkdir(parents=True)
+    os.link(source,generated/'adblockMain.js')
    for name,exit_code in [('git',0),('gn',gn_exit),('ninja',ninja_exit)]+([('ccache',0)] if installed else []):
     p=commands/name;p.write_text('#!'+os.sys.executable+'\nimport os,json,sys\n'+
-     'with open(os.environ["CALL_LOG"],"a") as f:f.write(json.dumps({"tool":'+repr(name)+',"args":sys.argv[1:],"sloppiness":os.getenv("CCACHE_SLOPPINESS"),"compiler":os.getenv("CCACHE_COMPILERCHECK")})+"\\n")\n'+f'sys.exit({exit_code})\n');p.chmod(0o755)
+     'with open(os.environ["CALL_LOG"],"a") as f:f.write(json.dumps({"tool":'+repr(name)+',"args":sys.argv[1:],"sloppiness":os.getenv("CCACHE_SLOPPINESS"),"compiler":os.getenv("CCACHE_COMPILERCHECK"),"generated_asset":os.path.exists("out/test/content/web/adblock/adblockMain.js"),"source_asset":os.path.exists("source.js")})+"\\n")\n'+f'sys.exit({exit_code})\n');p.chmod(0o755)
    env=dict(os.environ,PATH=str(commands),CALL_LOG=str(log),OUT_DIR='out/test',BUILD_TYPE='gold',PARALLEL='4',YTAF_CCACHE=cache,CCACHE_SLOPPINESS='file_stat_matches')
-   result=subprocess.run([shutil.which('bash'),str(ROOT/'scripts/run-cobalt-compile.sh')],env=env,capture_output=True,text=True)
+   result=subprocess.run([shutil.which('bash'),str(ROOT/'scripts/run-cobalt-compile.sh')],env=env,cwd=root,capture_output=True,text=True)
    return result,[json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
  def test_enabled_caches_compilation_with_content_checks_and_no_sloppiness(self):
   result,calls=self.run_build();self.assertEqual(result.returncode,0,result.stderr)
@@ -29,4 +34,8 @@ class CacheTests(unittest.TestCase):
    if gn_exit:self.assertFalse(any(c['tool']=='ninja' for c in calls))
  def test_invalid_override_fails_before_invoking_build_tools(self):
   result,calls=self.run_build('oops');self.assertEqual(result.returncode,2);self.assertEqual(calls,[])
+ def test_incremental_build_refreshes_hardlinked_assets_inside_container_entrypoint(self):
+  result,calls=self.run_build(stale_assets=True);self.assertEqual(result.returncode,0,result.stderr)
+  gn=next(c for c in calls if c['tool']=='gn')
+  self.assertFalse(gn['generated_asset']);self.assertTrue(gn['source_asset'])
 if __name__=='__main__':unittest.main()

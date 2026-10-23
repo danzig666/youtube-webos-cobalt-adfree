@@ -54,10 +54,6 @@ bash "$repo_root/scripts/install-ytaf-cobalt-assets.sh" "$cobalt_root"
 "$repo_root/scripts/install-webos-starboard-platform.sh" "$cobalt_root"
 mkdir -p "$(dirname "$build_log")"
 
-# Force GN/Ninja to refresh only the generated adblock content while keeping the
-# existing compiled Cobalt objects for an incremental rebuild.
-rm -rf "$cobalt_root/$out_dir/content/web/adblock"
-
 echo "Starting the long Cobalt webos-arm build with $parallel jobs."
 echo "Complete build log: $build_log"
 cache_dir="${CCACHE_HOST_DIR:-$repo_root/workdir/ccache}"

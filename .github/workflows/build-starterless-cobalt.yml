@@ -261,6 +261,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          exec > >(tee "$GITHUB_WORKSPACE/output/gold-package.log") 2>&1
           npm ci --no-audit --no-fund
           runtime_dir="$GITHUB_WORKSPACE/output/nightly-runtime"
           mkdir -p "$runtime_dir"
@@ -275,15 +276,17 @@ jobs:
           '
           export COBALT_BUILD_DIR="$COBALT_SOURCE_DIR/out/webos-arm-sbversion-13_${COBALT_BUILD_TYPE}"
           export COBALT_RUNTIME_DIR="$runtime_dir"
-          export WEBAPP_OUTPUT_DIR="$COBALT_BUILD_DIR/content/web/adblock"
-          bash scripts/package-starterless-cobalt.sh
+          WEBAPP_OUTPUT_DIR="$COBALT_BUILD_DIR/content/web/adblock" \
+            bash scripts/package-starterless-cobalt.sh
           # Package the first runtime before rebuilding the same target with
           # the original ID. The generated native identity comes from the same
           # validated renderer as appinfo.json; changing a filename is not enough.
           YTAF_PACKAGE_ID=youtube.leanback.v4 \
             COBALT_BUILD_LOG="$GITHUB_WORKSPACE/output/cobalt-${COBALT_BUILD_TYPE}-original-id.log" \
             bash scripts/build-starterless-cobalt-docker.sh
-          YTAF_PACKAGE_ID=youtube.leanback.v4 bash scripts/package-starterless-cobalt.sh
+          YTAF_PACKAGE_ID=youtube.leanback.v4 \
+            WEBAPP_OUTPUT_DIR="$COBALT_BUILD_DIR/content/web/adblock" \
+            bash scripts/package-starterless-cobalt.sh
           test -s "output/com.cobalt.youtube.adfree_$(jq -r .version starterless-cobalt/appinfo.json)_arm.ipk"
           test -s "output/youtube.leanback.v4_$(jq -r .version starterless-cobalt/appinfo.json)_arm.ipk"
           for package in output/*.ipk; do
@@ -308,7 +311,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cobalt-build-log-${{ steps.meta.outputs.short_sha }}
-          path: output/cobalt-${{ inputs.build_type || 'gold' }}*.log
+          path: |
+            output/cobalt-${{ inputs.build_type || 'gold' }}*.log
+            output/gold-package.log
           if-no-files-found: warn
           retention-days: 14
 
