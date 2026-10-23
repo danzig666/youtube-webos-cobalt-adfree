@@ -1,3 +1,4 @@
+# Manual ARM builds may select playback/host-tested-v2 as the workflow ref.
 name: Build starterless Cobalt
 
 on:
