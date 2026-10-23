@@ -127,3 +127,35 @@ seven package tests, five compiler-cache tests, four artifact-provenance tests,
 three IPK-container tests and sixteen Homebrew catalog tests passed. This is a
 diagnostic update, without new TV validation or a confirmed livestream fix.
 See [the C3 log investigation](live-playback-investigation.md#c3-log-investigation--23-october-2026).
+
+## Bundled AAC dependency verification — 23 October 2026
+
+**2.6.31 beta 1** uses source `6a36fc74b88e368778f4c930ffd8a25bb30a328d`.
+[ARM Gold run 40034711761](https://github.com/danzig666/youtube-webos-cobalt-adfree/actions/runs/40034711761)
+succeeded, including both native identities, the real-library host AAC decode
+check and both IPKs. The runtime archive now also retains its private AAC
+library and source metadata, along with the complete license notice in content.
+
+FDK-AAC 2.0.3 source is pinned to
+`716f4394641d53f0d79c9ddac3fa93b03a49f278`. It was cross-compiled with the
+same pinned SDK and ARMv7 softfp/NEON flags as the app. Final payload checks
+confirmed ELF32 ARM softfp, required AAC exports, dependencies and glibc 2.4
+baseline. Both packages contain byte-identical AAC libraries and tested web
+assets. Cobalt's existing AAC feed/decode/output-delay methods decode a generated
+AAC-LC fixture twice with decoder recreation in both local and CI checks.
+The loader prefers the private library and preserves its system fallback.
+No compressed AAC feeding through Starfish is added.
+
+| Package | IPK SHA-256 | ELF SHA-256 |
+| --- | --- | --- |
+| `com.cobalt.youtube.adfree_2.6.31_arm.ipk` | `c087e7bc68fb4be1c2447592585c7f7432851ab152b4cfa2dea0ad29655e70f8` | `adda09f727b8ded6105896d1a44e205b1632b3c6d042dffbcfe0c11afb276c30` |
+| `youtube.leanback.v4_2.6.31_arm.ipk` | `463383c85a2acddeb5478d49cc1fac6be3cab0e7bb4cc7e06bfb83dd3721b81b` | `32cc5064155580833c85dc6eb2479dfb759f1d352952a7bb7ba8a399fd28e3ac` |
+
+AAC library SHA-256: `9a5b1ebcc2f3a0357bc6062a7b649df745f10a191d28eddf3dc8f411fc15c909`.
+
+[Public packages, checksums and source-specific build records](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.31-beta.1).
+Source CI, 406 web tests, production web build, the full native host suite,
+eight package tests, six compiler-entrypoint tests, four provenance tests,
+three IPK-container tests and sixteen catalog tests passed. The supplied C3
+trace proves the previous AAC creation failure; the new build still requires
+on-TV confirmation of startup, synchronization and live/DVR behavior.

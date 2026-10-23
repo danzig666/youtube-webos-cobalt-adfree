@@ -161,3 +161,25 @@ again. The full ARM workflow also runs that real-library host check.
 This supplies the missing software AAC dependency; it adds no shared Starfish
 AAC path and changes no packet framing, seek, clock or EOS behavior. A new C3
 playback test remains necessary to confirm live playback and detect later issues.
+
+### 2.6.31 beta 1 verification
+
+The [released AAC dependency fix](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.31-beta.1)
+is compiled from `6a36fc74b88e368778f4c930ffd8a25bb30a328d`.
+[ARM Gold run 40034711761](https://github.com/danzig666/youtube-webos-cobalt-adfree/actions/runs/40034711761)
+compiled both identities and passed the real-library AAC decoding check and
+both final IPK checks. Source CI, 406 web tests, the complete native host suite,
+eight package tests, six compiler-entrypoint tests and artifact/catalog tests
+passed. The new loader regression fails against Cobalt's original loader.
+
+The downloaded packages contain the same verified ARMv7 softfp AAC library,
+all eight required exported decoder symbols, pinned source metadata and the
+complete license notice. Its required glibc baseline is 2.4. Both native
+identities, fonts, libraries and release checksums were verified before
+publication. The later host-test fixture isolates firmware lookup from any
+FDK library installed on the test machine; it changes no runtime behavior.
+
+The C3 still needs to confirm the repaired startup and subsequent live/DVR
+playback. Fully close and reopen the same-ID update, then try the stream.
+If playback still fails, retrieve the new native log so a later failure can
+be distinguished from the now-supplied AAC dependency.

@@ -25,6 +25,7 @@ actual = '\n'.join(methods.method(adapter, signature) for signature in [
 fixture = r'''
 #include <cassert>
 #include <cstdio>
+#include <cstdlib>
 #include <cstdint>
 #include <cstring>
 #include <dlfcn.h>
@@ -71,6 +72,16 @@ struct FdkAacAudioDecoder {
 };
 REAL_METHODS
 }}}
+// Keep firmware lookup under fixture control even on a host that has FDK
+// installed. The loader's private ORIGIN path still uses real glibc loading.
+extern "C" void* __real_dlopen(const char*, int);
+extern "C" void* __wrap_dlopen(const char* name, int flags) {
+  if(std::string(name)=="libfdk-aac.so") {
+    const char* firmware=std::getenv("YTAF_TEST_FIRMWARE_LIBRARY");
+    assert(firmware);return __real_dlopen(firmware,flags);
+  }
+  return __real_dlopen(name,flags);
+}
 int main(int argc,char** argv) {
   using namespace starboard::shared::libfdkaac;
   assert(argc>=2);
@@ -124,8 +135,9 @@ with tempfile.TemporaryDirectory(prefix='ytaf-aac-loader-') as directory:
     subprocess.run([compiler, '-std=c++14', '-Wall', '-Wextra', '-Werror', '-DSTARBOARD_WEBOS',
                     '-I'+str(stubs), '-I'+str(cobalt), str(cpp),
                     str(cobalt / 'starboard/shared/libfdkaac/libfdkaac_library_loader.cc'),
-                    '-ldl', '-o', str(binary)], check=True)
-    env = dict(os.environ, LD_LIBRARY_PATH=str(firmware))
+                    '-ldl', '-Wl,--wrap=dlopen', '-o', str(binary)], check=True)
+    env = dict(os.environ, LD_LIBRARY_PATH=str(firmware),
+               YTAF_TEST_FIRMWARE_LIBRARY=str(firmware / 'libfdk-aac.so'))
     subprocess.run([str(binary), 'missing'], env=env, check=True)
     mock = root / 'mock.cc'
     symbols = ['GetStreamInfo', 'Close', 'Open', 'ConfigRaw', 'SetParam', 'AncDataInit', 'Fill', 'DecodeFrame']
