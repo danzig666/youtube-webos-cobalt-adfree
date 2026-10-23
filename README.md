@@ -6,12 +6,12 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 ## Download and install
 
-**[Latest release: v2.6.30-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.30-beta.1)**
+**[Latest release: v2.6.31-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.31-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
-| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.30-beta.1/com.cobalt.youtube.adfree_2.6.30_arm.ipk) | Installs alongside official YouTube |
-| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.30-beta.1/youtube.leanback.v4_2.6.30_arm.ipk) | **Replaces official YouTube** |
+| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.31-beta.1/com.cobalt.youtube.adfree_2.6.31_arm.ipk) | Installs alongside official YouTube |
+| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.31-beta.1/youtube.leanback.v4_2.6.31_arm.ipk) | **Replaces official YouTube** |
 
 Install using webOS Device Manager or `ares-cli` with Developer Mode, or Homebrew Channel on a compatible setup. Update the same package ID you already use, then fully close and reopen the app. Checksums and build records accompany each release.
 
@@ -34,6 +34,7 @@ The original ad blocking, Return YouTube Dislike, automatic account selection, s
 | Blue settings interface | Inter typography, TV-safe margins, instant category switching on focus/hover, visible focus and direct option lists |
 | Home refresh | YouTube’s in-place soft-refresh command, available in General and on number keys; confirmed working on the LG C3 |
 | Magic Remote support | Cursor selection and wheel scrolling in settings, option lists, help and diagnostics |
+| Bundled software AAC | Private ARMv7 audio decoder for the existing legacy playback path; avoids relying on firmware AAC libraries |
 | Video quality profiles | Safe 1080p SDR, 4K SDR or 4K HDR; saved on the TV and applied after a full restart |
 | SponsorBlock category actions | Auto skip, Ask first, Markers only or Off for each category |
 | Permanent channel exceptions | Disable all SponsorBlock skipping for a channel; manage and remove saved exceptions |
@@ -71,7 +72,7 @@ YouTube default restores native caption styling. DeArrow sends visible video IDs
 
 ## Fixes and playback hardening
 
-- **Livestream investigation:** retained numeric pipeline and AAC decoder failures in Gold builds, added bounded demuxer-read tracing and an eight-entry failure history, and exposed standard media-error/network state in Diagnostics. The supplied C3 log narrows the investigation to AAC/legacy playback or earlier data delivery; **livestream playback is not fixed yet**. See [the evidence and next capture](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/live-playback-investigation.md#c3-log-investigation--23-october-2026).
+- **Livestream AAC startup:** the C3 log identified AAC decoder creation failing after media packets arrive. The app now bundles its software AAC decoder instead of relying on firmware libraries, while retaining the existing playback backends and fallback paths. Real AAC decoding and loader/packaging regressions pass; **on-TV confirmation is still needed**. See [the evidence and fix](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/live-playback-investigation.md#c3-diagnostic-capture--aac-decoder-unavailable).
 
 - **Community adaptations:** fixed ad hiding on Cobalt DOM collections without `closest()`/NodeList `forEach()`, normalized valid decimal-bitrate capability queries, added bounded query diagnostics and enabled conservative native compiler caching. Frame-rate/hardware policy stays unchanged; C3 speed/quality behavior needs device testing. See [fork sources and validation](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/fork-improvements-2026-10.md).
 
@@ -95,7 +96,7 @@ YouTube default restores native caption styling. DeArrow sends visible video IDs
 
 C3 feedback confirms caption sizing/cursor selection (2.6.5), in-place Home refresh (2.6.11), cached resume (2.6.17), LG model/panel/HDR queries (2.6.21) and Channel + / − quick seeking with the seekbar visible (2.6.29). Version 2.6.29 passes 405 web tests, the complete native host suite, settings checks across six categories and 30 dropdowns at 720p/1080p, 20 simulated playback minutes at each resolution, package checks, both ARM builds and GitHub CI. The C3 tester reports **no recent playback freezes**. Startup overhead was reduced in code; speedup is not yet measured on a TV. Read startup timings under **GREEN → Diagnostics**. See the [project audit and recommendations](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/project-audit-2026-10.md) and [playback recovery details](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/c3-playback-recovery.md). Account resume, fractional speeds, live/DVR, HDR and lifecycle recovery still need device validation. AAC keeps its existing decoder path; legacy playback and `YTAF_SHARED_AV=0` rollback remain available.
 
-Version **2.6.30** is a diagnostic update: 406 web tests, the complete native host suite, production web build, package/provenance checks and both ARM Gold builds pass. Its new diagnostics have not yet been tested on a TV. Install your current app-ID variant, fully restart, reproduce the livestream failure once, then inspect **GREEN → Diagnostics → Recent playback failures** or retrieve the native log. No further quality-profile changes are needed for that capture.
+Version **2.6.31** supplies the missing AAC decoder dependency exposed by the C3 diagnostic capture. It passes 406 web tests, production web build, the complete native host suite, actual AAC-LC decoding through Cobalt’s existing adapter, package/provenance checks and both ARM Gold builds. The new build needs C3 confirmation: install your current app-ID variant, fully close and reopen the app, and try the livestream. If it still fails, send the new native log or inspect **GREEN → Diagnostics → Recent playback failures**.
 
 ## Screenshots
 
