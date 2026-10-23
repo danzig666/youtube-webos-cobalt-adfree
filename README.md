@@ -6,12 +6,12 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 ## Download and install
 
-**[Latest release: v2.6.29-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.29-beta.1)**
+**[Latest release: v2.6.30-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.30-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
-| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.29-beta.1/com.cobalt.youtube.adfree_2.6.29_arm.ipk) | Installs alongside official YouTube |
-| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.29-beta.1/youtube.leanback.v4_2.6.29_arm.ipk) | **Replaces official YouTube** |
+| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.30-beta.1/com.cobalt.youtube.adfree_2.6.30_arm.ipk) | Installs alongside official YouTube |
+| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.30-beta.1/youtube.leanback.v4_2.6.30_arm.ipk) | **Replaces official YouTube** |
 
 Install using webOS Device Manager or `ares-cli` with Developer Mode, or Homebrew Channel on a compatible setup. Update the same package ID you already use, then fully close and reopen the app. Checksums and build records accompany each release.
 
@@ -71,6 +71,8 @@ YouTube default restores native caption styling. DeArrow sends visible video IDs
 
 ## Fixes and playback hardening
 
+- **Livestream investigation:** retained numeric pipeline and AAC decoder failures in Gold builds, added bounded demuxer-read tracing and an eight-entry failure history, and exposed standard media-error/network state in Diagnostics. The supplied C3 log narrows the investigation to AAC/legacy playback or earlier data delivery; **livestream playback is not fixed yet**. See [the evidence and next capture](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/live-playback-investigation.md#c3-log-investigation--23-october-2026).
+
 - **Community adaptations:** fixed ad hiding on Cobalt DOM collections without `closest()`/NodeList `forEach()`, normalized valid decimal-bitrate capability queries, added bounded query diagnostics and enabled conservative native compiler caching. Frame-rate/hardware policy stays unchanged; C3 speed/quality behavior needs device testing. See [fork sources and validation](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/fork-improvements-2026-10.md).
 
 - **Startup and fonts:** adapted upstream direct logging and system-font support, with concurrent-safe file rotation, debug-only per-script success tracing, startup timings, retained bundled fallbacks and an overlapping-family ownership fix. See [startup findings](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/upstream-startup-improvements.md).
@@ -92,6 +94,8 @@ YouTube default restores native caption styling. DeArrow sends visible video IDs
 - **Development:** enabled ordinary CI on the release-development branch. Added SDK-free native host tests, a scheduled full Gold ARM build workflow, device-report templates and a compatibility-matrix generator. Scheduled builds activate on the default branch; they do not publish stable releases.
 
 C3 feedback confirms caption sizing/cursor selection (2.6.5), in-place Home refresh (2.6.11), cached resume (2.6.17), LG model/panel/HDR queries (2.6.21) and Channel + / − quick seeking with the seekbar visible (2.6.29). Version 2.6.29 passes 405 web tests, the complete native host suite, settings checks across six categories and 30 dropdowns at 720p/1080p, 20 simulated playback minutes at each resolution, package checks, both ARM builds and GitHub CI. The C3 tester reports **no recent playback freezes**. Startup overhead was reduced in code; speedup is not yet measured on a TV. Read startup timings under **GREEN → Diagnostics**. See the [project audit and recommendations](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/project-audit-2026-10.md) and [playback recovery details](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/c3-playback-recovery.md). Account resume, fractional speeds, live/DVR, HDR and lifecycle recovery still need device validation. AAC keeps its existing decoder path; legacy playback and `YTAF_SHARED_AV=0` rollback remain available.
+
+Version **2.6.30** is a diagnostic update: 406 web tests, the complete native host suite, production web build, package/provenance checks and both ARM Gold builds pass. Its new diagnostics have not yet been tested on a TV. Install your current app-ID variant, fully restart, reproduce the livestream failure once, then inspect **GREEN → Diagnostics → Recent playback failures** or retrieve the native log. No further quality-profile changes are needed for that capture.
 
 ## Screenshots
 
@@ -119,7 +123,7 @@ npm --prefix webapp run build -- --env production
 
 Native compilation uses ccache when installed, with content-based compiler checks; set `YTAF_CCACHE=0` to disable it.
 
-Native checks: `bash scripts/test-native-host.sh /path/to/disposable-cobalt-23.lts.6` (prepares that checkout). Build/package helpers: [Cobalt build](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/scripts/build-starterless-cobalt-docker.sh), [SDL build](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/scripts/build-sdl-webos-docker.sh), [IPK packaging](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/scripts/package-starterless-cobalt.sh). Keep `YTAF_PACKAGE_ID` identical for native build and packaging.
+Native checks: `bash scripts/test-native-host.sh /path/to/disposable-cobalt-23.lts.6` (prepares that checkout). Build/package helpers: [Cobalt build](scripts/build-starterless-cobalt-docker.sh), [SDL build](scripts/build-sdl-webos-docker.sh), [IPK packaging](scripts/package-starterless-cobalt.sh). Keep `YTAF_PACKAGE_ID` identical for native build and packaging.
 
 Details: [playback plan](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/v2-playback-improvement-plan.md) · [build validation](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/full-gold-build-validation.md) · [usability](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/usability-improvements.md) · [caption/DeArrow integration](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/caption-dearrow-integration.md) · [C3 playback follow-up](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/c3-playback-followup.md) · [device reports](https://github.com/danzig666/youtube-webos-cobalt-adfree/blob/playback/host-tested-v2/docs/device-compatibility-v2.md).
 
