@@ -12,6 +12,7 @@ enum class WebOsPlayerError {
   kNativeLoadFailed, kNativeFeedFailed, kNativeBufferStall, kNativeSeekFailed,
   kNativeRateFailed, kNativeUnloadTimeout, kInvalidTimestamp, kLifecycleFailure,
   kMediaSourceAppendFailed, kMediaSourceConfigFailed,
+  kPipelineFailed, kAudioDecoderUnavailable, kAudioDecodeFailed,
 };
 enum class MediaEventType {
   kVideoCapability, kAudioCapability, kFactory, kSelectedShared, kSelectedLegacy,
@@ -20,9 +21,11 @@ enum class MediaEventType {
   kLifecycle, kDiscontinuity, kSourceOpen, kSourceClosed, kSourceEnded,
   kAppend, kAppendComplete, kSourceAbort, kTimestampOffset, kSourceRemove,
   kAppendRejected, kSourceBufferRejected,
+  kPipelineError, kAudioDecoderError, kAudioDecoderSelected, kDemuxerRead, kDemuxerEos,
 };
 enum class MediaStream { kNone, kAudio, kVideo };
 enum class MediaCodec { kUnknown, kH264, kVp9, kAv1, kOpus, kAac, kVorbis };
+enum class AudioDecoderBackend { kUnknown, kFfmpeg, kFdkAac, kOpus };
 // No free-form input fields: URLs, headers, cookies and user/account identifiers
 // cannot be copied into the ring or report. Firmware callback strings stay out.
 struct MediaEvent {
@@ -32,8 +35,10 @@ struct MediaEvent {
   MediaEventType event = MediaEventType::kError;
   MediaStream stream = MediaStream::kNone;
   MediaCodec codec = MediaCodec::kUnknown;
+  AudioDecoderBackend decoder = AudioDecoderBackend::kUnknown;
   int width = 0, height = 0;
   unsigned bits = 0;
+  int code = 0; // Numeric error from the originating layer; never error text.
   int64_t pts_us = 0;
   uint64_t queued_packets = 0, queued_bytes = 0;
   double requested_rate = 1, applied_rate = 1;
@@ -55,7 +60,24 @@ class MediaEventRing {
 };
 uint64_t NextMediaSessionId();
 void RecordMediaEvent(MediaEvent event);
+void RecordPipelineFailure(int code, uint64_t session = 0);
+void RecordAudioDecoderFailure(MediaCodec codec, int code, bool unavailable,
+                              AudioDecoderBackend decoder = AudioDecoderBackend::kUnknown);
+void RecordAudioDecoderSelection(MediaCodec codec, AudioDecoderBackend decoder);
 std::string CopyMediaDiagnosticEvents();
+// Errors survive capability probes and player retries evicting the event ring.
+std::string CopyMediaFailureReport();
+// Owned by one Cobalt pipeline. Read callbacks run on its task runner. These
+// IDs identify demuxer/pipeline events, not the separate native player IDs.
+class PipelineDiagnostics {
+ public:
+  PipelineDiagnostics() : session_(NextMediaSessionId()) {}
+  void Read(MediaStream stream, int code, uint64_t bytes, int64_t pts_us, bool eos);
+  void Failure(int code) const { RecordPipelineFailure(code, session_); }
+ private:
+  uint64_t session_;
+  unsigned audio_reads_ = 0, video_reads_ = 0;
+};
 // A separate snapshot survives ring eviction; updates reject older generations.
 struct MediaSnapshot {
   uint64_t session = 0, generation = 0;

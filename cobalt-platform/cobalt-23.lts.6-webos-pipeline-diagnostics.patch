@@ -1,0 +1,212 @@
+--- a/cobalt/media/base/sbplayer_pipeline.cc
++++ b/cobalt/media/base/sbplayer_pipeline.cc
+@@ -41,6 +41,9 @@
+ #include "starboard/common/string.h"
+ #include "starboard/configuration_constants.h"
+ #include "starboard/time.h"
++#if defined(STARBOARD_WEBOS)
++#include "starboard/webos/arm/webos_media_diagnostics.h"
++#endif
+ #include "third_party/chromium/media/base/audio_decoder_config.h"
+ #include "third_party/chromium/media/base/bind_to_current_loop.h"
+ #include "third_party/chromium/media/base/channel_layout.h"
+@@ -325,6 +328,9 @@
+ 
+   // Demuxer reference used for setting the preload value.
+   Demuxer* demuxer_ = nullptr;
++#if defined(STARBOARD_WEBOS)
++  ::starboard::shared::webos::PipelineDiagnostics webos_pipeline_diagnostics_;
++#endif
+   bool audio_read_in_progress_ = false;
+   bool audio_read_delayed_ = false;
+   bool video_read_in_progress_ = false;
+@@ -1294,6 +1300,25 @@
+       type == DemuxerStream::AUDIO ? audio_stream_ : video_stream_;
+   DCHECK(stream);
+ 
++#if defined(STARBOARD_WEBOS)
++  uint64_t diagnostic_bytes = 0;
++  int64_t diagnostic_pts = 0;
++  bool diagnostic_eos = false;
++  for (const auto& buffer : buffers) {
++    if (!buffer) continue;
++    if (buffer->end_of_stream()) {
++      diagnostic_eos = true;
++    } else {
++      diagnostic_bytes += buffer->data_size();
++      if (diagnostic_bytes == static_cast<uint64_t>(buffer->data_size()))
++        diagnostic_pts = buffer->timestamp().InMicroseconds();
++    }
++  }
++  webos_pipeline_diagnostics_.Read(
++      type == DemuxerStream::AUDIO ? ::starboard::shared::webos::MediaStream::kAudio
++                                  : ::starboard::shared::webos::MediaStream::kVideo,
++      static_cast<int>(status), diagnostic_bytes, diagnostic_pts, diagnostic_eos);
++#endif
+   if (status == DemuxerStream::kAborted) {
+     DCHECK(GetReadInProgress(type));
+     SetReadInProgress(type, false);
+@@ -1533,6 +1558,10 @@
+ 
+ void SbPlayerPipeline::CallSeekCB(PipelineStatus status,
+                                   const std::string& error_message) {
++#if defined(STARBOARD_WEBOS)
++  // Ordinary error logs are compiled out in Gold; preserve numeric failures.
++  webos_pipeline_diagnostics_.Failure(static_cast<int>(status));
++#endif
+   if (status == ::media::PIPELINE_OK) {
+     DCHECK(error_message.empty());
+   }
+@@ -1557,6 +1586,9 @@
+   if (error_cb_.is_null()) {
+     return;
+   }
++#if defined(STARBOARD_WEBOS)
++  webos_pipeline_diagnostics_.Failure(static_cast<int>(status));
++#endif
+   playback_statistics_.OnError(status, error_message);
+   ResetAndRunIfNotNull(&error_cb_, status,
+                        AppendStatisticsString(error_message));
+--- a/starboard/shared/starboard/player/filter/adaptive_audio_decoder_internal.cc
++++ b/starboard/shared/starboard/player/filter/adaptive_audio_decoder_internal.cc
+@@ -21,6 +21,9 @@
+ #include "starboard/common/reset_and_return.h"
+ #include "starboard/shared/starboard/media/media_util.h"
+ #include "starboard/shared/starboard/player/decoded_audio_internal.h"
++#if defined(STARBOARD_WEBOS)
++#include "starboard/webos/arm/webos_media_diagnostics_bridge.h"
++#endif
+ 
+ namespace starboard {
+ namespace shared {
+@@ -174,11 +177,34 @@
+       audio_decoder_creator_(input_audio_sample_info_, drm_system_);
+ 
+   if (!audio_decoder_) {
++#if defined(STARBOARD_WEBOS)
++    ::starboard::shared::webos::RecordAudioDecoderFailure(
++        ::starboard::shared::webos::DiagnosticAudioCodec(audio_sample_info.codec),
++        static_cast<int>(kSbPlayerErrorDecode), true);
++#endif
+     error_cb_(kSbPlayerErrorDecode, "Decoder adapter cannot create decoder.");
+     return;
+   }
++#if defined(STARBOARD_WEBOS)
++  // Capture values, not the adapter: a late decoder callback must not inspect
++  // a replacement configuration or an adapter whose lifetime has ended.
++  const auto diagnostic_codec =
++      ::starboard::shared::webos::DiagnosticAudioCodec(audio_sample_info.codec);
++  const auto original_error_cb = error_cb_;
++  audio_decoder_->Initialize(
++      std::bind(&AdaptiveAudioDecoder::OnDecoderOutput, this),
++      [diagnostic_codec, original_error_cb](SbPlayerError error,
++                                           const std::string& message) {
++        // Raw decoder messages may contain private data. Forward them only to
++        // the existing callback; diagnostics receive fixed labels and numbers.
++        ::starboard::shared::webos::RecordAudioDecoderFailure(
++            diagnostic_codec, static_cast<int>(error), false);
++        original_error_cb(error, message);
++      });
++#else
+   audio_decoder_->Initialize(
+       std::bind(&AdaptiveAudioDecoder::OnDecoderOutput, this), error_cb_);
++#endif
+ }
+ 
+ void AdaptiveAudioDecoder::TeardownAudioDecoder() {
+--- a/starboard/shared/ffmpeg/ffmpeg_audio_decoder_impl.cc
++++ b/starboard/shared/ffmpeg/ffmpeg_audio_decoder_impl.cc
+@@ -22,6 +22,9 @@
+ #include "starboard/common/string.h"
+ #include "starboard/memory.h"
+ #include "starboard/shared/starboard/media/media_util.h"
++#if defined(STARBOARD_WEBOS)
++#include "starboard/webos/arm/webos_media_diagnostics_bridge.h"
++#endif
+ 
+ namespace starboard {
+ namespace shared {
+@@ -135,6 +138,11 @@
+   int result = ffmpeg_->avcodec_decode_audio4(codec_context_, av_frame_,
+                                               &frame_decoded, &packet);
+   if (result != input_buffer->size()) {
++#if defined(STARBOARD_WEBOS)
++    ::starboard::shared::webos::RecordAudioDecoderFailure(
++        ::starboard::shared::webos::DiagnosticAudioCodec(audio_codec_), result, false,
++        ::starboard::shared::webos::AudioDecoderBackend::kFfmpeg);
++#endif
+     // TODO: Consider fill it with silence.
+     SB_DLOG(WARNING) << "avcodec_decode_audio4() failed with result: " << result
+                      << " with input buffer size: " << input_buffer->size()
+@@ -259,6 +267,11 @@
+ }
+ 
+ void AudioDecoderImpl<FFMPEG>::InitializeCodec() {
++#if defined(STARBOARD_WEBOS)
++  ::starboard::shared::webos::RecordAudioDecoderSelection(
++      ::starboard::shared::webos::DiagnosticAudioCodec(audio_codec_),
++      ::starboard::shared::webos::AudioDecoderBackend::kFfmpeg);
++#endif
+   codec_context_ = ffmpeg_->avcodec_alloc_context3(NULL);
+ 
+   if (codec_context_ == NULL) {
+@@ -307,6 +320,11 @@
+ 
+   int rv = ffmpeg_->OpenCodec(codec_context_, codec);
+   if (rv < 0) {
++#if defined(STARBOARD_WEBOS)
++    ::starboard::shared::webos::RecordAudioDecoderFailure(
++        ::starboard::shared::webos::DiagnosticAudioCodec(audio_codec_), rv, true,
++        ::starboard::shared::webos::AudioDecoderBackend::kFfmpeg);
++#endif
+     SB_LOG(ERROR) << "Unable to open codec";
+     TeardownCodec();
+     return;
+--- a/starboard/shared/libfdkaac/fdk_aac_audio_decoder.cc
++++ b/starboard/shared/libfdkaac/fdk_aac_audio_decoder.cc
+@@ -17,6 +17,9 @@
+ #include "starboard/common/log.h"
+ #include "starboard/common/string.h"
+ #include "starboard/shared/libfdkaac/libfdkaac_library_loader.h"
++#if defined(STARBOARD_WEBOS)
++#include "starboard/webos/arm/webos_media_diagnostics_bridge.h"
++#endif
+ 
+ namespace starboard {
+ namespace shared {
+@@ -120,6 +123,11 @@
+ 
+ void FdkAacAudioDecoder::InitializeCodec() {
+   SB_DCHECK(decoder_ == NULL);
++#if defined(STARBOARD_WEBOS)
++  ::starboard::shared::webos::RecordAudioDecoderSelection(
++      ::starboard::shared::webos::MediaCodec::kAac,
++      ::starboard::shared::webos::AudioDecoderBackend::kFdkAac);
++#endif
+   decoder_ = aacDecoder_Open(TT_MP4_ADTS, 1);
+   SB_DCHECK(decoder_ != NULL);
+ 
+@@ -149,6 +157,11 @@
+   AAC_DECODER_ERROR error = aacDecoder_Fill(
+       decoder_, &data, &data_size_in_bytes, &left_to_decode_in_bytes);
+   if (error != AAC_DEC_OK) {
++#if defined(STARBOARD_WEBOS)
++    ::starboard::shared::webos::RecordAudioDecoderFailure(
++        ::starboard::shared::webos::MediaCodec::kAac, static_cast<int>(error), false,
++        ::starboard::shared::webos::AudioDecoderBackend::kFdkAac);
++#endif
+     SB_LOG(ERROR) << "aacDecoder_Fill() failed with result : " << error;
+     error_cb_(kSbPlayerErrorDecode,
+               FormatString("aacDecoder_Fill() failed with result %d.", error));
+@@ -169,6 +182,11 @@
+       decoder_, reinterpret_cast<INT_PCM*>(output_buffer_),
+       kMaxOutputBufferSizeInBytes / sizeof(INT_PCM), flags);
+   if (error != AAC_DEC_OK) {
++#if defined(STARBOARD_WEBOS)
++    ::starboard::shared::webos::RecordAudioDecoderFailure(
++        ::starboard::shared::webos::MediaCodec::kAac, static_cast<int>(error), false,
++        ::starboard::shared::webos::AudioDecoderBackend::kFdkAac);
++#endif
+     error_cb_(
+         kSbPlayerErrorDecode,
+         FormatString("aacDecoder_DecodeFrame() failed with result %d.", error));

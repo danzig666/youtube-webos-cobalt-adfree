@@ -60,3 +60,50 @@ Test plain live, DVR startup/backward seek/return to edge, quality switching,
 observable ad transitions, timestamp resets, temporary starvation and recovery,
 and a long session. A repair requires an observed failing sequence, a host
 regression for its state/timing rule, ARM/Gold validation and the device replay.
+
+## C3 log investigation — 23 October 2026
+
+A supplied 2.6.29 native log narrows the failing path. Repeated player creation
+attempts select AAC with legacy AV1, VP9 and H.264 video, including H.264 after
+a restart into the Safe profile. These attempts show seeks into the live
+timeline and/or input EOS without a legacy first-packet or native Load event.
+In the same log, shared AV1 + Opus successfully loads, feeds and presents frames.
+The shared Opus startup planner therefore does not explain the captured legacy
+attempts. AAC or the legacy path is a lead; the trace does not prove an AAC
+decoder bug, identify the source of EOS, or establish which retry is causal.
+
+The fuller file still contains no ordinary Cobalt pipeline/audio error. The
+starterless Gold configuration compiles out nonfatal `LOG`/`SB_LOG` messages.
+Redirecting stderr therefore cannot recover these missing messages. Existing
+structured native events remain available because they write directly to
+stderr; their routine-line budget can also be exhausted before later attempts.
+
+The diagnostic update adds the following without changing decoder selection,
+AAC framing, playback policy, EOS handling or error callbacks:
+
+- Pipeline errors from both the normal error callback and failed initial/seek
+  completion, using the pinned Cobalt numeric `PipelineStatus`.
+- Lazy audio decoder creation failures and decoder error callbacks, including
+  the selected FFmpeg/FDK-AAC backend and numeric library errors where available.
+  An audio decoder error code of zero can still represent failure: its code
+  belongs to `SbPlayerError`, rather than `PipelineStatus`.
+- The first eight demuxer read completions per audio/video stream per pipeline,
+  with read status, EOS, byte count and first timestamp. Seek aborts and config
+  changes do not become artificial playback errors. These pipeline IDs are
+  separate from factory/native decoder IDs; correlate the latter by time.
+- A separate eight-entry failure history, retained when player retries or
+  capability queries evict the ordinary 100-event ring. Its report heading says
+  **Recent playback failures**, not that a historical failure is current.
+- Standard HTML media-error codes, network state and MSE instrumentation status
+  in the on-TV panel. Error messages, URLs and response bodies are excluded.
+
+Audio error wrappers capture the original callback and codec by value. Late
+callbacks cannot read a replaced configuration or dereference the adapter.
+Host tests execute the real patched Cobalt methods with Gold logging disabled,
+cover callback and demuxer forwarding, native FDK error propagation, late audio
+callbacks, bounded history, and private-message exclusion. The FDK error used
+by the host fixture is synthetic; it is not a result from the supplied TV log.
+
+A new TV capture is still required to identify and repair the actual livestream
+failure. No compressed AAC implementation for shared Starfish is justified by
+this evidence; its existing decoder fallback remains in place.

@@ -1,4 +1,5 @@
 #include "webos_media_diagnostics.h"
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <limits>
@@ -9,6 +10,8 @@ namespace webos {
 namespace {
 std::mutex mutex;
 MediaEventRing ring;
+std::array<MediaEvent, 8> failures{};
+size_t next_failure = 0, failure_count = 0;
 MediaSnapshot snapshot;
 bool snapshot_terminal = false;
 uint64_t next_session = 0;
@@ -46,6 +49,11 @@ const char* EventName(MediaEventType event) {
     case MediaEventType::kSourceRemove: return "mse_remove";
     case MediaEventType::kAppendRejected: return "mse_append_rejected";
     case MediaEventType::kSourceBufferRejected: return "mse_source_buffer_rejected";
+    case MediaEventType::kPipelineError: return "pipeline_error";
+    case MediaEventType::kAudioDecoderError: return "audio_decoder_error";
+    case MediaEventType::kAudioDecoderSelected: return "audio_decoder_selected";
+    case MediaEventType::kDemuxerRead: return "demuxer_read";
+    case MediaEventType::kDemuxerEos: return "demuxer_eos";
   }
   return "unknown";
 }
@@ -57,6 +65,14 @@ const char* CodecName(MediaCodec codec) {
     case MediaCodec::kOpus: return "Opus";
     case MediaCodec::kAac: return "AAC";
     case MediaCodec::kVorbis: return "Vorbis";
+    default: return "unknown";
+  }
+}
+const char* DecoderName(AudioDecoderBackend decoder) {
+  switch (decoder) {
+    case AudioDecoderBackend::kFfmpeg: return "FFmpeg";
+    case AudioDecoderBackend::kFdkAac: return "FDK-AAC";
+    case AudioDecoderBackend::kOpus: return "Opus";
     default: return "unknown";
   }
 }
@@ -77,18 +93,21 @@ const char* PlayerErrorName(WebOsPlayerError error) {
     case WebOsPlayerError::kLifecycleFailure: return "LifecycleFailure";
     case WebOsPlayerError::kMediaSourceAppendFailed: return "MediaSourceAppendFailed";
     case WebOsPlayerError::kMediaSourceConfigFailed: return "MediaSourceConfigFailed";
+    case WebOsPlayerError::kPipelineFailed: return "PipelineFailed";
+    case WebOsPlayerError::kAudioDecoderUnavailable: return "AudioDecoderUnavailable";
+    case WebOsPlayerError::kAudioDecodeFailed: return "AudioDecodeFailed";
   }
   return "Unknown";
 }
 std::string FormatMediaEvent(const MediaEvent& e) {
   char line[512];
   const int length = std::snprintf(line, sizeof(line),
-      "[YTAF media] session=%llu generation=%llu source=%llu sequence=%llu input_bytes=%llu monotonic_us=%lld event=%s type=%s codec=%s size=%dx%d bits=%u pts_us=%lld queue_packets=%llu queue_bytes=%llu requested_rate=%.6g applied_rate=%.6g accepted=%d error=%s\n",
+      "[YTAF media] session=%llu generation=%llu source=%llu sequence=%llu input_bytes=%llu monotonic_us=%lld event=%s type=%s codec=%s size=%dx%d bits=%u pts_us=%lld code=%d decoder=%s queue_packets=%llu queue_bytes=%llu requested_rate=%.6g applied_rate=%.6g accepted=%d error=%s\n",
       static_cast<unsigned long long>(e.session), static_cast<unsigned long long>(e.generation),
       static_cast<unsigned long long>(e.source), static_cast<unsigned long long>(e.sequence), static_cast<unsigned long long>(e.input_bytes),
       static_cast<long long>(e.monotonic_us), EventName(e.event),
       e.stream == MediaStream::kAudio ? "audio" : e.stream == MediaStream::kVideo ? "video" : "none",
-      CodecName(e.codec), e.width, e.height, e.bits, static_cast<long long>(e.pts_us),
+      CodecName(e.codec), e.width, e.height, e.bits, static_cast<long long>(e.pts_us), e.code, DecoderName(e.decoder),
       static_cast<unsigned long long>(e.queued_packets), static_cast<unsigned long long>(e.queued_bytes),
       e.requested_rate, e.applied_rate, e.accepted, PlayerErrorName(e.error));
   if (length >= static_cast<int>(sizeof(line))) line[sizeof(line) - 2] = '\n';
@@ -123,6 +142,11 @@ void RecordMediaEvent(MediaEvent event) {
     snapshot_terminal = true;
   if (snapshot_terminal) snapshot.active = false;
   ring.Record(event); // Keep recent evidence after stderr's process budget ends.
+  if (event.error != WebOsPlayerError::kNone) {
+    failures[next_failure] = event;
+    next_failure = (next_failure + 1) % failures.size();
+    failure_count = std::min(failure_count + 1, failures.size());
+  }
   if (event.event == MediaEventType::kVideoCapability ||
       event.event == MediaEventType::kAudioCapability) {
     // YouTube may query capabilities repeatedly before creating a player.
@@ -145,6 +169,54 @@ void UpdateMediaSnapshot(const MediaSnapshot& next) {
   if (next.session != snapshot.session || next.generation != snapshot.generation) snapshot_terminal = false;
   snapshot = next;
   if (snapshot_terminal) snapshot.active = false;
+}
+void RecordPipelineFailure(int code, uint64_t session) {
+  if (code == 0) return; // PIPELINE_OK, including successful seek completion.
+  MediaEvent event;
+  event.session = session;
+  event.event = MediaEventType::kPipelineError;
+  event.error = WebOsPlayerError::kPipelineFailed;
+  event.code = code;
+  RecordMediaEvent(event);
+}
+void PipelineDiagnostics::Read(MediaStream stream, int code, uint64_t bytes,
+                               int64_t pts_us, bool eos) {
+  if (stream != MediaStream::kAudio && stream != MediaStream::kVideo) return;
+  unsigned& reads = stream == MediaStream::kAudio ? audio_reads_ : video_reads_;
+  if (reads >= 8) return;
+  MediaEvent event;
+  event.session = session_;
+  event.sequence = ++reads;
+  event.event = eos ? MediaEventType::kDemuxerEos : MediaEventType::kDemuxerRead;
+  event.stream = stream;
+  event.input_bytes = bytes;
+  event.pts_us = pts_us;
+  event.code = code;
+  // Status zero is DemuxerStream::kOk; nonzero includes ordinary seek aborts
+  // and configuration changes, so it must not invent a playback failure.
+  event.accepted = code == 0;
+  RecordMediaEvent(event);
+}
+void RecordAudioDecoderFailure(MediaCodec codec, int code, bool unavailable,
+                               AudioDecoderBackend decoder) {
+  MediaEvent event;
+  event.event = MediaEventType::kAudioDecoderError;
+  event.stream = MediaStream::kAudio;
+  event.codec = codec;
+  event.decoder = decoder;
+  event.code = code;
+  event.error = unavailable ? WebOsPlayerError::kAudioDecoderUnavailable
+                            : WebOsPlayerError::kAudioDecodeFailed;
+  RecordMediaEvent(event);
+}
+void RecordAudioDecoderSelection(MediaCodec codec, AudioDecoderBackend decoder) {
+  MediaEvent event;
+  event.event = MediaEventType::kAudioDecoderSelected;
+  event.stream = MediaStream::kAudio;
+  event.codec = codec;
+  event.decoder = decoder;
+  event.accepted = true; // A selection attempt; first output proves decoding.
+  RecordMediaEvent(event);
 }
 std::string CopyMediaSnapshotReport() {
   std::lock_guard<std::mutex> guard(mutex);
@@ -174,6 +246,14 @@ void UpdateMediaPresentation(uint64_t session, uint64_t generation,
 std::string CopyMediaDiagnosticEvents() {
   std::lock_guard<std::mutex> guard(mutex);
   return ring.Report();
+}
+std::string CopyMediaFailureReport() {
+  std::lock_guard<std::mutex> guard(mutex);
+  if (failure_count == 0) return "Recorded playback failures: none\n";
+  std::string report = "Recent playback failures (up to 8, retained across player retries):\n";
+  for (size_t i = 0; i < failure_count; ++i)
+    report += FormatMediaEvent(failures[(next_failure + failures.size() - failure_count + i) % failures.size()]);
+  return report;
 }
 }  // namespace webos
 }  // namespace shared

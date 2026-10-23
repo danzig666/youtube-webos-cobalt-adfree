@@ -44,6 +44,7 @@ std::string CopyWebOsMediaReport() {
       KernelArchitecture() + "\nwebOS: " + WebOsVersion() +
       "\nVideo capability policy: " + VideoCapabilityTierName(caps.tier) + "\n";
   report += CopyStartupReport();
+  report += CopyMediaFailureReport();
   report += "Fonts: LG system families when available; complete bundled fallback retained\n";
   const WebOsVideoCapability* codecs[] = {&caps.h264, &caps.vp9, &caps.av1};
   const char* names[] = {"H264", "VP9", "AV1"};

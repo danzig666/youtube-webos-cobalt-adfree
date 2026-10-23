@@ -20,6 +20,21 @@ int main(int argc, char**) {
     return 0;
   }
   MediaEventRing ring;
+  assert(CopyMediaFailureReport().find("none") != std::string::npos);
+  PipelineDiagnostics pipeline;
+  for (int i = 0; i < 100; ++i)
+    pipeline.Read(MediaStream::kAudio, 0, 64, 12000000 + i, false);
+  pipeline.Read(MediaStream::kVideo, 0, 0, 0, true);
+  pipeline.Read(MediaStream::kNone, 1, 0, 0, false);
+  const auto reads = CopyMediaDiagnosticEvents();
+  assert(reads.find("event=demuxer_read type=audio") != std::string::npos);
+  assert(reads.find("sequence=8 ") != std::string::npos);
+  assert(reads.find("sequence=9 ") == std::string::npos);
+  assert(reads.find("event=demuxer_eos type=video") != std::string::npos);
+  assert(reads.find("input_bytes=64 ") != std::string::npos);
+  assert(CopyMediaFailureReport().find("none") != std::string::npos);
+  RecordPipelineFailure(0);
+  assert(CopyMediaFailureReport().find("none") != std::string::npos);
   assert(ring.Report().empty());
   MediaEvent event;
   event.session = 8; event.generation = 3;
@@ -84,5 +99,23 @@ int main(int argc, char**) {
   assert(CopyMediaSnapshotReport().find("inactive") != std::string::npos);
   snapshot.generation = 2; UpdateMediaSnapshot(snapshot); // A real reset can play again.
   assert(CopyMediaSnapshotReport().find("inactive") == std::string::npos);
+  // Playback retries/capability probes must not erase the error that caused
+  // startup to fail. Keep only a bounded history, including after log budgets.
+  for (int code = 1; code <= 10; ++code) RecordPipelineFailure(code);
+  for (int i = 0; i < 200; ++i) {
+    MediaEvent probe;
+    probe.event = MediaEventType::kVideoCapability;
+    RecordMediaEvent(probe);
+  }
+  assert(CopyMediaDiagnosticEvents().find("pipeline_error") == std::string::npos);
+  auto failures = CopyMediaFailureReport();
+  assert(failures.size() < 5000);
+  assert(failures.find("code=2 ") == std::string::npos);
+  assert(failures.find("code=3 ") != std::string::npos);
+  assert(failures.find("code=10 ") != std::string::npos);
+  RecordAudioDecoderFailure(MediaCodec::kAac, 0, true);
+  failures = CopyMediaFailureReport();
+  assert(failures.find("event=audio_decoder_error type=audio codec=AAC") != std::string::npos);
+  assert(failures.find("error=AudioDecoderUnavailable") != std::string::npos);
   std::cout << "Bounded typed media diagnostics and concurrent IDs passed\n";
 }

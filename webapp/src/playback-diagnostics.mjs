@@ -33,9 +33,20 @@ export function frontendPlaybackReport(doc,win) {
   const number=value=>Number.isFinite(value)?Math.round(value*100)/100:'unknown';
   const attached=Boolean(video && doc.documentElement?.contains(video));
   const statuses=['idle','disabled','fetching','segments-loaded','no-segments','fetch-error','channel-excluded','waiting-for-channel'];
+  // MediaError.message can contain signed URLs or server text. Report only the
+  // standardized numeric code, even when no native player was created.
+  let mediaError='unavailable';
+  try {
+    const code=video?.error?.code;
+    const errors=['none','aborted','network','decode','source unsupported'];
+    mediaError=code==null?'none':Number.isInteger(code)&&code>=1&&code<=4?`${errors[code]} (code ${code})`:'unknown';
+  } catch (_) { /* A reporting failure must not break the settings panel. */ }
   return [startupReport(win), '', 'App playback state:',
     `Video element: ${video?'present':'absent'} / ${attached?'attached':'detached'}`,
     video ? `Media: ready ${number(video.readyState)} paused ${Boolean(video.paused)} seeking ${Boolean(video.seeking)} ended ${Boolean(video.ended)}` : 'Media: unavailable',
+    `Media error: ${mediaError}`,
+    video ? `Media network state: ${number(video.networkState)}` : 'Media network state: unavailable',
+    `MediaSource tracing: ${win.__ytafMediaSourceTracing?'installed':'not installed'}`,
     video ? `Position: ${number(video.currentTime)} / ${number(video.duration)} seconds` : 'Position: unavailable',
     `Resume: ${win.__ytafResume?.status || 'not initialized'}`,
     `Local fallback: ${win.__ytafResume?.localStatus || 'not initialized'}`,

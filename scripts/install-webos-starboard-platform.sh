@@ -192,6 +192,11 @@ if ! grep -q 'Ignore that stale callback before dereferencing its stream' \
   git -C "$cobalt_root" apply "$demuxer_stop_race_patch"
 fi
 
+if ! grep -q 'webos_pipeline_diagnostics_' "$cobalt_root/cobalt/media/base/sbplayer_pipeline.cc"; then
+  git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-pipeline-diagnostics.patch"
+  git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-pipeline-diagnostics.patch"
+fi
+
 if ! grep -q 'GetYtafMediaReport' "$cobalt_root/cobalt/h5vcc/h5vcc_system.h"; then
   git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-diagnostics-ui.patch"
   git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-diagnostics-ui.patch"

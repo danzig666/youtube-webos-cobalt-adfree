@@ -36,6 +36,7 @@ run_test webos-direct-log "$platform/webos_direct_log.cc"
 run_test webos-startup-timing "$platform/webos_startup_timing.cc"
 run_test webos-lifecycle "$platform/webos_lifecycle.cc"
 run_test webos-media-diagnostics "$platform/webos_media_diagnostics.cc"
+python3 "$repo_root/scripts/test-pipeline-diagnostics.py" "$cobalt_root"
 "$test_dir/webos-media-diagnostics" --log-budget \
   >"$test_dir/report" 2>"$test_dir/diagnostic-log"
 python3 - "$test_dir" <<'PY'

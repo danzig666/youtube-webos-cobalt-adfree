@@ -49,3 +49,19 @@ test('health report shows delivery evidence and poll errors without serializing 
   assert.match(report,/last 2s ago; errors 3; media replacements 1/);
   assert.doesNotMatch(report,/private/);
 });
+test('media errors report standardized codes without reading private error messages',()=>{
+  const video={networkState:3,error:{code:3,get message(){throw Error('signed private URL');}}};
+  const doc={querySelector:()=>video};
+  const win={__ytafMediaSourceTracing:true};
+  let report=frontendPlaybackReport(doc,win);
+  assert.match(report,/Media error: decode \(code 3\)/);
+  assert.match(report,/Media network state: 3/);
+  assert.match(report,/MediaSource tracing: installed/);
+  assert.doesNotMatch(report,/signed|private|URL/);
+  for(const code of [NaN,Infinity,-1,100,'3','private token']) {
+    video.error.code=code;
+    assert.match(frontendPlaybackReport(doc,win),/Media error: unknown/);
+  }
+  Object.defineProperty(video,'error',{get(){throw Error('private failure');}});
+  assert.match(frontendPlaybackReport(doc,win),/Media error: unavailable/);
+});
