@@ -6,12 +6,12 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 ## Download and install
 
-**[Latest release: v2.6.32-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.32-beta.1)**
+**[Latest release: v2.6.33-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.33-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
-| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.32-beta.1/com.cobalt.youtube.adfree_2.6.32_arm.ipk) | Installs alongside official YouTube |
-| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.32-beta.1/youtube.leanback.v4_2.6.32_arm.ipk) | **Replaces official YouTube** |
+| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.33-beta.1/com.cobalt.youtube.adfree_2.6.33_arm.ipk) | Installs alongside official YouTube |
+| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.33-beta.1/youtube.leanback.v4_2.6.33_arm.ipk) | **Replaces official YouTube** |
 
 Install using webOS Device Manager or `ares-cli` with Developer Mode, or Homebrew Channel on a compatible setup. Update the same package ID you already use, then fully close and reopen the app. Checksums and build records accompany each release.
 
@@ -134,4 +134,4 @@ Report your TV model, webOS/firmware, app version and package ID in [Issues](htt
 
 Unofficial project; not affiliated with YouTube, Google, LG or webOS. Upstream projects and bundled components retain their respective licensing terms.
 
-Version **2.6.33** extends **GREEN → Diagnostics → Run capability test** with an isolated **FFmpeg 59 AAC test**, using the firmware library paths reported by the C3. It checks the loaded ABI, AAC decoder availability, non-silent 48 kHz stereo decoding, decoder recreation and EOS. The bundled FDK decoder remains the playback default. A host test passes against matching FFmpeg 5.0 libraries; the C3 result is still needed.
+Version **2.6.33** extends **GREEN → Diagnostics → Run capability test** with an isolated **FFmpeg 59 AAC test**, using the firmware library paths reported by the C3. It checks the loaded ABI, AAC decoder availability, non-silent 48 kHz stereo decoding, decoder recreation and EOS. The bundled FDK decoder remains the playback default. Validation passes: 407 web tests, the native host suite, actual decoding against matching FFmpeg 5.0 libraries, the full ARM Gold build and both packaged IPKs. The C3 decode result is still needed.
