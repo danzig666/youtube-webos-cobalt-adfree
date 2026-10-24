@@ -1,0 +1,29 @@
+name: Publish checked build IPKs
+on:
+  push:
+    branches: [playback/host-tested-v2]
+    paths: [.github/workflows/publish-workflow-ipks.yml]
+  workflow_dispatch:
+    inputs:
+      manifest:
+        description: Checked prerelease manifest committed with its provenance records
+        required: true
+        default: docs/releases/v2.6.35-beta.1/manifest.json
+        type: string
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: checked-ipk-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify completed builds and publish both packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_MANIFEST: ${{ inputs.manifest || 'docs/releases/v2.6.35-beta.1/manifest.json' }}
+        run: python3 scripts/publish-workflow-ipks.py "$RELEASE_MANIFEST"

@@ -1,0 +1,10 @@
+{
+  "repository": "danzig666/youtube-webos-cobalt-adfree",
+  "source_sha": "c6da80646fa68d0873a1ebe8ba2081a8fa68764e",
+  "version": "2.6.35",
+  "tag": "v2.6.35-beta.1",
+  "title": "2.6.35 beta 1 \u2014 Clear decoder diagnostics and gradual scrolling",
+  "native_run": 40107625386,
+  "ci_run": 40107611192,
+  "artifact_id": 12566170649
+}
