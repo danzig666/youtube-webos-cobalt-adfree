@@ -39,4 +39,10 @@ if [[ "$rc" == 0 && -n "${FDK_BUNDLE:-}" ]]; then
   cp "$FDK_BUNDLE/fdk-aac.txt" "$OUT_DIR/content/licenses/fdk-aac.txt"
 fi
 if [[ "$use_cache" == 1 ]]; then ccache --show-stats || true; fi
+
+# Public ABI headers used only by the firmware FFmpeg diagnostic probe.
+if [[ "$rc" == 0 && -f starboard/webos/arm/ffmpeg5/COPYING.LGPLv2.1 ]]; then
+  mkdir -p "$OUT_DIR/content/licenses"
+  cp starboard/webos/arm/ffmpeg5/COPYING.LGPLv2.1 "$OUT_DIR/content/licenses/ffmpeg5-headers.txt"
+fi
 exit "$rc"

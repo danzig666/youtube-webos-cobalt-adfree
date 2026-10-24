@@ -54,6 +54,12 @@ if grep -aFq '$ORIGIN/lib/libfdk-aac.so' "$build_dir/cobalt"; then
   done
 fi
 
+if grep -aFq -- '--ytaf-ffmpeg-aac-probe' "$build_dir/cobalt" &&
+   [[ ! -s "$build_dir/content/licenses/ffmpeg5-headers.txt" ]]; then
+  echo "Missing firmware FFmpeg probe header license." >&2
+  exit 4
+fi
+
 # Never package a starterless binary from before the early-preload integration.
 # Gold builds compile non-fatal LOG() strings out, so verify the runtime path
 # that ReadYtafPreloadScript() must retain in the binary instead.

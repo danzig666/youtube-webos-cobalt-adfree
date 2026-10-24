@@ -4,13 +4,16 @@ import json,os,shutil,subprocess,tempfile,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 class CacheTests(unittest.TestCase):
- def run_build(self,cache='1',installed=True,gn_exit=0,ninja_exit=0,stale_assets=False,bundled_aac=False):
+ def run_build(self,cache='1',installed=True,gn_exit=0,ninja_exit=0,stale_assets=False,bundled_aac=False,ffmpeg_notice=False):
   with tempfile.TemporaryDirectory(prefix='ytaf-ccache-') as directory:
    root=Path(directory);log=root/'calls';commands=root/'bin';commands.mkdir()
    for name in ['rm','mkdir','cp']:(commands/name).symlink_to(shutil.which(name))
    if bundled_aac:
     (root/'bundle').mkdir()
     for name in ['libfdk-aac.so','fdk-aac-build.txt','fdk-aac.txt']:(root/'bundle'/name).write_text(name)
+   if ffmpeg_notice:
+    notice=root/'starboard/webos/arm/ffmpeg5/COPYING.LGPLv2.1'
+    notice.parent.mkdir(parents=True);notice.write_text('FFmpeg header license')
    if stale_assets:
     source=root/'source.js';source.write_text('current web asset')
     generated=root/'out/test/content/web/adblock';generated.mkdir(parents=True)
@@ -27,6 +30,10 @@ class CacheTests(unittest.TestCase):
      output=root/'out/test'/target
      if gn_exit or ninja_exit:self.assertFalse(output.exists())
      else:self.assertEqual(output.read_text(),name)
+   if ffmpeg_notice:
+    output=root/'out/test/content/licenses/ffmpeg5-headers.txt'
+    if gn_exit or ninja_exit:self.assertFalse(output.exists())
+    else:self.assertEqual(output.read_text(),'FFmpeg header license')
    return result,[json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
  def test_enabled_caches_compilation_with_content_checks_and_no_sloppiness(self):
   result,calls=self.run_build();self.assertEqual(result.returncode,0,result.stderr)
@@ -52,4 +59,8 @@ class CacheTests(unittest.TestCase):
   for gn_exit in [0,17]:
    result,_=self.run_build(gn_exit=gn_exit,bundled_aac=True)
    self.assertEqual(result.returncode,gn_exit,result.stderr)
+ def test_ffmpeg_header_notice_follows_only_successful_compile(self):
+  for gn_exit,ninja_exit in [(0,0),(17,0),(0,23)]:
+   result,_=self.run_build(gn_exit=gn_exit,ninja_exit=ninja_exit,ffmpeg_notice=True)
+   self.assertEqual(result.returncode,gn_exit or ninja_exit,result.stderr)
 if __name__=='__main__':unittest.main()

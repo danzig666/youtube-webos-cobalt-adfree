@@ -133,3 +133,5 @@ Details: [playback plan](docs/v2-playback-improvement-plan.md) · [build validat
 Report your TV model, webOS/firmware, app version and package ID in [Issues](https://github.com/danzig666/youtube-webos-cobalt-adfree/issues). Hardware support varies by TV and firmware.
 
 Unofficial project; not affiliated with YouTube, Google, LG or webOS. Upstream projects and bundled components retain their respective licensing terms.
+
+Version **2.6.33** extends **GREEN → Diagnostics → Run capability test** with an isolated **FFmpeg 59 AAC test**, using the firmware library paths reported by the C3. It checks the loaded ABI, AAC decoder availability, non-silent 48 kHz stereo decoding, decoder recreation and EOS. The bundled FDK decoder remains the playback default. A host test passes against matching FFmpeg 5.0 libraries; the C3 result is still needed.

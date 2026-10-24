@@ -227,6 +227,29 @@ jobs:
           python3 scripts/test-firmware-aac-probe.py "$COBALT_SOURCE_DIR" \
             --library "$RUNNER_TEMP/fdk-aac-host/libfdk-aac.so" | tee -a output/fdk-aac-host-test.log
 
+      - name: Validate firmware FFmpeg AAC probe on the host
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_dir="$RUNNER_TEMP/ffmpeg5-source"
+          build_dir="$RUNNER_TEMP/ffmpeg5-host"
+          mkdir -p "$source_dir" "$build_dir"
+          git -C "$source_dir" init -q
+          git -C "$source_dir" fetch --depth 1 https://github.com/FFmpeg/FFmpeg.git 390d6853d0ef408007feb39c0040682c81c02751
+          git -C "$source_dir" checkout --detach FETCH_HEAD
+          (
+            cd "$build_dir"
+            "$source_dir/configure" --disable-everything --enable-decoder=aac \
+              --enable-shared --disable-static --disable-programs --disable-doc \
+              --disable-avdevice --disable-avfilter --disable-swscale --disable-swresample \
+              --disable-avformat --disable-postproc --disable-asm --disable-autodetect \
+              --extra-cflags=-std=gnu11
+            make -j4
+          )
+          python3 scripts/test-firmware-ffmpeg-probe.py \
+            --codec "$build_dir/libavcodec/libavcodec.so.59" \
+            --util "$build_dir/libavutil/libavutil.so.57" | tee output/ffmpeg-probe-host-test.log
+
       - name: Create Cobalt runtime archive
         id: archive
         env:
@@ -327,6 +350,7 @@ jobs:
             output/cobalt-${{ inputs.build_type || 'gold' }}*.log
             output/gold-package.log
             output/fdk-aac-host-test.log
+            output/ffmpeg-probe-host-test.log
           if-no-files-found: warn
           retention-days: 14
 

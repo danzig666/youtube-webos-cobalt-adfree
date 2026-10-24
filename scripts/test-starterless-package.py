@@ -244,6 +244,10 @@ bash() {
         self.check_rejected('exit 0\n', 'Missing bundled AAC runtime asset:',
                             binary_id='$ORIGIN/lib/libfdk-aac.so')
 
+    def test_firmware_probe_runtime_requires_its_header_license(self):
+        self.check_rejected('exit 0\n', 'Missing firmware FFmpeg probe header license.',
+                            binary_id='--ytaf-ffmpeg-aac-probe')
+
 
 if __name__ == '__main__':
     unittest.main()

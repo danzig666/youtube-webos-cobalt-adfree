@@ -79,9 +79,12 @@ std::string GetFirmwareAacProbeReport() {
   }
   if (!listed) report += "No matching FDK/FFmpeg files found in scanned directories.\n";
   if (listed > 24) report += "Library listing truncated.\n";
-  report += "FFmpeg listing is inventory only; its decoder ABI is not tested.\n";
+  report += "FFmpeg 59 decoding is tested separately below.\n";
   // Also exercise the process's loader search path, including versioned SONAMEs.
   for (const char* name : {"libfdk-aac.so.2", "libfdk-aac.so.1", "libfdk-aac.so"}) candidates.insert(name);
+  const char* ffmpeg_args[] = {"/proc/self/exe", "--ytaf-ffmpeg-aac-probe", nullptr};
+  const auto ffmpeg = RunCapabilityProcess(const_cast<char* const*>(ffmpeg_args), 2500, 4096);
+  report += "\nFFmpeg 59 AAC test [" + ffmpeg.status + "]\n" + ffmpeg.output;
   for (const auto& candidate : candidates) {
     const char* args[] = {"/proc/self/exe", "--ytaf-aac-probe", candidate.c_str(), nullptr};
     const auto result = RunCapabilityProcess(const_cast<char* const*>(args), 1500, 1024);

@@ -64,6 +64,15 @@ static_library("starboard_platform") {
     "//starboard/linux/shared:starboard_platform",
     "//starboard/shared/starboard/player:video_dmp",
   ]
-  deps = [ "//third_party/libjpeg-turbo:libjpeg" ]
+  deps = [ "//third_party/libjpeg-turbo:libjpeg", ":firmware_ffmpeg_probe" ]
+  configs += [ "//starboard/build/config:starboard_implementation" ]
+}
+
+# Keep FFmpeg 5 headers private to the isolated diagnostic translation unit.
+# Existing Cobalt FFmpeg adapters retain their own ABI-specific headers.
+source_set("firmware_ffmpeg_probe") {
+  check_includes = false
+  sources = [ "webos_ffmpeg_probe.cc", "webos_ffmpeg_probe.h" ]
+  include_dirs = [ "ffmpeg5" ]
   configs += [ "//starboard/build/config:starboard_implementation" ]
 }

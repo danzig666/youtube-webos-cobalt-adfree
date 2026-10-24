@@ -140,3 +140,67 @@ firmware selection, direct Starfish AAC feeding or root requirement was added.
 Host coverage includes real FDK fixture decoding, missing libraries/symbols,
 app-local exclusion, and process timeout/crash containment. The existing capability
 bridge and UI regressions cover report delivery and the longer bounded wait.
+
+### C3 firmware inventory result (2.6.32 tester screenshots)
+
+The C3 report shows these public firmware libraries, all ELF32 with machine 40
+(ARM):
+
+- `/usr/lib/libavcodec.so.59` and `libavcodec.so.59.18.100`
+- `/usr/lib/libavformat.so.59` and `libavformat.so.59.16.100`
+- `/usr/lib/libavutil.so.57` and `libavutil.so.57.17.100`
+
+These versions identify an FFmpeg 5-era ABI. The versioned FDK loader attempts
+(`libfdk-aac.so.1` and `.2`) report no such file. The unversioned name resolves
+to the application's bundled library and is correctly excluded. `[ok]` in this
+report means the probe process completed, not that the candidate loaded.
+
+The pinned Cobalt `starboard/shared/ffmpeg/BUILD.gn` compiles only libav 54/56
+and FFmpeg avcodec 57/58 specializations. The audio factory has no specialization
+for avcodec 59. Its current audio implementation calls `avcodec_decode_audio4`,
+and the common dispatcher also loads `av_register_all`; a modern adapter needs
+the newer packet send/frame receive API and matching library-version headers.
+Merely adding `.59` to the filename list would not supply the missing ABI adapter.
+
+This establishes that architecture alone is not the obstacle: the TV exposes
+32-bit ARM FFmpeg libraries, but our existing integration does not support their
+major version. It does not establish that LG's FFmpeg build includes a working
+AAC decoder or identify the official YouTube app's implementation.
+
+The next evidence-gated experiment is an isolated FFmpeg 59/59/57 probe using
+matching headers: resolve required functions, report actual library versions,
+look up AAC with `avcodec_find_decoder`, then decode the same generated AAC-LC
+fixture with `avcodec_send_packet`/`avcodec_receive_frame`. Only a successful
+on-TV decode should lead to a playback adapter and sync/seek trials. The bundled
+FDK decoder remains installed and preferred; no runtime changes accompany this
+inventory finding.
+
+### FFmpeg diagnostic build 2.6.33
+
+The capability test now runs an additional isolated probe against the exact C3
+paths `/usr/lib/libavcodec.so.59` and `/usr/lib/libavutil.so.57`. No `libavformat`
+is needed for the generated elementary AAC fixture. The probe checks major
+versions before accessing any version-dependent structures, reports resolved
+paths and rejects app-local libraries. FFmpeg 5.0 public headers, pinned to
+`390d6853d0ef408007feb39c0040682c81c02751`, are scoped to a separate GN target;
+existing Cobalt adapters and their headers are unchanged.
+
+After `avcodec_find_decoder(AV_CODEC_ID_AAC)`, the probe uses packet send/frame
+receive to decode 13 ADTS packets. It validates sample rate, channel count,
+sample format, finite nonzero PCM, decoder recreation and EOS draining. Each
+probe runs before app initialization in a disposable process with a 2.5-second
+limit. It plays no sound and changes no playback preferences. A major-version,
+missing-symbol, missing-decoder, load or decode failure is reported explicitly.
+
+The genuine probe passed on the host using FFmpeg 5.0 libraries reporting
+59.18.100/57.17.100, exactly matching the C3 inventory. Fault fixtures cover
+missing libraries/functions/decoder, incompatible major versions, accidental
+app-local loading, crash and timeout containment. The probe also cross-compiles
+with the pinned webOS ARMv7 softfp SDK. Firmware behavior still requires the
+user's on-TV result; a host pass does not establish LG AAC support.
+
+Install the diagnostic build, fully close and reopen, then run **GREEN →
+Diagnostics → Run capability test**. After up to 30 seconds, photograph the
+**FFmpeg 59 AAC test** section. A successful result ends with
+`decode=PASS firmware FFmpeg AAC; recreated twice and drained EOS`.
+The existing bundled FDK library remains installed and preferred for playback.
