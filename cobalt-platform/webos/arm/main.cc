@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "starboard/webos/arm/webos_capability_test.h"
+#include "starboard/webos/arm/webos_aac_probe.h"
 #include "starboard/webos/arm/webos_direct_log.h"
 #include "starboard/webos/arm/webos_startup_timing.h"
 #include "starboard/webos/arm/webos_build_metadata.h"
@@ -21,6 +22,8 @@
 #include "starboard/webos/arm/application_sdl.h"
 
 extern "C" SB_EXPORT_PLATFORM int main(int argc, char** argv) {
+  if (argc == 3 && std::strcmp(argv[1], "--ytaf-aac-probe") == 0)
+    return starboard::shared::webos::RunFirmwareAacProbe(argv[2]);
   if (argc == 2 && std::strcmp(argv[1], "--ytaf-capability-probe") == 0)
     return starboard::shared::webos::RunWebOsCapabilityProbe();
 

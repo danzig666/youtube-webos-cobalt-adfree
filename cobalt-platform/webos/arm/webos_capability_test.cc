@@ -1,4 +1,5 @@
 #include "starboard/webos/arm/webos_capability_test.h"
+#include "starboard/webos/arm/webos_aac_probe.h"
 #include "starboard/webos/arm/webos_capability_process.h"
 #include "starboard/webos/arm/webos_build_metadata.h"
 #include <cstdio>
@@ -80,8 +81,9 @@ bool StartWebOsCapabilityTest() {
     const auto system = Query(false);
     const char* args[] = {"/proc/self/exe", "--ytaf-capability-probe", nullptr};
     const auto decoder = RunCapabilityProcess(const_cast<char* const*>(args));
+    const auto aac = GetFirmwareAacProbeReport();
     auto& state = State(); std::lock_guard<std::mutex> lock(state.mutex);
-    state.report = "{\"state\":\"done\",\"config\":" + Result(config) + ",\"system\":" + Result(system) + ",\"decoder\":" + Result(decoder) + "}";
+    state.report = "{\"state\":\"done\",\"config\":" + Result(config) + ",\"system\":" + Result(system) + ",\"decoder\":" + Result(decoder) + ",\"aac\":" + Quote(aac) + "}";
     state.running = false;
   }).detach();
   return true;

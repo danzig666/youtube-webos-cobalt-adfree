@@ -7,7 +7,7 @@ with tempfile.TemporaryDirectory() as directory:
     temp = Path(directory)
     platform = temp / 'starboard/webos/arm'
     platform.mkdir(parents=True)
-    for name in ['webos_capability_test.h', 'webos_capability_process.h', 'webos_build_metadata.h']:
+    for name in ['webos_capability_test.h', 'webos_capability_process.h', 'webos_build_metadata.h', 'webos_aac_probe.h']:
         (platform / name).symlink_to(root / 'cobalt-platform/webos/arm' / name)
     driver = temp / 'driver.cc'
     driver.write_text(r'''
@@ -16,6 +16,9 @@ with tempfile.TemporaryDirectory() as directory:
 #include <cstring>
 #include <iostream>
 #include <unistd.h>
+namespace starboard { namespace shared { namespace webos {
+std::string GetFirmwareAacProbeReport() { return "fixture AAC report"; }
+}}}
 using namespace starboard::shared::webos;
 int main(int argc, char** argv) {
  if(argc==2 && !std::strcmp(argv[1],"--ytaf-capability-probe")) return RunWebOsCapabilityProbe();
@@ -32,6 +35,7 @@ int main(int argc, char** argv) {
     flags = [os.environ.get('CXX', 'c++'), '-std=c++14', '-Wall', '-Wextra', '-Werror', '-pthread', '-I'+str(temp)]
     subprocess.run(flags + [str(driver), str(root/'cobalt-platform/webos/arm/webos_capability_test.cc'), '-ldl', '-o', str(executable)], check=True)
     baseline = json.loads(subprocess.check_output([str(executable)], timeout=12))
+    assert baseline['aac'] == 'fixture AAC report'
     assert baseline['state'] == 'done' and baseline['config']['status'] == 'unavailable'
     assert baseline['decoder']['status'] == 'ok' and 'library-unavailable' in baseline['decoder']['body']
     fake = temp/'vendor.cc'

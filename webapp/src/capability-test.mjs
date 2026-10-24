@@ -100,6 +100,9 @@ export function capabilityHardwareReport(raw) {
     if (ceilings.length===3 && ceilings.every(value=>value===ceilings[0]))
       lines.push('Identical limits for every codec may be a shared firmware ceiling.');
   }
+  if (typeof result.aac === 'string') {
+    lines.push('', result.aac.slice(0,10000).replace(/[^\x20-\x7e\n]/g,'?'));
+  }
   lines.push('', 'Hardware flags and decoder limits do not prove every codec/HDR combination plays.',
     'Unknown means missing, denied, or unavailable—not unsupported. No settings were changed.');
   return lines.join('\n');
@@ -136,7 +139,7 @@ export function createCapabilityTest(doc, win, onUpdate) {
     try { raw = system()?.getYtafCapabilityTestReport?.(); } catch (_) {}
     let state;
     try { state = JSON.parse(raw).state; } catch (_) {}
-    if (state === 'running' && pollCount++ < 48) {
+    if (state === 'running' && pollCount++ < 120) {
       (win.setTimeout || setTimeout)(poll,250); return;
     }
     polling = false;
@@ -151,7 +154,7 @@ export function createCapabilityTest(doc, win, onUpdate) {
         save('Hardware test requires the updated native Cobalt runtime.\n\n'+capabilityPolicyReport(doc,win)); return;
       }
       polling = true; pollCount = 0;
-      save('Capability test running… (up to 12 seconds). Playback settings are unchanged.');
+      save('Capability test running… (up to 30 seconds). Playback settings are unchanged.');
       try {
         if (!system().startYtafCapabilityTest()) {
           const current = JSON.parse(system().getYtafCapabilityTestReport());

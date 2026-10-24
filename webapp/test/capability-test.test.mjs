@@ -54,7 +54,7 @@ test('native job timeout is bounded and users can retry',()=>{
  const f=menuFixture(),pending=[];let starts=0,updates=0;
  const win={setTimeout:fn=>pending.push(fn),h5vcc:{system:{startYtafCapabilityTest:()=>{starts++;return true;},getYtafCapabilityTestReport:()=>'{"state":"running"}'}}};
  const test=createCapabilityTest(f.doc,win,()=>updates++);test.run();
- for (let i=0;pending.length&&i<60;i++) pending.shift()();
+ for (let i=0;pending.length&&i<140;i++) pending.shift()();
  assert.equal(pending.length,0);assert.match(test.report(),/timed out/);assert.equal(test.running(),false);
  test.run();assert.equal(starts,2);assert.ok(updates>=3);
 });
@@ -92,4 +92,12 @@ test('braces and escaped quotes inside payload strings do not break framed reply
 test('identical Starfish limits are labeled as a possible shared ceiling',()=>{
  const report=capabilityHardwareReport(hardware({decoder:{status:'ok',body:'H264=4096,2304,60\nVP9=4096,2304,60\nAV1=4096,2304,60\n'}}));
  assert.match(report,/not panel resolution or playback validation/);assert.match(report,/shared firmware ceiling/);
+});
+
+test('firmware AAC investigation appears with bounded text and unchanged playback policy',()=>{
+ const report=capabilityHardwareReport(hardware({aac:'Firmware AAC investigation\ndecode=PASS\n'+ 'x'.repeat(20000)}));
+ assert.match(report,/Firmware AAC investigation/);
+ assert.match(report,/decode=PASS/);
+ assert.ok(report.length<13000);
+ assert.match(report,/No settings were changed/);
 });

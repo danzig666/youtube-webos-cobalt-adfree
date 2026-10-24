@@ -67,3 +67,76 @@ cannot decode AAC on any firmware.
 
 SDK source: [buildroot-nc4 webos-a38c582 release](https://github.com/openlgtv/buildroot-nc4/releases/tag/webos-a38c582),
 archive SHA-256 `04ad3311b48b4557a7002aef56ae2e167478e8e129f37daac04649bddf813616`.
+
+## Firmware decoder investigation (2026-10-24)
+
+The C3 tester confirmed that downstream 2.6.31 plays the previously failing
+livestream with the bundled FDK dependency. This confirms a usable software
+AAC path, but does not establish that firmware AAC libraries are absent.
+
+Reviewing the actual Cobalt 23.lts.6 loaders identifies two narrower failure
+possibilities worth testing before considering a different player backend:
+
+- `starboard/shared/libfdkaac/libfdkaac_library_loader.cc` originally tries only
+  `libfdk-aac.so`. It does not try versioned names such as `libfdk-aac.so.2`.
+  Firmware could provide a runtime SONAME without the unversioned development
+  symlink. No C3 filesystem inventory has yet confirmed this possibility.
+- `starboard/shared/ffmpeg/ffmpeg_dynamic_load_dispatch_impl.cc` requires a
+  matching loadable trio of `libavutil`, `libavcodec` and `libavformat`, even for
+  the audio decoder. Failure to load any one rejects the dispatch. Its audio
+  adapter also supports only the compiled specialization versions (540, 550/560,
+  571 and 581), not arbitrary firmware FFmpeg versions.
+
+The C3 capture reports `AudioDecoderUnavailable`, but does not retain the
+individual dynamic-loader errors. It cannot distinguish a wrong filename,
+missing dependency, architecture mismatch, inaccessible path, unsupported API
+version, or a library without the required symbols. The official YouTube app's
+AAC implementation has not been inspected; its success alone does not identify
+which of these libraries or LG interfaces it uses.
+
+### Next device experiment
+
+Use an explicitly invoked probe in a separate ARMv7 process, launched in the
+same app context, and report its bounded output in Diagnostics. First identify
+firmware library paths, ELF architecture and dependencies without loading them.
+Then test identified compatible candidates, recording the resolved library path,
+`dlerror()` and required decoder symbols. Distinguish firmware paths from the
+app's bundled copy so a successful test cannot accidentally validate the latter.
+A separate process and timeout contain library constructor/ABI failures.
+
+For a matching FDK API, decode the existing generated AAC fixture and verify
+sample rate, channels and nonzero output before a playback trial. Loading a
+library or finding symbols alone does not prove ABI compatibility. Test a real
+livestream, VOD, repeated seeks, decoder recreation and audio/video sync before
+preferring firmware automatically. Preserve the bundled decoder as fallback.
+
+Starfish AAC remains a separate experiment requiring verified framing and
+clock/reset semantics as described above. No runtime preference or upstream PR
+was changed as part of this source investigation. Further conclusions require
+results from the TV; there is no connected TV in this workspace.
+
+### Diagnostic build 2.6.32
+
+GREEN → Diagnostics → **Run capability test** now includes a firmware AAC
+investigation. Allow up to 30 seconds and scroll to **Firmware AAC investigation**.
+The report lists matching FDK/FFmpeg files in common system library directories
+with their ELF architecture. It also tries the loader names `libfdk-aac.so.2`,
+`libfdk-aac.so.1` and `libfdk-aac.so` to cover the process's normal search path.
+
+Each FDK candidate is loaded in a separate process with a 1.5-second timeout and
+bounded output. The probe records loader errors, missing API symbols and the
+resolved library path. App-local libraries are explicitly skipped so the bundled
+decoder cannot masquerade as a successful firmware test. Matching candidates
+must decode the generated 48 kHz stereo AAC-LC fixture to nonzero PCM twice with
+decoder recreation. No audio is played. A timeout/crash is reported per candidate;
+core dumps are disabled for the probe process. FFmpeg results are inventory only.
+
+This is an investigation of known public library paths, not an exhaustive search
+of firmware or the official YouTube application's implementation. A successful
+fixture decode still needs real playback/sync/seek validation. The bundled FDK
+library remains installed and preferred for ordinary playback. No automatic
+firmware selection, direct Starfish AAC feeding or root requirement was added.
+
+Host coverage includes real FDK fixture decoding, missing libraries/symbols,
+app-local exclusion, and process timeout/crash containment. The existing capability
+bridge and UI regressions cover report delivery and the longer bounded wait.

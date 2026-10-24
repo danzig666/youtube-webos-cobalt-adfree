@@ -224,6 +224,8 @@ jobs:
           cmake --build "$RUNNER_TEMP/fdk-aac-host" --parallel 4
           python3 scripts/test-fdk-aac-decoder.py "$COBALT_SOURCE_DIR" \
             --library "$RUNNER_TEMP/fdk-aac-host/libfdk-aac.so" | tee output/fdk-aac-host-test.log
+          python3 scripts/test-firmware-aac-probe.py "$COBALT_SOURCE_DIR" \
+            --library "$RUNNER_TEMP/fdk-aac-host/libfdk-aac.so" | tee -a output/fdk-aac-host-test.log
 
       - name: Create Cobalt runtime archive
         id: archive
