@@ -6,12 +6,12 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 ## Download and install
 
-**[Latest release: v2.6.33-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.33-beta.1)**
+**[Latest release: v2.6.34-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.34-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
-| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.33-beta.1/com.cobalt.youtube.adfree_2.6.33_arm.ipk) | Installs alongside official YouTube |
-| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.33-beta.1/youtube.leanback.v4_2.6.33_arm.ipk) | **Replaces official YouTube** |
+| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.34-beta.1/com.cobalt.youtube.adfree_2.6.34_arm.ipk) | Installs alongside official YouTube |
+| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.34-beta.1/youtube.leanback.v4_2.6.34_arm.ipk) | **Replaces official YouTube** |
 
 Install using webOS Device Manager or `ares-cli` with Developer Mode, or Homebrew Channel on a compatible setup. Update the same package ID you already use, then fully close and reopen the app. Checksums and build records accompany each release.
 
@@ -139,4 +139,4 @@ Version **2.6.33** extends **GREEN → Diagnostics → Run capability test** wit
 
 Version **2.6.34** adds firmware FFmpeg 59 AAC playback, following a successful
 C3 diagnostic decode. Bundled FDK remains the fallback for incompatible firmware
-or failed startup decoding. Actual playback on the C3 still needs validation.
+or failed startup decoding. Validation passes: 407 web tests, the complete native host suite, actual firmware-adapter decoding and timestamps across 100 seek recreations, startup fallback/replay and reset cancellation, ARM Gold builds and both IPKs. Actual C3 playback and long-run sync still need validation.
