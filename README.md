@@ -135,3 +135,8 @@ Report your TV model, webOS/firmware, app version and package ID in [Issues](htt
 Unofficial project; not affiliated with YouTube, Google, LG or webOS. Upstream projects and bundled components retain their respective licensing terms.
 
 Version **2.6.33** extends **GREEN → Diagnostics → Run capability test** with an isolated **FFmpeg 59 AAC test**, using the firmware library paths reported by the C3. It checks the loaded ABI, AAC decoder availability, non-silent 48 kHz stereo decoding, decoder recreation and EOS. The bundled FDK decoder remains the playback default. Validation passes: 407 web tests, the native host suite, actual decoding against matching FFmpeg 5.0 libraries, the full ARM Gold build and both packaged IPKs. The C3 decode result is still needed.
+
+
+Version **2.6.34** adds firmware FFmpeg 59 AAC playback, following a successful
+C3 diagnostic decode. Bundled FDK remains the fallback for incompatible firmware
+or failed startup decoding. Actual playback on the C3 still needs validation.

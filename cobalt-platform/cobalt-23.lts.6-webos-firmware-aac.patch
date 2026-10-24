@@ -1,0 +1,24 @@
+--- a/starboard/linux/shared/player_components_factory.cc
++++ b/starboard/linux/shared/player_components_factory.cc
+@@ -24,6 +24,9 @@
+ #include "starboard/shared/libvpx/vpx_video_decoder.h"
+ #include "starboard/shared/libde265/de265_video_decoder.h"
+ #include "starboard/shared/libfdkaac/fdk_aac_audio_decoder.h"
++#if defined(STARBOARD_WEBOS)
++#include "starboard/webos/arm/webos_aac_audio_decoder.h"
++#endif
+ #include "starboard/shared/libfdkaac/libfdkaac_library_loader.h"
+ #include "starboard/shared/openh264/openh264_library_loader.h"
+ #include "starboard/shared/openh264/openh264_video_decoder.h"
+@@ -95,7 +98,11 @@
+                        FdkAacAudioDecoder::kMaxChannels &&
+                    libfdkaac::LibfdkaacHandle::GetHandle()->IsLoaded()) {
+           SB_LOG(INFO) << "Playing audio using FdkAacAudioDecoder.";
++#if defined(STARBOARD_WEBOS)
++          return scoped_ptr<AudioDecoder>(new webos::WebOsAacAudioDecoder());
++#else
+           return scoped_ptr<AudioDecoder>(new FdkAacAudioDecoder());
++#endif
+         } else {
+           scoped_ptr<FfmpegAudioDecoder> audio_decoder_impl(
+               FfmpegAudioDecoder::Create(audio_sample_info.codec,

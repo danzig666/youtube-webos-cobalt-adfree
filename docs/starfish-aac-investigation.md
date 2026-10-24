@@ -204,3 +204,30 @@ Diagnostics → Run capability test**. After up to 30 seconds, photograph the
 **FFmpeg 59 AAC test** section. A successful result ends with
 `decode=PASS firmware FFmpeg AAC; recreated twice and drained EOS`.
 The existing bundled FDK library remains installed and preferred for playback.
+
+
+## Firmware AAC playback adapter (2.6.34)
+
+The C3 running firmware FFmpeg 59.18.100 / avutil 57.17.100 passed the
+2.6.33 device probe: two complete decodes, 13 non-silent 48 kHz stereo frames
+per pass, decoder recreation and EOS drain. This proves AAC-LC decoding on
+that device; it does not establish playback sync or all AAC profiles.
+
+2.6.34 prefers a private FFmpeg 59 adapter for AAC on the legacy audio path.
+It dynamically loads the fixed `/usr/lib` libraries, verifies ABI majors and
+required symbols, and uses packet timestamps in microseconds. PCM is converted
+to interleaved float audio for Cobalt's existing renderer, clock and resampler.
+Seeking recreates the context and cancels old scheduled outputs. EOS drains
+before the renderer receives its terminal marker. Shared Opus/Starfish is unchanged.
+
+Missing/incompatible firmware falls back to bundled FDK. Failure before the
+first PCM output also falls back, replaying up to 32 startup packets. Once PCM
+has been emitted, decoder errors are reported to Cobalt rather than replaying
+already played audio. `YTAF_AAC_DECODER=fdk` forces the previous bundled decoder
+for developer rollback. Both decoders stay packaged. Diagnostics distinguish
+`Firmware-FFmpeg59` from `FDK-AAC`.
+
+Host regression tests decode the actual fixture with 100 alternating seek
+positions, checking every PCM timestamp and EOS, plus malformed input and
+missing-library rejection. Actual C3 livestream playback, DVR seek, pause/resume,
+long-run A/V sync and other AAC profiles still require on-device testing.

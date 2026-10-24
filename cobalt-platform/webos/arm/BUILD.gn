@@ -31,6 +31,9 @@ static_library("starboard_platform") {
     "webos_media_diagnostics.h",
     "webos_media_diagnostics_bridge.h",
     "webos_media_report.cc",
+    "webos_aac_audio_decoder.cc",
+    "webos_aac_audio_decoder.h",
+    "webos_firmware_aac.h",
     "webos_aac_probe.cc",
     "webos_aac_probe.h",
     "webos_aac_probe_fixture.h",
@@ -68,11 +71,12 @@ static_library("starboard_platform") {
   configs += [ "//starboard/build/config:starboard_implementation" ]
 }
 
-# Keep FFmpeg 5 headers private to the isolated diagnostic translation unit.
+# Keep FFmpeg 5 headers private to the firmware decoder and diagnostic translation units.
 # Existing Cobalt FFmpeg adapters retain their own ABI-specific headers.
 source_set("firmware_ffmpeg_probe") {
   check_includes = false
-  sources = [ "webos_ffmpeg_probe.cc", "webos_ffmpeg_probe.h" ]
+  sources = [ "webos_ffmpeg_probe.cc", "webos_ffmpeg_probe.h",
+              "webos_firmware_aac.cc", "webos_firmware_aac.h" ]
   include_dirs = [ "ffmpeg5" ]
   configs += [ "//starboard/build/config:starboard_implementation" ]
 }

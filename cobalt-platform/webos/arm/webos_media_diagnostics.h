@@ -25,7 +25,7 @@ enum class MediaEventType {
 };
 enum class MediaStream { kNone, kAudio, kVideo };
 enum class MediaCodec { kUnknown, kH264, kVp9, kAv1, kOpus, kAac, kVorbis };
-enum class AudioDecoderBackend { kUnknown, kFfmpeg, kFdkAac, kOpus };
+enum class AudioDecoderBackend { kUnknown, kFfmpeg, kFdkAac, kOpus, kFirmwareFfmpeg };
 // No free-form input fields: URLs, headers, cookies and user/account identifiers
 // cannot be copied into the ring or report. Firmware callback strings stay out.
 struct MediaEvent {

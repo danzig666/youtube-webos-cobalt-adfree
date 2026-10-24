@@ -71,6 +71,7 @@ const char* CodecName(MediaCodec codec) {
 const char* DecoderName(AudioDecoderBackend decoder) {
   switch (decoder) {
     case AudioDecoderBackend::kFfmpeg: return "FFmpeg";
+    case AudioDecoderBackend::kFirmwareFfmpeg: return "Firmware-FFmpeg59";
     case AudioDecoderBackend::kFdkAac: return "FDK-AAC";
     case AudioDecoderBackend::kOpus: return "Opus";
     default: return "unknown";

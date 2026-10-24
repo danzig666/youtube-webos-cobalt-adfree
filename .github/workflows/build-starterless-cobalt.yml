@@ -250,6 +250,10 @@ jobs:
             --codec "$build_dir/libavcodec/libavcodec.so.59" \
             --util "$build_dir/libavutil/libavutil.so.57" | tee output/ffmpeg-probe-host-test.log
 
+          python3 scripts/test-firmware-aac-playback.py \
+            --codec "$build_dir/libavcodec/libavcodec.so.59" \
+            --util "$build_dir/libavutil/libavutil.so.57" | tee output/ffmpeg-playback-host-test.log
+
       - name: Create Cobalt runtime archive
         id: archive
         env:
