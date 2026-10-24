@@ -28,10 +28,10 @@ void WebOsAacAudioDecoder::Initialize(const OutputCB& output, const ErrorCB& err
 void WebOsAacAudioDecoder::Output(const std::vector<FirmwareAudioFrame>& frames) {
   for (const auto& frame : frames) {
     sample_rate_ = frame.sample_rate;
-    scoped_refptr<DecodedAudio> audio = new DecodedAudio(
+    scoped_refptr<DecodedAudio> audio(new DecodedAudio(
         frame.channels, kSbMediaAudioSampleTypeFloat32,
         kSbMediaAudioFrameStorageTypeInterleaved, frame.timestamp,
-        frame.samples.size() * sizeof(float));
+        frame.samples.size() * sizeof(float)));
     std::memcpy(audio->buffer(), frame.samples.data(), audio->size());
     output_.push({audio, frame.sample_rate});
     Schedule(output_cb_);
