@@ -6,12 +6,12 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 ## Download and install
 
-**[Latest release: v2.6.34-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.34-beta.1)**
+**[Latest release: v2.6.35-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.35-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
-| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.34-beta.1/com.cobalt.youtube.adfree_2.6.34_arm.ipk) | Installs alongside official YouTube |
-| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.34-beta.1/youtube.leanback.v4_2.6.34_arm.ipk) | **Replaces official YouTube** |
+| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.35-beta.1/com.cobalt.youtube.adfree_2.6.35_arm.ipk) | Installs alongside official YouTube |
+| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.35-beta.1/youtube.leanback.v4_2.6.35_arm.ipk) | **Replaces official YouTube** |
 
 Install using webOS Device Manager or `ares-cli` with Developer Mode, or Homebrew Channel on a compatible setup. Update the same package ID you already use, then fully close and reopen the app. Checksums and build records accompany each release.
 
@@ -145,4 +145,4 @@ or failed startup decoding. Validation passes: 407 web tests, the complete nativ
 Version **2.6.35** puts a plain-language decoder summary at the top of Diagnostics
 (TV built-in FFmpeg or bundled FDK fallback), alongside playback and SponsorBlock
 status. The native decoder selection survives event-log eviction. Up/Down scroll
-technical details by two lines; wheel jumps are limited in Diagnostics.
+technical details by two lines; wheel jumps are limited in Diagnostics. Validated with 411 web tests, native host regressions, 720p/1080p browser checks, both ARM Gold binaries and public IPK downloads.
