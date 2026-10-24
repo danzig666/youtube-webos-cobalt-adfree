@@ -60,3 +60,15 @@ test('programmatic focus scrolling is cleared before applying the manual menu of
   assert.equal(container.scrollTop, 0); assert.equal(viewport.scrollTop, 0);
   assert.equal(context.menuOffset, 548); assert.equal(content.style.top, '-548px');
 });
+
+
+test('focusing a long reader below the viewport reveals its first lines',()=>{
+  const source=readFileSync(new URL('../src/ui.js',import.meta.url),'utf8');
+  const item={dataset:{ytafControl:'reader'},getBoundingClientRect:()=>({top:800,bottom:2400})};
+  const context=vm.createContext({item,menuOffset:0,
+    uiContainer:{contains:()=>true},menuContent:{scrollHeight:2200,style:{},contains:()=>true},
+    menuViewport:{getBoundingClientRect:()=>({top:100,bottom:400})}});
+  vm.runInContext(source.slice(source.indexOf('  function scrollMenuItemIntoView(item)'),source.indexOf('  function queueMenuItemScroll(item)')),context);
+  vm.runInContext('scrollMenuItemIntoView(item)',context);
+  assert.equal(context.menuOffset,489);
+});

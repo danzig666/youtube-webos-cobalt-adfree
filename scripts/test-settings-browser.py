@@ -82,11 +82,14 @@ def check_settings(browser, width, height):
     page.keyboard.press("ArrowDown")
     page.wait_for_timeout(60)
     assert page.locator(".ytaf-ui-content").evaluate("n=>parseFloat(n.style.top)") < 0
-    # First Up returns to the report's beginning; the next returns to its action.
-    page.keyboard.press("ArrowUp")
-    page.wait_for_timeout(60)
-    page.keyboard.press("ArrowUp")
-    page.wait_for_timeout(60)
+    assert page.locator("#__diagnostics_report").evaluate("""n => n.getBoundingClientRect().top <=
+        document.querySelector('.ytaf-ui-viewport').getBoundingClientRect().bottom - 81""")
+    # Up scrolls in small increments, then returns to the preceding action.
+    for _ in range(100):
+        if page.evaluate("document.activeElement.id") == "__run_capability_test":
+            break
+        page.keyboard.press("ArrowUp")
+        page.wait_for_timeout(30)
     assert page.evaluate("document.activeElement.id") == "__run_capability_test"
     page.mouse.click(width - 20, 20)
     assert page.evaluate("outsideClicks") == 0

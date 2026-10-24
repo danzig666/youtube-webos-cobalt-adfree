@@ -129,6 +129,9 @@ export function userScriptStartUI() {
 
     if (itemRect.top < visibleTop) {
       menuOffset += itemRect.top - visibleTop;
+    } else if (item.dataset?.ytafControl === 'reader' && itemRect.top > visibleBottom - 81) {
+      // Reveal its first lines when a summary pushes a tall reader below the viewport.
+      menuOffset += itemRect.top - (visibleBottom - 81);
     } else if (item.dataset?.ytafControl !== 'reader' && itemRect.bottom > visibleBottom) {
       menuOffset += itemRect.bottom - visibleBottom;
     }
