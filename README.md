@@ -6,12 +6,12 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 ## Download and install
 
-**[Latest release: v2.6.31-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.31-beta.1)**
+**[Latest release: v2.6.32-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.32-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
-| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.31-beta.1/com.cobalt.youtube.adfree_2.6.31_arm.ipk) | Installs alongside official YouTube |
-| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.31-beta.1/youtube.leanback.v4_2.6.31_arm.ipk) | **Replaces official YouTube** |
+| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.32-beta.1/com.cobalt.youtube.adfree_2.6.32_arm.ipk) | Installs alongside official YouTube |
+| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.32-beta.1/youtube.leanback.v4_2.6.32_arm.ipk) | **Replaces official YouTube** |
 
 Install using webOS Device Manager or `ares-cli` with Developer Mode, or Homebrew Channel on a compatible setup. Update the same package ID you already use, then fully close and reopen the app. Checksums and build records accompany each release.
 
@@ -98,7 +98,7 @@ C3 feedback confirms caption sizing/cursor selection (2.6.5), in-place Home refr
 
 Version **2.6.31** supplies the missing AAC decoder dependency exposed by the C3 diagnostic capture. It passes 406 web tests, production web build, the complete native host suite, actual AAC-LC decoding through Cobalt’s existing adapter, package/provenance checks and both ARM Gold builds. The C3 tester confirmed that the previously failing livestream now plays.
 
-Version **2.6.32** adds a firmware AAC investigation under **GREEN → Diagnostics → Run capability test**. Allow up to 30 seconds, then scroll to **Firmware AAC investigation**. It reports library paths, architecture, loading errors and a short silent decode test for compatible firmware FDK candidates. The working bundled AAC decoder remains the playback default. See [probe details](docs/starfish-aac-investigation.md#diagnostic-build-2632).
+Version **2.6.32** passes 407 web tests, the complete native host suite, real probe decode/failure-containment tests, both ARM Gold builds and final IPK verification. It adds a firmware AAC investigation under **GREEN → Diagnostics → Run capability test**. Allow up to 30 seconds, then scroll to **Firmware AAC investigation**. It reports library paths, architecture, loading errors and a short silent decode test for compatible firmware FDK candidates. The working bundled AAC decoder remains the playback default. See [probe details](docs/starfish-aac-investigation.md#diagnostic-build-2632).
 
 ## Screenshots
 
