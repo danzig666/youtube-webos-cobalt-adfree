@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readPlaybackReport, createPlaybackDiagnostics, frontendPlaybackReport } from '../src/playback-diagnostics.mjs';
+import { readPlaybackReport, createPlaybackDiagnostics, frontendPlaybackReport, playbackSummary } from '../src/playback-diagnostics.mjs';
 import {menuFixture} from './helpers/menu-fixture.mjs';
 test('report remains bounded, complete, and literal in a single scrolling textbox', () => {
   assert.match(readPlaybackReport({}), /updated native/);
@@ -8,13 +8,13 @@ test('report remains bounded, complete, and literal in a single scrolling textbo
   const f=menuFixture(); let report='<script>not executed</script>\n' + 'event\n'.repeat(100);
   const panel=createPlaybackDiagnostics(f.doc,{h5vcc:{system:{getYtafMediaReport:()=>report}}});
   const output=f.nodes.get('__diagnostics_report');
-  assert.equal(output.textContent.endsWith(report),true);
+  assert.equal(output.textContent.includes(report),true);
   assert.equal(output.getAttribute('role'),'textbox');
   assert.equal(output.dataset.ytafControl,'reader');
-  assert.equal(panel.children.length,3);
+  assert.equal(panel.children.length,4);
   assert.equal([...f.nodes.keys()].some(key=>/copy|next|previous|refresh/.test(key)),false);
   report='latest session'; f.doc.dispatchEvent({type:'ytaf-diagnostics-opened'});
-  assert.equal(output.textContent.endsWith(report),true);
+  assert.equal(output.textContent.includes(report),true);
 });
 test('app playback diagnostics expose actionable state without identities, response bodies or URLs',()=>{
   const video={readyState:4,paused:false,seeking:false,ended:false,currentTime:20,duration:300};
@@ -64,4 +64,14 @@ test('media errors report standardized codes without reading private error messa
   }
   Object.defineProperty(video,'error',{get(){throw Error('private failure');}});
   assert.match(frontendPlaybackReport(doc,win),/Media error: unavailable/);
+});
+
+test('decoder summary clearly distinguishes TV firmware, bundled fallback and unavailable evidence',()=>{
+  const doc={querySelector:()=>({readyState:4,paused:false})};
+  assert.match(playbackSummary(doc,{},'Audio decoder: TV built-in FFmpeg 59 (AAC)\n'),/TV built-in AAC decoder/);
+  assert.match(playbackSummary(doc,{},'Audio decoder: Bundled FDK-AAC (AAC)\n'),/Bundled AAC decoder/);
+  assert.match(playbackSummary(doc,{},'event=audio_decoder_selected type=audio decoder=Firmware-FFmpeg59 accepted=1'),/TV built-in AAC decoder/);
+  assert.match(playbackSummary(doc,{},'event=audio_capability decoder=Firmware-FFmpeg59'),/Not reported/);
+  assert.match(playbackSummary(doc,{},''),/Playback: Playing/);
+  assert.doesNotMatch(playbackSummary(doc,{},'Audio decoder: secret token\n'),/secret|token/);
 });

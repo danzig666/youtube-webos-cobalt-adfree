@@ -11,3 +11,9 @@ test('wheel accepts pixel, Starboard line and page units with bounded steps', ()
   for (const deltaY of [NaN, Infinity, -Infinity, undefined, 0])
     assert.equal(wheelScrollDelta({ deltaY }, 300), 0);
 });
+
+test('diagnostics can cap line and page wheels at a few lines without changing other menus',()=>{
+  assert.equal(wheelScrollDelta({deltaY:1,deltaMode:2},600,72),72);
+  assert.equal(wheelScrollDelta({deltaY:-100,deltaMode:1},600,72),-72);
+  assert.equal(wheelScrollDelta({deltaY:20,deltaMode:0},600,72),20);
+});

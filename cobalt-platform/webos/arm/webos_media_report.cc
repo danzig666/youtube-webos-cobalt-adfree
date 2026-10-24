@@ -43,6 +43,7 @@ std::string CopyWebOsMediaReport() {
       "\nCobalt: 23.lts.6\nStarboard API: 13\nBuild architecture: ARMv7 softfp\nKernel architecture: " +
       KernelArchitecture() + "\nwebOS: " + WebOsVersion() +
       "\nVideo capability policy: " + VideoCapabilityTierName(caps.tier) + "\n";
+  report = CopyAudioDecoderReport() + report;
   report += CopyStartupReport();
   report += CopyMediaFailureReport();
   report += "Fonts: LG system families when available; complete bundled fallback retained\n";

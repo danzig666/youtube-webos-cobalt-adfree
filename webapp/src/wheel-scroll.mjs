@@ -1,5 +1,5 @@
 // Starboard delivers line deltas; browsers may deliver pixels or pages.
-export function wheelScrollDelta(event, viewportHeight) {
+export function wheelScrollDelta(event, viewportHeight, maximumStep = viewportHeight * 0.9) {
   const raw = Number(event.deltaY);
   if (!Number.isFinite(raw)) return 0;
   const scale =
@@ -9,7 +9,7 @@ export function wheelScrollDelta(event, viewportHeight) {
         ? viewportHeight * 0.85
         : 1;
   return Math.max(
-    -viewportHeight * 0.9,
-    Math.min(viewportHeight * 0.9, raw * scale)
+    -maximumStep,
+    Math.min(maximumStep, raw * scale)
   );
 }

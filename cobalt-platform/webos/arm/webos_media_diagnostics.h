@@ -96,6 +96,8 @@ void UpdateMediaSnapshot(const MediaSnapshot& snapshot);
 void UpdateMediaPresentation(uint64_t session, uint64_t generation,
                              int64_t presentation_us, uint64_t frames);
 std::string CopyMediaSnapshotReport();
+// Latest selection survives event ring eviction; no account or URL fields.
+std::string CopyAudioDecoderReport();
 }  // namespace webos
 }  // namespace shared
 }  // namespace starboard

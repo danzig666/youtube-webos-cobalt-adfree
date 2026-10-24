@@ -13,6 +13,8 @@ MediaEventRing ring;
 std::array<MediaEvent, 8> failures{};
 size_t next_failure = 0, failure_count = 0;
 MediaSnapshot snapshot;
+MediaCodec selected_audio_codec = MediaCodec::kUnknown;
+AudioDecoderBackend selected_audio_decoder = AudioDecoderBackend::kUnknown;
 bool snapshot_terminal = false;
 uint64_t next_session = 0;
 unsigned routine_lines = 0, error_lines = 0;
@@ -142,6 +144,10 @@ void RecordMediaEvent(MediaEvent event) {
       (event.event == MediaEventType::kUnload || event.event == MediaEventType::kNativeEos))
     snapshot_terminal = true;
   if (snapshot_terminal) snapshot.active = false;
+  if (event.event == MediaEventType::kAudioDecoderSelected) {
+    selected_audio_codec = event.codec;
+    selected_audio_decoder = event.decoder;
+  }
   ring.Record(event); // Keep recent evidence after stderr's process budget ends.
   if (event.error != WebOsPlayerError::kNone) {
     failures[next_failure] = event;
@@ -218,6 +224,20 @@ void RecordAudioDecoderSelection(MediaCodec codec, AudioDecoderBackend decoder) 
   event.decoder = decoder;
   event.accepted = true; // A selection attempt; first output proves decoding.
   RecordMediaEvent(event);
+}
+std::string CopyAudioDecoderReport() {
+  std::lock_guard<std::mutex> guard(mutex);
+  if (snapshot.active && snapshot.shared && snapshot.audio == MediaCodec::kOpus)
+    return "Audio decoder: Shared Starfish (Opus)\n";
+  const char* name = "Unknown";
+  switch (selected_audio_decoder) {
+    case AudioDecoderBackend::kFirmwareFfmpeg: name = "TV built-in FFmpeg 59"; break;
+    case AudioDecoderBackend::kFdkAac: name = "Bundled FDK-AAC"; break;
+    case AudioDecoderBackend::kFfmpeg: name = "FFmpeg"; break;
+    case AudioDecoderBackend::kOpus: name = "Opus"; break;
+    default: break;
+  }
+  return std::string("Audio decoder: ") + name + " (" + CodecName(selected_audio_codec) + ")\n";
 }
 std::string CopyMediaSnapshotReport() {
   std::lock_guard<std::mutex> guard(mutex);

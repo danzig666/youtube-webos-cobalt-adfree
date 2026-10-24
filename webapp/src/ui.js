@@ -153,7 +153,7 @@ export function userScriptStartUI() {
     const active = document.activeElement;
     if (active?.dataset.ytafControl === 'reader' && (dir === 'up' || dir === 'down')) {
       const size = menuViewport.getBoundingClientRect().height;
-      const nextOffset = Math.max(0, Math.min(Math.max(0, menuContent.scrollHeight - size), menuOffset + (dir === 'down' ? 1 : -1) * size * .7));
+      const nextOffset = Math.max(0, Math.min(Math.max(0, menuContent.scrollHeight - size), menuOffset + (dir === 'down' ? 1 : -1) * 54));
       if (nextOffset !== menuOffset || dir === 'down') {
         menuOffset = nextOffset;
         menuContent.style.top = `${-menuOffset}px`; menuViewport.scrollTop = 0; return;
@@ -925,7 +925,7 @@ export function userScriptStartUI() {
     if (typeof choiceTools !== 'undefined' && choiceTools.handleWheel?.(event)) return;
     if (!isContainerOpen() || event.ctrlKey) return;
     const rect = menuViewport.getBoundingClientRect();
-    const delta = wheelScrollDelta(event, rect.height);
+    const delta = wheelScrollDelta(event, rect.height, sections.current() === 'diagnostics' ? 72 : undefined);
     if (!delta) return;
     event.preventDefault();
     event.stopPropagation();

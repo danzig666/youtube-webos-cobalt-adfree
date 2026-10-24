@@ -140,3 +140,9 @@ Version **2.6.33** extends **GREEN → Diagnostics → Run capability test** wit
 Version **2.6.34** adds firmware FFmpeg 59 AAC playback, following a successful
 C3 diagnostic decode. Bundled FDK remains the fallback for incompatible firmware
 or failed startup decoding. Validation passes: 407 web tests, the complete native host suite, actual firmware-adapter decoding and timestamps across 100 seek recreations, startup fallback/replay and reset cancellation, ARM Gold builds and both IPKs. Actual C3 playback and long-run sync still need validation.
+
+
+Version **2.6.35** puts a plain-language decoder summary at the top of Diagnostics
+(TV built-in FFmpeg or bundled FDK fallback), alongside playback and SponsorBlock
+status. The native decoder selection survives event-log eviction. Up/Down scroll
+technical details by two lines; wheel jumps are limited in Diagnostics.

@@ -67,6 +67,15 @@ int main(int argc, char**) {
   event.width = event.height = INT32_MIN; event.bits = UINT32_MAX;
   const auto extreme = FormatMediaEvent(event);
   assert(extreme.size() < 512 && extreme.back() == '\n');
+  // Decoder choice survives capability chatter evicting the event ring.
+  RecordAudioDecoderSelection(MediaCodec::kAac, AudioDecoderBackend::kFirmwareFfmpeg);
+  for (int i = 0; i < 200; ++i) {
+    MediaEvent probe; probe.event = MediaEventType::kAudioCapability; RecordMediaEvent(probe);
+  }
+  assert(CopyMediaDiagnosticEvents().find("audio_decoder_selected") == std::string::npos);
+  assert(CopyAudioDecoderReport() == "Audio decoder: TV built-in FFmpeg 59 (AAC)\n");
+  RecordAudioDecoderSelection(MediaCodec::kAac, AudioDecoderBackend::kFdkAac);
+  assert(CopyAudioDecoderReport() == "Audio decoder: Bundled FDK-AAC (AAC)\n");
   MediaSnapshot snapshot;
   snapshot.session = 100; snapshot.generation = 7; snapshot.shared = true; snapshot.active = true;
   snapshot.video = MediaCodec::kAv1; snapshot.audio = MediaCodec::kOpus;

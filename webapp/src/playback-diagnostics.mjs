@@ -63,10 +63,40 @@ export function frontendPlaybackReport(doc,win) {
     `SponsorBlock HTTP status: ${Number.isFinite(sponsor?.lastStatus)?sponsor.lastStatus:'unavailable'}`
   ].join('\n');
 }
+export function playbackSummary(doc, win, nativeReport) {
+  const choices = {
+    'TV built-in FFmpeg 59': 'TV built-in AAC decoder (FFmpeg 59)',
+    'Bundled FDK-AAC': 'Bundled AAC decoder (FDK fallback)',
+    'Shared Starfish': 'Shared Starfish (Opus)',
+    FFmpeg: 'FFmpeg audio decoder', Opus: 'Opus audio decoder'
+  };
+  const match = /^Audio decoder: (TV built-in FFmpeg 59|Bundled FDK-AAC|Shared Starfish|FFmpeg|Opus)(?: \([^\n]*\))?$/m.exec(nativeReport);
+  let decoder = match ? choices[match[1]] : 'Not reported by this runtime';
+  // Older runtimes have no retained selection. Use only decoder-selection events,
+  // never capability checks or failed probe attempts.
+  if (!match) {
+    const events = nativeReport.split('\n').filter(line => /event=audio_decoder_selected\s/.test(line));
+    const last = events[events.length - 1] || '';
+    const backend = /\bdecoder=(Firmware-FFmpeg59|FDK-AAC|FFmpeg|Opus)\b/.exec(last)?.[1];
+    if (backend) decoder = {'Firmware-FFmpeg59':choices['TV built-in FFmpeg 59'], 'FDK-AAC':choices['Bundled FDK-AAC'], FFmpeg:choices.FFmpeg, Opus:choices.Opus}[backend];
+  }
+  const video = doc.querySelector('video');
+  const state = !video || !video.readyState ? 'No video loaded' : video.ended ? 'Ended' : video.seeking ? 'Seeking' : video.paused ? 'Paused' : 'Playing';
+  const sponsor = win.sponsorblock;
+  const sponsorStatus = !sponsor ? 'Unavailable' : sponsor.fetchStatus === 'disabled' ? 'Off' :
+    sponsor.fetchStatus === 'channel-excluded' ? 'Excluded channel' :
+    sponsor.fetchStatus === 'fetch-error' ? 'Could not load segments' :
+    Array.isArray(sponsor.segments) && sponsor.segments.length ? `${sponsor.segments.length} segments loaded` :
+    sponsor.fetchStatus === 'no-segments' ? 'No segments for this video' : 'Waiting for segments';
+  return `Latest playback decoder\n${decoder}\n\nPlayback: ${state}\nSponsorBlock: ${sponsorStatus}`;
+}
 export function createPlaybackDiagnostics(doc, win) {
   const panel = doc.createElement('div'); panel.className = 'ytaf-playback-diagnostics';
+  const summary = doc.createElement('div');
+  summary.id = '__diagnostics_summary'; summary.className = 'ytaf-diagnostics-summary';
+  summary.setAttribute('aria-live', 'polite');
   const hint = doc.createElement('div'); hint.className = 'ytaf-setting-help';
-  hint.textContent = 'Scroll with the wheel or ↑ ↓ to read the full report. ← returns to categories.';
+  hint.textContent = 'Technical details below. Wheel or ↑ ↓ scroll a few lines. ← returns to categories.';
   const output = doc.createElement('div');
   output.id = '__diagnostics_report'; output.tabIndex = 1000;
   output.className = 'ytaf-diagnostics-report'; output.dataset.ytafControl = 'reader';
@@ -85,8 +115,10 @@ export function createPlaybackDiagnostics(doc, win) {
   actionRow.appendChild(button);
   function refresh() {
     button.setAttribute('aria-disabled',String(test.running()));
-    output.textContent = ((test.report() ? test.report()+'\n\n' : '')+frontendPlaybackReport(doc,win)+'\n\n'+homeRefreshReport(doc,win)+'\n\n'+readPlaybackReport(win)).slice(0,65536); }
+    const nativeReport = readPlaybackReport(win);
+    summary.textContent = playbackSummary(doc, win, nativeReport);
+    output.textContent = ((test.report() ? test.report()+'\n\n' : '')+nativeReport+'\n\n'+frontendPlaybackReport(doc,win)+'\n\n'+homeRefreshReport(doc,win)).slice(0,65536); }
   doc.addEventListener('ytaf-diagnostics-opened', refresh);
-  panel.appendChild(actionRow); panel.appendChild(hint); panel.appendChild(output); refresh();
+  panel.appendChild(summary); panel.appendChild(actionRow); panel.appendChild(hint); panel.appendChild(output); refresh();
   return panel;
 }

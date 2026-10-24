@@ -29,8 +29,9 @@ function fixture(offset = 0, reportHeight = 1800) {
 
 test('Up scrolls a diagnostic report to its start before returning to the test button', () => {
   const f = fixture(500);
-  f.move('up'); assert.equal(f.context.menuOffset, 220); assert.equal(f.doc.activeElement, f.reader);
-  f.move('up'); assert.equal(f.context.menuOffset, 0); assert.equal(f.doc.activeElement, f.reader);
+  f.move('up'); assert.equal(f.context.menuOffset, 446); assert.equal(f.doc.activeElement, f.reader);
+  for(let i=0;i<9;i++) f.move('up');
+  assert.equal(f.context.menuOffset, 0); assert.equal(f.doc.activeElement, f.reader);
   f.move('up'); assert.equal(f.doc.activeElement, f.action);
 });
 

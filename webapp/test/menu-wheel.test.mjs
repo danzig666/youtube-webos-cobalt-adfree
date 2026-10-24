@@ -5,14 +5,14 @@ import vm from 'node:vm';
 import {wheelScrollDelta} from '../src/wheel-scroll.mjs';
 
 // Exercise the actual menu handler with controllable geometry and RAF queues.
-function menu() {
+function menu(section = 'general') {
   let open = true, handler;
   const cancelled = [], items = [];
   const doc = {activeElement: null, addEventListener(type, fn) {if(type === 'wheel') handler = fn;}};
   const container = {scrollTop: 12, focus() {doc.activeElement = this;}, getBoundingClientRect: () => ({top: 0, bottom: 400})};
   const viewport = {scrollTop: 20, getBoundingClientRect: () => ({top: 100, bottom: 400, height: 300})};
   const content = {style: {}, scrollHeight: 1800, querySelectorAll: () => items};
-  const context = vm.createContext({document: doc, window: {cancelAnimationFrame: id => cancelled.push(id)}, isContainerOpen: () => open, wheelScrollDelta, menuViewport: viewport, menuContent: content, uiContainer: container});
+  const context = vm.createContext({document: doc, window: {cancelAnimationFrame: id => cancelled.push(id)}, isContainerOpen: () => open, sections:{current:()=>section}, wheelScrollDelta, menuViewport: viewport, menuContent: content, uiContainer: container});
   vm.runInContext('let menuOffset=0, menuScrollFrame=8, directionMoveFrame=9, wheelFocusing=false, currentFocusIndex=-1, lastTabIndex=0;', context);
   for (let i = 0; i < 10; i++) {
     const node = {tabIndex: i + 1, focus() {
@@ -59,4 +59,12 @@ test('wheel reading of a tall text-only section removes focus from hidden settin
   for (const item of f.items) item.getBoundingClientRect = () => ({top: -500, bottom: -450});
   f.wheel(250);
   assert.equal(f.doc.activeElement, f.container);
+});
+
+test('diagnostics menu wheel scrolls a few lines even when the TV sends a full-page delta',()=>{
+  const f=menu('diagnostics');
+  f.wheel(1,{deltaMode:2});
+  assert.equal(f.content.style.top,'-72px');
+  f.wheel(-100,{deltaMode:1});
+  assert.equal(f.content.style.top,'0px');
 });
