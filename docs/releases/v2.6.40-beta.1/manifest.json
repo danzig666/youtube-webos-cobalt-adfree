@@ -1,0 +1,11 @@
+{
+  "repository": "danzig666/youtube-webos-cobalt-adfree",
+  "source_sha": "58a2406b81faf4a2eb0fd0d430ff52988494a9dd",
+  "version": "2.6.40",
+  "tag": "v2.6.40-beta.1",
+  "title": "2.6.40 beta 1 \u2014 Earlier ad filtering and simpler voice search",
+  "native_run": 40235944263,
+  "ci_run": 40235944377,
+  "artifact_id": 12615737378,
+  "update_catalog": true
+}

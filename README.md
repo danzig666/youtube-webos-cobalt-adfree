@@ -6,14 +6,16 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 ## Download and install
 
-**[Latest compatibility release: v2.6.37-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.37-beta.1)**
+**[Latest release: v2.6.40-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.40-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
-| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.37-beta.1/com.cobalt.youtube.adfree_2.6.37_arm.ipk) | Installs alongside official YouTube |
-| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.37-beta.1/youtube.leanback.v4_2.6.37_arm.ipk) | **Replaces official YouTube** |
+| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.40-beta.1/youtube.leanback.v4_2.6.40_arm.ipk) | **Replaces official YouTube; recommended for voice search on the tested C3** |
+| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.40-beta.1/com.cobalt.youtube.adfree_2.6.40_arm.ipk) | Installs alongside official YouTube; microphone capture was rejected on the tested C3 |
 
-[Experimental C3 firmware-only build: 2.6.36-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.36-beta.1) omits bundled FDK-AAC. **C4 / webOS 26 (43.21.73): livestreams reportedly fail in 2.6.36 and work in 2.6.35 using the bundled AAC fallback. Use 2.6.37, which restores the fallback.** The Homebrew catalog offers 2.6.37; normal builds retain the fallback.
+**2.6.40** adds early Home/Shorts ad filtering, keeps ad blocking on by default, and removes the unused voice-language selector. For Hungarian voice search, use **YouTube Settings → Language → Magyar**; the TV may stay English. The Homebrew catalog offers 2.6.40.
+
+Bundled AAC fallback remains included for C4/webOS 26 livestream compatibility, alongside the startup improvements. The older firmware-only 2.6.36 experiment is not recommended for C4 livestreams.
 
 Install using webOS Device Manager or `ares-cli` with Developer Mode, or Homebrew Channel on a compatible setup. Update the same package ID you already use, then fully close and reopen the app. Checksums and build records accompany each release.
 
@@ -25,7 +27,7 @@ https://raw.githubusercontent.com/danzig666/youtube-webos-cobalt-adfree/main/rep
 
 The catalog lists both variants and updates automatically from verified published releases. Choose **Separate ID** to keep official YouTube, or update the ID you already use. [Catalog details](docs/homebrew-catalog.md).
 
-Both variants have identical features and separate storage. YouTube sign-in remains available; **separate-ID sign-in/phone pairing are not TV-verified**. Use this fork’s separate-ID IPK to keep official YouTube.
+Both variants share the playback features and have separate storage. YouTube sign-in remains available; **separate-ID sign-in/phone pairing are not TV-verified**. Use this fork’s separate-ID IPK to keep official YouTube.
 
 ## Features added in this fork
 
