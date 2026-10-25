@@ -1,0 +1,11 @@
+{
+  "repository": "danzig666/youtube-webos-cobalt-adfree",
+  "source_sha": "b5dc6dd33761a8bf26731272f7e5c91284783c98",
+  "version": "2.6.37",
+  "tag": "v2.6.37-beta.1",
+  "title": "2.6.37 beta 1 \u2014 Restore compatible AAC livestream playback",
+  "native_run": 40209393641,
+  "ci_run": 40209393639,
+  "artifact_id": 12604609955,
+  "update_catalog": true
+}

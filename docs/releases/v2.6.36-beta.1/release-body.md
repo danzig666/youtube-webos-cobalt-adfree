@@ -1,3 +1,5 @@
+**Compatibility update — LG C4 / webOS 26 (firmware 43.21.73): livestreams are reported not to work in this firmware-only build. [Use 2.6.35-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.35-beta.1), which restores livestream playback using the bundled FDK AAC fallback (confirmed by the supplied Diagnostics screenshot). The cause of firmware AAC failure on that C4 is not yet established. Normal builds retain the fallback.**
+
 Experimental C3 packages without the bundled FDK-AAC library. The normal Homebrew catalog remains on **2.6.35**, retaining its fallback; that release remains available for rollback.
 
 - Removes `lib/libfdk-aac.so` and its build record from the TV IPK. Legal notices and required C++ runtime libraries remain. No FFmpeg library is bundled.
@@ -19,6 +21,6 @@ The C3's firmware FFmpeg 59/avutil 57 passed the earlier AAC probe. Other TVs wi
 
 Both IPKs are attached, for `com.cobalt.youtube.adfree` and `youtube.leanback.v4`. The original-ID package replaces official YouTube.
 
-Validation: 413 web tests, complete native host suite, no-FDK decoder/admission regressions, nine packaging tests including omission and safe-runtime guards, actual settings/browser tests at 720p/1080p, full ARM Gold build and final package checks. C3 speed and firmware-only playback confirmation remain pending.
+Validation: 413 web tests, complete native host suite, no-FDK decoder/admission regressions, nine packaging tests including omission and safe-runtime guards, actual settings/browser tests at 720p/1080p, full ARM Gold build and final package checks. The C3 tester subsequently confirmed playback and a much shorter cold start; this is a subjective startup comparison, not an isolated measurement of the library removal. The C4 livestream failure above limits cross-device compatibility.
 
 Source: `0b6952608c7b000f235ea017d25fca53a5a95100` · [CI](https://github.com/danzig666/youtube-webos-cobalt-adfree/actions/runs/40176776947) · [ARM Gold build](https://github.com/danzig666/youtube-webos-cobalt-adfree/actions/runs/40176776914)
