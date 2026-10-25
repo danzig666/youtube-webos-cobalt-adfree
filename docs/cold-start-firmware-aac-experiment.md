@@ -54,3 +54,29 @@ tests and 720p/1080p settings checks passed. The published IPKs contain no
 FDK-AAC library or FDK build record; their required runtime libraries and legal
 notices remain. The normal Homebrew catalog was verified unchanged at 2.6.35.
 C3 playback and cold-start speed remain to be measured.
+
+## Device feedback — 2026-10-25
+
+| Device | Report | Limits of the observation |
+| --- | --- | --- |
+| LG C3 | Firmware-only test build works; user reports startup before the YouTube logo is much shorter. | Subjective speed comparison, without a matched before/after stopwatch measurement. Screenshot of 2.6.36 reports audio ready at 13 ms, SDL at 60 ms, graphics at 151 ms and font catalog at 177 ms. These are cumulative native milestones and exclude loading before `main`. That screenshot alone does not identify the audio backend: its latest decoder selection is unknown. |
+| LG C4 | Playback reported working, with slight audio/video desynchronization. | Build version, active codec/backend, firmware, audio output route, offset direction and whether it is constant or drifting are not yet confirmed. This is partial compatibility feedback, not a complete playback validation. |
+
+### Initial sync investigation
+
+The firmware adapter uses input microsecond packet timestamps for decoded PCM;
+its regression tests already check timestamp preservation across decoder resets.
+A separate host comparison decoded the same deterministic two-second stereo AAC-LC
+noise stream through the production firmware adapter with FFmpeg 59.18.100 / util
+57.17.100 and through FDK 2.0.3 using Cobalt's existing delay-compensation policy.
+FDK reported 1744 samples of output delay, which were discarded before comparison.
+Both decoders produced 97,280 PCM frames from 95 access units after EOS drain.
+Cross-correlation found a best relative waveform lag of zero samples within a
+±4096-sample search window. This does not show a fixed decoder sample shift for
+that fixture; it does not validate TV presentation latency, long-run clock drift,
+other AAC profiles or seek/resume behavior on the C4.
+
+No automatic A/V offset has been added from this report. The next useful evidence
+is whether audio leads or trails the picture, and whether the offset is constant,
+grows over time, or appears after seeking/pause. Firmware/video presentation and
+the audio output path remain possible causes, not established diagnoses.
