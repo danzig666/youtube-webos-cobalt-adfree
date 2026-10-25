@@ -1,0 +1,11 @@
+{
+  "repository": "danzig666/youtube-webos-cobalt-adfree",
+  "source_sha": "bdf6409132f1a21ab6bd4045cb9a093dd7f05bf5",
+  "version": "2.6.38",
+  "tag": "v2.6.38-beta.1",
+  "title": "2.6.38 beta 1 \u2014 Hungarian in-app voice search (TV test)",
+  "native_run": 40222495009,
+  "ci_run": 40222492848,
+  "artifact_id": 12610178747,
+  "update_catalog": false
+}
