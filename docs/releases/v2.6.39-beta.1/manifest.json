@@ -1,0 +1,11 @@
+{
+  "repository": "danzig666/youtube-webos-cobalt-adfree",
+  "source_sha": "ff94892c707f4e3106f20ff7ba76ebe4f536e673",
+  "version": "2.6.39",
+  "tag": "v2.6.39-beta.1",
+  "title": "2.6.39 beta 1 \u2014 Microphone connection retry and failure details (C3 test)",
+  "native_run": 40228972525,
+  "ci_run": 40228972560,
+  "artifact_id": 12613525291,
+  "update_catalog": false
+}
