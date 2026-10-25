@@ -1,5 +1,5 @@
 import {capabilityQueryReport} from './media-capability-queries.mjs';
-import { startupReport } from './startup-timing.mjs';
+import { startupReport, startupSummary } from './startup-timing.mjs';
 import { createCapabilityTest } from './capability-test.mjs';
 import { homeRefreshReport } from './home-refresh.mjs';
 function clockReport(win) {
@@ -88,7 +88,7 @@ export function playbackSummary(doc, win, nativeReport) {
     sponsor.fetchStatus === 'fetch-error' ? 'Could not load segments' :
     Array.isArray(sponsor.segments) && sponsor.segments.length ? `${sponsor.segments.length} segments loaded` :
     sponsor.fetchStatus === 'no-segments' ? 'No segments for this video' : 'Waiting for segments';
-  return `Latest playback decoder\n${decoder}\n\nPlayback: ${state}\nSponsorBlock: ${sponsorStatus}`;
+  return `Latest playback decoder\n${decoder}\n${startupSummary(win, nativeReport)}\nPlayback: ${state}\nSponsorBlock: ${sponsorStatus}`;
 }
 export function createPlaybackDiagnostics(doc, win) {
   const panel = doc.createElement('div'); panel.className = 'ytaf-playback-diagnostics';
@@ -119,6 +119,9 @@ export function createPlaybackDiagnostics(doc, win) {
     summary.textContent = playbackSummary(doc, win, nativeReport);
     output.textContent = ((test.report() ? test.report()+'\n\n' : '')+nativeReport+'\n\n'+frontendPlaybackReport(doc,win)+'\n\n'+homeRefreshReport(doc,win)).slice(0,65536); }
   doc.addEventListener('ytaf-diagnostics-opened', refresh);
-  panel.appendChild(summary); panel.appendChild(actionRow); panel.appendChild(hint); panel.appendChild(output); refresh();
+  panel.appendChild(summary); panel.appendChild(actionRow); panel.appendChild(hint); panel.appendChild(output);
+  // Building a hidden settings panel must not collect native reports, scan
+  // the Home guide or format capability traces during YouTube cold start.
+  summary.textContent = 'Playback summary loads when Diagnostics opens.';
   return panel;
 }

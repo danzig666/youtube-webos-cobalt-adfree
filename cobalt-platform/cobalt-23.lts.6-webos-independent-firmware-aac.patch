@@ -1,0 +1,17 @@
+--- a/starboard/linux/shared/player_components_factory.cc
++++ b/starboard/linux/shared/player_components_factory.cc
+@@ -95,8 +95,12 @@
+           }
+         } else if (audio_sample_info.codec == kSbMediaAudioCodecAac &&
+                    audio_sample_info.number_of_channels <=
+-                       FdkAacAudioDecoder::kMaxChannels &&
+-                   libfdkaac::LibfdkaacHandle::GetHandle()->IsLoaded()) {
++                       FdkAacAudioDecoder::kMaxChannels
++#if !defined(STARBOARD_WEBOS)
++                   && libfdkaac::LibfdkaacHandle::GetHandle()->IsLoaded()
++#endif
++                   ) {
++          // webOS firmware AAC must not depend on loading the optional FDK library.
+           SB_LOG(INFO) << "Playing audio using FdkAacAudioDecoder.";
+ #if defined(STARBOARD_WEBOS)
+           return scoped_ptr<AudioDecoder>(new webos::WebOsAacAudioDecoder());

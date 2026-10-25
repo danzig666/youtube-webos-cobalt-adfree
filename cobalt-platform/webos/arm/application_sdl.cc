@@ -134,6 +134,7 @@ ApplicationSdl* ApplicationSdl::Get() {
 
 void ApplicationSdl::Initialize() {
   SbAudioSinkPrivate::Initialize();
+  RecordStartupStage(StartupStage::kAudioReady);
   SDL_SetMainReady();
   SDL_SetHint(SDL_HINT_WEBOS_REGISTER_APP, "1");
   SDL_SetHint(SDL_HINT_WEBOS_ACCESS_POLICY_KEYS_BACK, "1");

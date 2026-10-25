@@ -9,7 +9,7 @@ std::chrono::steady_clock::time_point started;
 bool initialized = false;
 }
 std::string StartupTimings::Report() const {
-  const char* labels[] = {"Process entry", "Logging ready", "SDL ready", "Graphics ready"};
+  const char* labels[] = {"Process entry", "Logging ready", "Audio system ready", "SDL ready", "Graphics ready", "Font catalog ready"};
   std::string report = "Native startup (milliseconds from process entry):\n";
   for (size_t i = 0; i < times_.size(); ++i)
     report += std::string(labels[i]) + ": " + (times_[i] < 0 ? "not reached" : std::to_string(times_[i]) + " ms") + "\n";

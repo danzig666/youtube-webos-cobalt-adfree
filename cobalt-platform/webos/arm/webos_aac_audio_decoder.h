@@ -18,7 +18,7 @@ class WebOsAacAudioDecoder : public shared::starboard::player::filter::AudioDeco
   void Reset() override;
  private:
   void SelectDecoder();
-  void SelectFallback();
+  bool SelectFallback();
   void ReplayFallback(const ConsumedCB&);
   InputBuffers startup_inputs_;
   size_t replay_index_ = 0;
@@ -30,6 +30,7 @@ class WebOsAacAudioDecoder : public shared::starboard::player::filter::AudioDeco
   std::unique_ptr<AudioDecoder> fallback_;
   std::queue<std::pair<scoped_refptr<DecodedAudio>, int>> output_;
   bool ended_ = false;
+  bool unavailable_ = false;
   int sample_rate_ = 48000;
 };
 }}}

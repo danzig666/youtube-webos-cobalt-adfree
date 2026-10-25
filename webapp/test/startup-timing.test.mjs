@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {markStartup,startupReport,watchStartupScreen} from '../src/startup-timing.mjs';
+import {markStartup,startupReport,startupSummary,watchStartupScreen} from '../src/startup-timing.mjs';
 function fixture() {
  let now=1000,card=null,video=null,selector=false;
  const jobs=[],win={Date:{now:()=>now},setTimeout:fn=>jobs.push(fn)};
@@ -29,7 +29,21 @@ test('visible home cards, ready video and account selection each mark usable scr
   const f=fixture();markStartup(f.win,'preload');watchStartupScreen(f.doc,f.win);f.time(2100);
   if(kind==='card')f.card({getBoundingClientRect:()=>({width:300,height:200})});
   if(kind==='video')f.video({readyState:2});if(kind==='account')f.selector(true);
-  f.jobs.shift()();assert.equal(f.jobs.length,0);
+  f.jobs.shift()();assert.equal(f.jobs.length,kind==='account'?1:0);
   assert.match(startupReport(f.win),/First usable screen: 1100 ms/);
  }
+});
+
+test('account selector does not hide a later Home startup delay',()=>{
+ const f=fixture();markStartup(f.win,'preload');f.selector(true);watchStartupScreen(f.doc,f.win);
+ f.time(9000);f.selector(false);f.card({getBoundingClientRect:()=>({width:300,height:200})});f.jobs.shift()();
+ assert.equal(f.win.__ytafStartupTimings.times.screen,0);
+ assert.equal(f.win.__ytafStartupTimings.times.feed,8000);
+ assert.equal(f.jobs.length,0);
+ assert.equal(startupSummary(f.win,'Graphics ready: 200 ms\n'),'Startup: graphics 0.20s | page list 8.00s');
+});
+test('startup summary uses only finite approved timings and keeps the two origins separate',()=>{
+ const win={__ytafStartupTimings:{times:{screen:1500,secret:'private token',feed:-10}}};
+ assert.equal(startupSummary(win,'Graphics ready: 250 ms\n'),'Startup: graphics 0.25s');
+ assert.doesNotMatch(startupSummary(win,'private URL'),/private|token|URL/);
 });

@@ -146,3 +146,10 @@ Version **2.6.35** puts a plain-language decoder summary at the top of Diagnosti
 (TV built-in FFmpeg or bundled FDK fallback), alongside playback and SponsorBlock
 status. The native decoder selection survives event-log eviction. Up/Down scroll
 technical details by two lines; wheel jumps are limited in Diagnostics. Validated with 411 web tests, native host regressions, 720p/1080p browser checks, both ARM Gold binaries and public IPK downloads.
+
+
+The **2.6.36 firmware-only experiment** omits the bundled FDK-AAC library for
+C3 testing. The regular Homebrew catalog stays on 2.6.35, which retains its
+fallback. It also defers hidden Diagnostics collection until the page is opened
+and exposes audio/graphics/font startup timings. Startup speedup is not yet
+measured on a TV. See [experiment details](docs/cold-start-firmware-aac-experiment.md).

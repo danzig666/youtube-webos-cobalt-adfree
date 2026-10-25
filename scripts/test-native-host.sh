@@ -42,6 +42,7 @@ python3 "$repo_root/scripts/test-firmware-aac-probe.py" "$cobalt_root"
 python3 "$repo_root/scripts/test-firmware-ffmpeg-probe.py"
 python3 "$repo_root/scripts/test-firmware-aac-playback.py"
 python3 "$repo_root/scripts/test-webos-aac-decoder.py"
+python3 "$repo_root/scripts/test-firmware-aac-factory.py" "$cobalt_root"
 "$test_dir/webos-media-diagnostics" --log-budget \
   >"$test_dir/report" 2>"$test_dir/diagnostic-log"
 python3 - "$test_dir" <<'PY'

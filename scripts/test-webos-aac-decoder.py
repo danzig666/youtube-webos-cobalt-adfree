@@ -67,6 +67,16 @@ inline void RecordAudioDecoderSelection(MediaCodec,AudioDecoderBackend){}
 inline void RecordAudioDecoderFailure(MediaCodec,int,bool,AudioDecoderBackend){}
 }}}
 ''')
+ put('starboard/shared/libfdkaac/libfdkaac_library_loader.h',r'''
+#pragma once
+extern bool fdk_available;
+namespace starboard { namespace shared { namespace libfdkaac {
+struct LibfdkaacHandle {
+ static LibfdkaacHandle* GetHandle(){static LibfdkaacHandle h;return &h;}
+ bool IsLoaded(){return fdk_available;}
+};
+}}}
+''')
  put('starboard/shared/libfdkaac/fdk_aac_audio_decoder.h',r'''
 #pragma once
 #include <queue>
@@ -96,6 +106,7 @@ class FdkAacAudioDecoder:public shared::starboard::player::filter::AudioDecoder,
 #include "starboard/webos/arm/webos_aac_audio_decoder.h"
 using namespace starboard::shared::webos;
 using starboard::shared::starboard::player::Run;
+bool fdk_available=true;
 int mode=1,calls=0;
 namespace starboard { namespace shared { namespace webos {
 struct FirmwareAac::Impl {};
@@ -126,6 +137,16 @@ int main(){
  setenv("YTAF_AAC_DECODER","fdk",1);mode=1;WebOsAacAudioDecoder forced;int count=0;
  forced.Initialize([&]{int r;forced.Read(&r);++count;},[](int,const std::string&){assert(false);});
  forced.Decode({a},[]{});Run();assert(count==1 && calls==2);
+ unsetenv("YTAF_AAC_DECODER");fdk_available=false;
+ mode=1;WebOsAacAudioDecoder firmware_only;count=0;
+ firmware_only.Initialize([&]{int r;firmware_only.Read(&r);++count;},[](int,const std::string&){assert(false);});
+ firmware_only.Decode({a},[]{});Run();assert(count==1);
+ for(int failure_mode:{0,2}) {
+  mode=failure_mode;WebOsAacAudioDecoder unavailable;int failures=0;
+  unavailable.Initialize([]{assert(false);},[&](int,const std::string&){++failures;});
+  unavailable.Decode({a},[]{});Run();assert(failures==1);
+  unavailable.WriteEndOfStream();Run();assert(failures==1);
+ }
 }
 ''')
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++14','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-fsanitize=undefined','-fno-sanitize-recover=all','-I'+str(d),str(d/'test.cc'),str(ROOT/'cobalt-platform/webos/arm/webos_aac_audio_decoder.cc'),'-o',str(d/'test')],check=True)

@@ -207,6 +207,11 @@ if ! grep -q 'WebOsAacAudioDecoder' "$cobalt_root/starboard/linux/shared/player_
   git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-firmware-aac.patch"
 fi
 
+if ! grep -q 'webOS firmware AAC must not depend' "$cobalt_root/starboard/linux/shared/player_components_factory.cc"; then
+  git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-independent-firmware-aac.patch"
+  git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-independent-firmware-aac.patch"
+fi
+
 if ! grep -q 'GetYtafMediaReport' "$cobalt_root/cobalt/h5vcc/h5vcc_system.h"; then
   git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-diagnostics-ui.patch"
   git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-diagnostics-ui.patch"
@@ -265,3 +270,8 @@ if not target.exists() or target.read_text() != text:
 PYMETA
 
 echo "Installed webos-arm Starboard platform into: $platform_target"
+
+if ! grep -q 'StartupStage::kFontsReady' "$cobalt_root/cobalt/renderer/rasterizer/skia/skia/src/ports/SkFontMgr_cobalt.cc"; then
+  git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-font-startup-timing.patch"
+  git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-font-startup-timing.patch"
+fi

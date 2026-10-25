@@ -71,5 +71,7 @@ def main():
             assert asset['digest']=='sha256:'+digests[asset['name']] and asset['size']==(root/asset['name']).stat().st_size
         if after['draft']: api(repo,f'releases/{release["id"]}',{'draft':False},'PATCH')
         print('Published verified prerelease:',tag,flush=True)
+        if not m.get('update_catalog',True):
+            print('Experimental prerelease: Homebrew catalog unchanged',flush=True); return
         subprocess.run(['python3',str(Path(__file__).with_name('update-homebrew-catalog.py')),'--tag',tag,'--output',str(root/'repo.json'),'--skip-draft','--publish'],check=True)
 if __name__=='__main__': main()

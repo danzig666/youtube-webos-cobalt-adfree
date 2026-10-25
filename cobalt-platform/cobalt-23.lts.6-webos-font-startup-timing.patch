@@ -1,0 +1,24 @@
+--- a/cobalt/renderer/rasterizer/skia/skia/src/ports/SkFontMgr_cobalt.cc
++++ b/cobalt/renderer/rasterizer/skia/skia/src/ports/SkFontMgr_cobalt.cc
+@@ -34,6 +34,10 @@
+ #include "cobalt/renderer/rasterizer/skia/skia/src/ports/SkTypeface_cobalt.h"
+ #include "third_party/icu/source/common/unicode/locid.h"
+ 
++#if defined(STARBOARD_WEBOS)
++#include "starboard/webos/arm/webos_startup_timing.h"
++#endif
++
+ const char* ROBOTO_SCRIPT = "latn";
+ 
+ SkFontMgr_Cobalt::SkFontMgr_Cobalt(
+@@ -111,6 +115,10 @@
+ 
+   GeneratePriorityOrderedFallbackFamilies(priority_fallback_families);
+   FindDefaultFamily(default_families);
++#if defined(STARBOARD_WEBOS)
++  ::starboard::shared::webos::RecordStartupStage(
++      ::starboard::shared::webos::StartupStage::kFontsReady);
++#endif
+ }
+ 
+ void SkFontMgr_Cobalt::PurgeCaches() {

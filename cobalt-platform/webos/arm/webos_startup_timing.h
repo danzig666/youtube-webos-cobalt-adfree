@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <string>
 namespace starboard { namespace shared { namespace webos {
-enum class StartupStage { kProcessEntry, kLoggingReady, kSdlReady, kGraphicsReady, kCount };
+enum class StartupStage { kProcessEntry, kLoggingReady, kAudioReady, kSdlReady, kGraphicsReady, kFontsReady, kCount };
 class StartupTimings {
  public:
   StartupTimings() { times_.fill(-1); }

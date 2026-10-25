@@ -128,6 +128,20 @@ bash() {
             self.assertEqual(staged['aac'], 'private ARM AAC library')
             self.assertEqual(staged['aac_notice'], 'AAC license notice')
             self.assertEqual(staged['aac_source'], 'pinned AAC source')
+            firmware_env=dict(env,YTAF_PACKAGE_FDK_AAC='0')
+            rejected=subprocess.run(command,env=firmware_env,text=True,capture_output=True)
+            self.assertEqual(rejected.returncode,4)
+            self.assertIn('safe missing-FDK handling',rejected.stderr)
+            with (build/'cobalt').open('a') as f:
+                f.write('\0Firmware AAC unavailable and no FDK fallback is installed')
+            original=(commands/'ares-package').read_text()
+            # Exercise the real staging path with fallback omission; an old
+            # artifact can still carry the library and must not leak it into IPK.
+            (commands/'ares-package').write_text(original.replace("(stage/\"lib/libfdk-aac.so\").read_text()", "str((stage/\"lib/libfdk-aac.so\").exists())").replace("(stage/\"content/licenses/fdk-aac.txt\").read_text()", "str((stage/\"content/licenses/fdk-aac.txt\").exists())").replace("(stage/\"lib/fdk-aac-build.txt\").read_text()", "str((stage/\"lib/fdk-aac-build.txt\").exists())"))
+            firmware=subprocess.run(command,env=firmware_env,text=True,capture_output=True)
+            self.assertEqual(firmware.returncode,91,firmware.stdout+firmware.stderr)
+            only=json.loads(report.read_text())
+            self.assertEqual((only['aac'],only['aac_notice'],only['aac_source']),('False','True','False'))
             self.assertEqual(staged['custom'], {
                 'Inter-Regular.woff2': 'regular-font', 'Inter-SemiBold.woff2': 'semibold-font'})
 

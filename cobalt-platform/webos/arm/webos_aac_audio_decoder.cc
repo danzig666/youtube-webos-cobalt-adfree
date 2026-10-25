@@ -3,17 +3,27 @@
 #include <cstring>
 #include "starboard/common/log.h"
 #include "starboard/shared/libfdkaac/fdk_aac_audio_decoder.h"
+#include "starboard/shared/libfdkaac/libfdkaac_library_loader.h"
 #include "starboard/webos/arm/webos_media_diagnostics.h"
 namespace starboard { namespace shared { namespace webos {
 WebOsAacAudioDecoder::WebOsAacAudioDecoder() = default;
 WebOsAacAudioDecoder::~WebOsAacAudioDecoder() { CancelPendingJobs(); }
-void WebOsAacAudioDecoder::SelectFallback() {
+bool WebOsAacAudioDecoder::SelectFallback() {
   firmware_.reset();
+  if (!shared::libfdkaac::LibfdkaacHandle::GetHandle()->IsLoaded()) {
+    unavailable_ = true;
+    RecordAudioDecoderFailure(MediaCodec::kAac, 0, true, AudioDecoderBackend::kFirmwareFfmpeg);
+    Schedule(std::bind(error_cb_, kSbPlayerErrorDecode,
+                      "Firmware AAC unavailable and no FDK fallback is installed"));
+    return false;
+  }
   fallback_.reset(new shared::libfdkaac::FdkAacAudioDecoder);
   fallback_->Initialize(output_cb_, error_cb_);
   SB_LOG(INFO) << "YTAF AAC decoder: bundled FDK fallback";
+  return true;
 }
 void WebOsAacAudioDecoder::SelectDecoder() {
+  unavailable_ = false;
   const char* override = std::getenv("YTAF_AAC_DECODER");
   if (override && !std::strcmp(override, "fdk")) { SelectFallback(); return; }
   firmware_.reset(new FirmwareAac);
@@ -38,7 +48,7 @@ void WebOsAacAudioDecoder::Output(const std::vector<FirmwareAudioFrame>& frames)
   }
 }
 void WebOsAacAudioDecoder::Decode(const InputBuffers& inputs, const ConsumedCB& consumed) {
-  if (ended_) return;
+  if (ended_ || unavailable_) return;
   if (fallback_) { fallback_->Decode(inputs, consumed); return; }
   if (!produced_output_) startup_inputs_.insert(startup_inputs_.end(), inputs.begin(), inputs.end());
   for (const auto& input : inputs) {
@@ -46,7 +56,8 @@ void WebOsAacAudioDecoder::Decode(const InputBuffers& inputs, const ConsumedCB& 
     if (!firmware_->Decode(input->data(), input->size(), input->timestamp(), &frames)) {
       RecordAudioDecoderFailure(MediaCodec::kAac, 0, false, AudioDecoderBackend::kFirmwareFfmpeg);
       if (!produced_output_) {
-        SelectFallback(); ReplayFallback(consumed); return;
+        if (SelectFallback()) ReplayFallback(consumed);
+        return;
       }
       Schedule(std::bind(error_cb_, kSbPlayerErrorDecode,
                         "Firmware FFmpeg AAC decode failed; YTAF_AAC_DECODER=fdk selects bundled decoder"));
@@ -56,7 +67,8 @@ void WebOsAacAudioDecoder::Decode(const InputBuffers& inputs, const ConsumedCB& 
     Output(frames);
   }
   if (!produced_output_ && startup_inputs_.size() >= 32) {
-    SelectFallback(); ReplayFallback(consumed); return;
+    if (SelectFallback()) ReplayFallback(consumed);
+    return;
   }
   Schedule(consumed);
 }
@@ -68,7 +80,7 @@ void WebOsAacAudioDecoder::ReplayFallback(const ConsumedCB& consumed) {
   fallback_->Decode(one, std::bind(&WebOsAacAudioDecoder::ReplayFallback, this, consumed));
 }
 void WebOsAacAudioDecoder::WriteEndOfStream() {
-  if (ended_) return;
+  if (ended_ || unavailable_) return;
   ended_ = true;
   if (fallback_) { fallback_->WriteEndOfStream(); return; }
   std::vector<FirmwareAudioFrame> frames;

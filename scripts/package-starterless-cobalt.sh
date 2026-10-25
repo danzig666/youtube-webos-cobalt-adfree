@@ -44,7 +44,17 @@ done
 # New runtimes load their private AAC dependency before firmware libraries.
 # Earlier artifacts without this hook retain the original packaging inputs.
 bundled_aac=0
-if grep -aFq '$ORIGIN/lib/libfdk-aac.so' "$build_dir/cobalt"; then
+case "${YTAF_PACKAGE_FDK_AAC:-1}" in
+  0)
+    if ! grep -aFq 'Firmware AAC unavailable and no FDK fallback is installed' "$build_dir/cobalt"; then
+      echo "Firmware-only packaging requires a runtime with safe missing-FDK handling." >&2
+      exit 4
+    fi
+    ;;
+  1) ;;
+  *) echo 'YTAF_PACKAGE_FDK_AAC must be 0 or 1' >&2; exit 4;;
+esac
+if [[ "${YTAF_PACKAGE_FDK_AAC:-1}" == 1 ]] && grep -aFq '$ORIGIN/lib/libfdk-aac.so' "$build_dir/cobalt"; then
   bundled_aac=1
   for asset in lib/libfdk-aac.so lib/fdk-aac-build.txt content/licenses/fdk-aac.txt; do
     if [[ ! -s "$build_dir/$asset" ]]; then

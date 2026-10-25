@@ -5,9 +5,13 @@ import {menuFixture} from './helpers/menu-fixture.mjs';
 test('report remains bounded, complete, and literal in a single scrolling textbox', () => {
   assert.match(readPlaybackReport({}), /updated native/);
   assert.equal(readPlaybackReport({h5vcc:{system:{getYtafMediaReport:()=> 'x'.repeat(70000)}}}).length, 65536);
-  const f=menuFixture(); let report='<script>not executed</script>\n' + 'event\n'.repeat(100);
-  const panel=createPlaybackDiagnostics(f.doc,{h5vcc:{system:{getYtafMediaReport:()=>report}}});
+  const f=menuFixture(); let calls=0; let report='<script>not executed</script>\n' + 'event\n'.repeat(100);
+  const panel=createPlaybackDiagnostics(f.doc,{h5vcc:{system:{getYtafMediaReport:()=>{calls++;return report;}}}});
   const output=f.nodes.get('__diagnostics_report');
+  assert.equal(calls,0);
+  assert.equal(output.textContent,'');
+  f.doc.dispatchEvent({type:'ytaf-diagnostics-opened'});
+  assert.equal(calls,1);
   assert.equal(output.textContent.includes(report),true);
   assert.equal(output.getAttribute('role'),'textbox');
   assert.equal(output.dataset.ytafControl,'reader');

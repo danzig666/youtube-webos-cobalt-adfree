@@ -1,6 +1,9 @@
 name: Build starterless Cobalt
 
 on:
+  push:
+    branches: [playback/host-tested-v2]
+    paths: [.github/workflows/build-starterless-cobalt.yml]
   schedule:
     - cron: '17 3 * * *'
   workflow_dispatch:
@@ -18,6 +21,11 @@ on:
         options:
           - devel
           - gold
+      bundle_aac:
+        description: Include bundled FDK fallback in the TV packages
+        required: true
+        default: true
+        type: boolean
       build_parallel:
         description: Parallel compiler jobs
         required: true
@@ -290,14 +298,16 @@ jobs:
           retention-days: 14
 
       - name: Set up Node for Gold package validation
-        if: github.event_name == 'schedule' || inputs.build_type == 'gold'
+        if: github.event_name != 'workflow_dispatch' || inputs.build_type == 'gold'
         uses: actions/setup-node@v5
         with:
           node-version: 24
 
       - name: Validate Gold IPK (artifact only)
-        if: github.event_name == 'schedule' || inputs.build_type == 'gold'
+        if: github.event_name != 'workflow_dispatch' || inputs.build_type == 'gold'
         shell: bash
+        env:
+          YTAF_PACKAGE_FDK_AAC: ${{ (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.bundle_aac == false)) && '0' || '1' }}
         run: |
           set -euo pipefail
           exec > >(tee "$GITHUB_WORKSPACE/output/gold-package.log") 2>&1
@@ -334,7 +344,7 @@ jobs:
           done
 
       - name: Upload Gold package validation artifacts
-        if: github.event_name == 'schedule' || inputs.build_type == 'gold'
+        if: github.event_name != 'workflow_dispatch' || inputs.build_type == 'gold'
         uses: actions/upload-artifact@v4
         with:
           name: nightly-ipk-${{ steps.meta.outputs.short_sha }}
