@@ -84,11 +84,33 @@ export function installVoiceSearch(win, read) {
       fetchHook: null,
       requests: 0,
       starts: 0,
+      recordings: 0,
+      recorderPrototypes: [],
       lastLanguage: '',
       lastRoute: ''
     });
   state.read = read;
   const language = () => voiceLanguage(state.read('voiceSearchLanguage'));
+  // YouTube TV normally uses MediaRecorder, not Web Speech. Count starts only;
+  // never inspect recording data or retain a MediaStream/recorder instance.
+  state.recorderPrototypes ||= [];
+  state.recordings ||= 0;
+  const recorder = win.MediaRecorder?.prototype;
+  if (recorder && !state.recorderPrototypes.includes(recorder) &&
+      typeof recorder.start === 'function') {
+    const original = recorder.start;
+    try {
+      recorder.start = function () {
+        const result = original.apply(this, arguments);
+        state.recordings = Math.min(9999, state.recordings + 1);
+        try {
+          win.document?.dispatchEvent(new win.Event('ytaf-voice-search-status'));
+        } catch (_) {}
+        return result;
+      };
+      if (recorder.start !== original) state.recorderPrototypes.push(recorder);
+    } catch (_) {}
+  }
   const mark = (selected, route) => {
     const changed =
       state.lastLanguage !== selected || state.lastRoute !== route;
@@ -303,6 +325,22 @@ export function microphoneStatusReport(report) {
     );
   return lines.join('\n');
 }
+export function voiceSearchSummary(win, report = '') {
+  const state = win.__ytafVoiceSearch;
+  const selected = state && voiceLanguage(state.read('voiceSearchLanguage'));
+  const label = voiceLanguages.find(option => option.value === selected)?.label ||
+    'YouTube default';
+  const count = value => Number.isInteger(value) ? Math.max(0, Math.min(9999, value)) : 0;
+  const used = selected && state?.lastLanguage === selected;
+  return [
+    'Voice search: ' + label,
+    !selected ? 'Language: chosen by YouTube' : used
+      ? 'Language override requested; recognition language is not confirmed'
+      : 'Language override has not reached a matching recognition request',
+    `Recordings: ${count(state?.recordings)} · Recognizer starts: ${count(state?.starts)} · Voice requests: ${count(state?.requests)}`,
+    ...(report ? [microphoneStatusReport(report)] : [])
+  ].join('\n');
+}
 export function createVoiceSettings(doc, win, choices, read, write) {
   win.__ytafDisposeVoiceSettings?.();
   const panel = doc.createElement('div');
@@ -322,7 +360,9 @@ export function createVoiceSettings(doc, win, choices, read, write) {
     'Use the microphone in YouTube Search. Hungarian requests recognition in Magyar while the TV can stay in English. Wake the Magic Remote first. The TV language is unchanged; this does not translate the settings menu. Voice audio goes to YouTube/Google for recognition when you start a search.';
   panel.appendChild(help);
   const status = doc.createElement('div');
+  status.id = '__voice_status';
   status.className = 'ytaf-setting-help';
+  status.setAttribute('aria-live', 'polite');
   panel.appendChild(status);
   let nativeStatus = '';
   const refresh = (readNative = false) => {
@@ -342,7 +382,7 @@ export function createVoiceSettings(doc, win, choices, read, write) {
       win.__ytafVoiceSearch?.lastLanguage === voiceLanguage(selected);
     status.textContent =
       (attempted ? 'Last search requested: ' : 'Next voice search: ') +
-      label +
+      label + '\n' + voiceSearchSummary(win) +
       (nativeStatus ? '\n' + nativeStatus : '');
   };
   // No native report collection while constructing hidden settings at startup.

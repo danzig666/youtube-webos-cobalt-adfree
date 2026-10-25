@@ -4,10 +4,52 @@ import {
   installVoiceSearch,
   microphoneStatusReport,
   voiceSearchReport,
+  voiceSearchSummary,
   voiceRequestBody,
   voiceRequestUrl,
   voiceLanguage
 } from '../src/voice-search.mjs';
+
+test('YouTube MediaRecorder starts are counted without consuming audio or changing capture behavior', () => {
+  const f = fixture();
+  let starts = 0;
+  class Recorder {
+    start(timeslice) {
+      if (timeslice < 0) throw Error('invalid start');
+      starts++;
+      return timeslice;
+    }
+    get ondataavailable() { throw Error('audio must not be inspected'); }
+  }
+  f.win.MediaRecorder = Recorder;
+  installVoiceSearch(f.win, f.read);
+  installVoiceSearch(f.win, f.read);
+  const recorder = new Recorder();
+  assert.equal(recorder.start(100), 100);
+  assert.throws(() => recorder.start(-1), /invalid start/);
+  assert.equal(starts, 1);
+  assert.equal(f.win.__ytafVoiceSearch.recordings, 1);
+  assert.match(voiceSearchSummary(f.win), /Recordings: 1/);
+  assert.match(voiceSearchSummary(f.win), /has not reached/);
+  f.win.__ytafVoiceSearch.recordings = 9999;
+  recorder.start(100);
+  assert.equal(f.win.__ytafVoiceSearch.recordings, 9999);
+});
+
+test('short voice summary distinguishes capture from language override and excludes private fields', async () => {
+  const f = fixture();
+  const native = 'Magic Remote microphone: Stopped\nMicrophone audio bytes: 48000; non-silent: yes\nSecret account: private\n';
+  assert.match(voiceSearchSummary(f.win, native), /Hungarian \/ Magyar/);
+  assert.match(voiceSearchSummary(f.win, native), /has not reached/);
+  await f.win.fetch('/api/tv/voice?lang=en&key=private', {method:'POST',body:'private'});
+  const summary = voiceSearchSummary(f.win, native);
+  assert.match(summary, /override requested; recognition language is not confirmed/);
+  assert.match(summary, /Voice requests: 1/);
+  assert.match(summary, /Audio received: 48000 bytes/);
+  assert.doesNotMatch(summary, /private|Secret|https|\/api/);
+  f.set('youtube');
+  assert.match(voiceSearchSummary(f.win), /chosen by YouTube/);
+});
 
 test('voice metadata conversion does not enter later response-parser hooks or reserialize an unchanged request', () => {
   const original = JSON.parse;

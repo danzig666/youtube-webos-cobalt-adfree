@@ -1,5 +1,5 @@
 import {capabilityQueryReport} from './media-capability-queries.mjs';
-import {voiceSearchReport} from './voice-search.mjs';
+import {voiceSearchReport, voiceSearchSummary} from './voice-search.mjs';
 import { startupReport, startupSummary } from './startup-timing.mjs';
 import { createCapabilityTest } from './capability-test.mjs';
 import { homeRefreshReport } from './home-refresh.mjs';
@@ -90,7 +90,7 @@ export function playbackSummary(doc, win, nativeReport) {
     sponsor.fetchStatus === 'fetch-error' ? 'Could not load segments' :
     Array.isArray(sponsor.segments) && sponsor.segments.length ? `${sponsor.segments.length} segments loaded` :
     sponsor.fetchStatus === 'no-segments' ? 'No segments for this video' : 'Waiting for segments';
-  return `Latest playback decoder\n${decoder}\n${startupSummary(win, nativeReport)}\nPlayback: ${state}\nSponsorBlock: ${sponsorStatus}`;
+  return `Latest playback decoder\n${decoder}\n${startupSummary(win, nativeReport)}\nPlayback: ${state}\nSponsorBlock: ${sponsorStatus}\n\n${voiceSearchSummary(win, nativeReport)}`;
 }
 export function createPlaybackDiagnostics(doc, win) {
   const panel = doc.createElement('div'); panel.className = 'ytaf-playback-diagnostics';

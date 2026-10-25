@@ -63,6 +63,10 @@ with sync_playwright() as p:
         assert requests[-1]['body']['context']['client']['hl'] == 'hu'
         assert requests[-1]['body']['audio'] == 'test-fixture'
         assert requests[-1]['headers']['accept-language'] == 'hu-HU,hu;q=0.9'
+        page.keyboard.press('=')
+        page.locator('#__voice_language').focus()
+        assert 'Voice requests: 1' in page.locator('#__voice_status').inner_text()
+        assert 'recognition language is not confirmed' in page.locator('#__voice_status').inner_text()
         page.reload()
         page.wait_for_function('window.__ytafUiInitialized')
         page.keyboard.press('=')
