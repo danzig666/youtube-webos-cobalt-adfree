@@ -1,0 +1,11 @@
+{
+  "repository": "danzig666/youtube-webos-cobalt-adfree",
+  "source_sha": "0b6952608c7b000f235ea017d25fca53a5a95100",
+  "version": "2.6.36",
+  "tag": "v2.6.36-beta.1",
+  "title": "2.6.36 beta 1 \u2014 Firmware-only AAC and cold-start diagnostics",
+  "native_run": 40176776914,
+  "ci_run": 40176776947,
+  "artifact_id": 12593177618,
+  "update_catalog": false
+}
