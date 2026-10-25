@@ -227,6 +227,20 @@ already played audio. `YTAF_AAC_DECODER=fdk` forces the previous bundled decoder
 for developer rollback. Both decoders stay packaged. Diagnostics distinguish
 `Firmware-FFmpeg59` from `FDK-AAC`.
 
+### C4 / webOS 26 feedback (2026-10-25)
+
+A C4 on firmware 43.21.73 reportedly cannot play livestreams with the 2.6.36
+firmware-only experiment, while 2.6.35 restores playback. Its Diagnostics summary
+identifies the bundled FDK fallback. This is evidence that the fallback remains
+necessary on this configuration; it does not identify whether firmware loading,
+ABI compatibility or startup decoding failed. The firmware adapter remains
+limited to the verified FFmpeg 59 / avutil 57 ABI. No arbitrary newer ABI is loaded
+and no C4-specific timing offset is inferred from this result.
+
+Normal package builds retain FDK. Firmware-only packages remain an explicit
+manual experiment, and 2.6.35 remains the compatibility recommendation. See the
+[device feedback and packaging decision](cold-start-firmware-aac-experiment.md#c4-compatibility-decision).
+
 Host regression tests decode the actual fixture with 100 alternating seek
 positions, checking every PCM timestamp and EOS, plus malformed input and
 missing-library rejection. Actual C3 livestream playback, DVR seek, pause/resume,

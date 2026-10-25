@@ -12,9 +12,11 @@ first document/frame need to be distinguished from later webapp work.
   record from the TV package. It requires a runtime with safe missing-FDK
   handling. Copyright notices remain. Normal packaging defaults to including
   FDK; the workflow's `bundle_aac` input selects the profile.
-- Owner-authored pushes changing the native build workflow create firmware-only
-  test artifacts. Scheduled builds retain FDK. No build automatically publishes
-  a release; the checked publisher requires a separate pinned manifest.
+- Push and scheduled builds retain FDK. Firmware-only packages require an
+  explicit manual workflow dispatch with `bundle_aac=false`. Earlier experiment
+  push builds omitted FDK; that automatic omission was reverted after the C4
+  webOS 26 livestream failure below. No build automatically publishes a release;
+  the checked publisher requires a separate pinned manifest.
 - Missing firmware and missing fallback cause a regular decoder error, never
   construction of an unavailable FDK decoder. Legacy Starfish video and shared
   Opus playback remain available. This does not add compressed AAC to Starfish.
@@ -53,7 +55,8 @@ ARM Gold binaries, 413 web tests, the complete native host suite, nine packaging
 tests and 720p/1080p settings checks passed. The published IPKs contain no
 FDK-AAC library or FDK build record; their required runtime libraries and legal
 notices remain. The normal Homebrew catalog was verified unchanged at 2.6.35.
-C3 playback and cold-start speed remain to be measured.
+The device feedback below records subsequent playback and startup observations;
+these host/build checks do not establish cross-device playback compatibility.
 
 ## Device feedback — 2026-10-25
 
@@ -61,6 +64,26 @@ C3 playback and cold-start speed remain to be measured.
 | --- | --- | --- |
 | LG C3 | Firmware-only test build works; user reports startup before the YouTube logo is much shorter. | Subjective speed comparison, without a matched before/after stopwatch measurement. Screenshot of 2.6.36 reports audio ready at 13 ms, SDL at 60 ms, graphics at 151 ms and font catalog at 177 ms. These are cumulative native milestones and exclude loading before `main`. That screenshot alone does not identify the audio backend: its latest decoder selection is unknown. |
 | LG C4 | Third-party report: playback works; “There is a slight desync in audio playback with 2.6.35 and 2.6.36 compared to YTAFNB.” | Direction, amount, drift behavior, active codec/backend, firmware and audio output route are unknown. The maintainer relaying the report has not personally noticed it. This is an unconfirmed sync report and partial compatibility feedback, not complete playback validation. |
+| LG C4, webOS 26, firmware 43.21.73 | Follow-up: livestreams fail in firmware-only 2.6.36 and work again in 2.6.35. The supplied Diagnostics screenshot identifies “Bundled AAC decoder (FDK fallback)”. | This narrows the earlier general playback report: firmware-only livestream compatibility is not established on this C4. The screenshot shows the working fallback selection, not a 2.6.36 decoder failure trace. It does not establish why firmware AAC was rejected or failed. |
+
+### C4 compatibility decision
+
+Keep 2.6.35 as the recommended compatibility release for this configuration.
+Retain the packaged FDK fallback in all normal push, scheduled and default manual
+builds; keep firmware-only packaging explicitly opt-in. This does not disable
+firmware AAC on TVs where it works or revert the independent startup changes.
+
+The adapter currently accepts firmware libavcodec 59 / libavutil 57 and requires
+compatible 32-bit libraries. A different ABI, unavailable libraries or a startup
+decode failure can select FDK; the current report does not distinguish them.
+The capability test's firmware AAC inventory/probe and a failed 2.6.36 playback
+log would distinguish those cases. No model-based decoder rule is justified yet.
+
+LG config/system queries report LS2 registration permission denied (-1027) in the
+same screenshot, and the Starfish limit query is unavailable. These are separate
+diagnostic failures; they do not prove that AAC decoding requires those queries
+or that a permission error caused the firmware-only playback failure. The working
+FDK selection is positive evidence to preserve the compatibility fallback.
 
 ### Initial sync investigation
 

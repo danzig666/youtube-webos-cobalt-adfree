@@ -307,7 +307,9 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || inputs.build_type == 'gold'
         shell: bash
         env:
-          YTAF_PACKAGE_FDK_AAC: ${{ (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.bundle_aac == false)) && '0' || '1' }}
+          # Firmware-only packages are an explicit experiment. The C4 on
+          # webOS 26 needs the bundled fallback for livestream playback.
+          YTAF_PACKAGE_FDK_AAC: ${{ github.event_name == 'workflow_dispatch' && inputs.bundle_aac == false && '0' || '1' }}
         run: |
           set -euo pipefail
           exec > >(tee "$GITHUB_WORKSPACE/output/gold-package.log") 2>&1
