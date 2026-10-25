@@ -60,7 +60,7 @@ C3 playback and cold-start speed remain to be measured.
 | Device | Report | Limits of the observation |
 | --- | --- | --- |
 | LG C3 | Firmware-only test build works; user reports startup before the YouTube logo is much shorter. | Subjective speed comparison, without a matched before/after stopwatch measurement. Screenshot of 2.6.36 reports audio ready at 13 ms, SDL at 60 ms, graphics at 151 ms and font catalog at 177 ms. These are cumulative native milestones and exclude loading before `main`. That screenshot alone does not identify the audio backend: its latest decoder selection is unknown. |
-| LG C4 | Playback reported working, with slight audio/video desynchronization. | Build version, active codec/backend, firmware, audio output route, offset direction and whether it is constant or drifting are not yet confirmed. This is partial compatibility feedback, not a complete playback validation. |
+| LG C4 | Third-party report: playback works; “There is a slight desync in audio playback with 2.6.35 and 2.6.36 compared to YTAFNB.” | Direction, amount, drift behavior, active codec/backend, firmware and audio output route are unknown. The maintainer relaying the report has not personally noticed it. This is an unconfirmed sync report and partial compatibility feedback, not complete playback validation. |
 
 ### Initial sync investigation
 
@@ -80,3 +80,9 @@ No automatic A/V offset has been added from this report. The next useful evidenc
 is whether audio leads or trails the picture, and whether the offset is constant,
 grows over time, or appears after seeking/pause. Firmware/video presentation and
 the audio output path remain possible causes, not established diagnoses.
+
+The reporter names both 2.6.35 (bundled fallback present) and 2.6.36 (fallback
+omitted), compared with YTAFNB. The observation is therefore not specific to
+removing the bundled library. Both versions can select firmware FFmpeg AAC, so
+this comparison does not rule that decoder path in or out. No global delay or
+model-specific timing policy is justified by the currently available evidence.
