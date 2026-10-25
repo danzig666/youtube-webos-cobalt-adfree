@@ -67,6 +67,8 @@ Press **GREEN** to open settings. Use arrows and **OK**, the cursor or the wheel
 
 **Hungarian voice search:** in **YouTube’s own Settings → Language**, choose **Magyar**, then use the microphone inside YouTube Search. The TV may stay in English. This works on the tested C3 with the original-ID package. The physical remote microphone button can still launch LG’s system assistant. [Details](docs/hungarian-voice-search.md).
 
+**Ad blocking defaults on.** Home, continuation and Shorts ads are filtered before YouTube renders the response, including nested ad tiles and mastheads. Sponsored QR blocking has its own switch. Adapted from [upstream #119](https://github.com/RF1705/youtube-webos-cobalt-adfree/pull/119), with our Cobalt DOM fallback retained. [Details](docs/early-ad-filtering.md).
+
 Four optional display controls are under **General** and default off. Logo visibility changes immediately; feed/video filters apply when the next response loads. Use Home refresh when desired. Sharper thumbnails depend on YouTube’s available image variants. These options do not automatically refresh the Home feed or disable normal sign-in.
 
 Use **Diagnostics → Run capability test** to inspect the TV’s reported panel/HDR flags and decoder limits in the existing scrolling log. The test uses ordinary LS2 client queries and explains denied/empty replies. Identical decoder ceilings are not proof of panel resolution or HDR. Missing fields stay unknown; the test changes no settings. See [test details](docs/tv-capability-test.md).

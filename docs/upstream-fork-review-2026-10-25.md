@@ -5,7 +5,8 @@ Compared our branch at `0fbee1f1a77da86543aec4a2a8b4098566052687`
 with RF1705 main `34823b47e43ee11b907002eb82ff76bbe4040031`.
 Enumerated all 18 direct forks returned by GitHub, including ours, and inspected
 branches of the other 17. Also checked the detached LawfulGremlin fork and the
-NicholasBly reference project. This is a review; no runtime adaptation is included.
+NicholasBly reference project. This document records the review at that time.
+Early ad filtering has since been [adapted into this fork](early-ad-filtering.md).
 
 ## Worth adapting
 

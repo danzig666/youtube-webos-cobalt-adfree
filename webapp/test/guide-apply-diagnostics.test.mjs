@@ -1,3 +1,5 @@
+import {rememberPlayerChannel} from '../src/sponsorblock-channels.mjs';
+import {applyAdResponseFilters} from '../src/ad-response-filter.mjs';
 import {markStartup} from '../src/startup-timing.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -10,7 +12,7 @@ const source = readFileSync(new URL('../src/adblock-preload.js', import.meta.url
 
 test('class constructor call site discovers J without invoking the constructor', () => {
   let enabled = true;
-  const context = vm.createContext({markStartup,rememberPlaybackMetadata,
+  const context = vm.createContext({applyAdResponseFilters,rememberPlayerChannel,markStartup,rememberPlaybackMetadata,
     ...filters,
     configRead: () => enabled,
     window: {},
@@ -46,7 +48,7 @@ test('class constructor call site discovers J without invoking the constructor',
 for (const failInCaller of [true, false]) {
   test(`guide failure reports target exception even when caller would throw: ${failInCaller}`, () => {
     const logs = [];
-    const context = vm.createContext({markStartup,rememberPlaybackMetadata,
+    const context = vm.createContext({applyAdResponseFilters,rememberPlayerChannel,markStartup,rememberPlaybackMetadata,
       ...filters,
       configRead: () => false,
       window: {},
@@ -70,3 +72,26 @@ for (const failInCaller of [true, false]) {
     assert.ok(logs.some(([, error]) => error?.message === 'missing renderer context'));
   });
 }
+
+test('cached guide reapplication uses the current adblock switch without losing its original entries', () => {
+  let blockAds = true;
+  const context = vm.createContext({markStartup,rememberPlaybackMetadata,rememberPlayerChannel,
+    applyAdResponseFilters,...filters,configRead:key=>key==='enableAdBlock'?blockAds:key==='enableShorts',
+    window:{},console:{info(){},log(){},warn(){},error(){}}});
+  vm.runInContext(`const app = {
+    Z(response) { this.J({guideResponse: response}); },
+    J(state) { this.state=state; }
+  };
+  const document={addEventListener(){},querySelector:()=>({__instance:app})};`,context);
+  vm.runInContext(source.slice(source.indexOf('if (!window.__ytafPreloadExecuted)')),context);
+  context.input=JSON.stringify({items:[{guideSectionRenderer:{items:[
+    {guideEntryRenderer:{icon:{iconType:'WHAT_TO_WATCH'}}},
+    {richItemRenderer:{content:{adSlotRenderer:{}}}}
+  ]}}]});
+  assert.equal(vm.runInContext('JSON.parse(input).items[0].guideSectionRenderer.items.length',context),1);
+  for(const enabled of [false,true,false]) {
+    blockAds=enabled;
+    assert.equal(vm.runInContext('window.__ytafApplyShortsState()',context),'success:Z->J');
+    assert.equal(vm.runInContext('app.state.guideResponse.items[0].guideSectionRenderer.items.length',context), enabled?1:2);
+  }
+});

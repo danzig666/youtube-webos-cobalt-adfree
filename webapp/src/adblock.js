@@ -3,7 +3,7 @@ import {rememberPlaybackMetadata} from './playback-metadata.mjs';
 /* global fetch:writable */
 import { configRead } from './config';
 import { rememberPlayerChannel } from './sponsorblock-channels.mjs';
-import { stripSponsoredQrCodePopups } from './sponsored-qr-code-block.mjs';
+import { applyAdResponseFilters } from './ad-response-filter.mjs';
 import './adblock.css';
 
 const AD_RENDERER_SELECTOR = [
@@ -129,132 +129,15 @@ document.addEventListener(
   true
 );
 
-const AD_KEYS = [
-  'adBreakHeartbeatParams',
-  'adBreakParams',
-  'adPlacements',
-  'adSlots',
-  'adSignalsInfo',
-  'adVideoId',
-  'playerAds'
-];
-
-const REEL_AD_VIDEO_TYPE = 'REEL_VIDEO_TYPE_AD';
-
-function stripYouTubeAds(value, depth = 0) {
-  if (!value || typeof value !== 'object' || depth > 8) return false;
-
-  let changed = false;
-  AD_KEYS.forEach((key) => {
-    if (Object.prototype.hasOwnProperty.call(value, key)) {
-      value[key] = Array.isArray(value[key]) ? [] : null;
-      changed = true;
-    }
-  });
-
-  Object.keys(value).forEach((key) => {
-    const child = value[key];
-    if (key === 'tvMastheadRenderer') {
-      delete value[key];
-      changed = true;
-      return;
-    }
-    if (child && typeof child === 'object') {
-      changed = stripYouTubeAds(child, depth + 1) || changed;
-    }
-  });
-
-  return changed;
+// Older runtimes may not execute the early preload. Keep a fallback without
+// adding a second parser/filter pass when preload already owns responses.
+if (!window.__ytafResponseFilterInstalled) {
+  const origParse = JSON.parse;
+  JSON.parse = function () {
+    const value = origParse.apply(this, arguments);
+    rememberPlayerChannel(window, value);
+    rememberPlaybackMetadata(window, value);
+    applyAdResponseFilters(value, configRead);
+    return value;
+  };
 }
-
-function isAdditionalAdEntry(value) {
-  if (!value || typeof value !== 'object') return false;
-
-  if (Object.prototype.hasOwnProperty.call(value, 'adSlotRenderer')) {
-    return true;
-  }
-
-  const reelEndpoints = [
-    value.command?.reelWatchEndpoint,
-    value.onSelectCommand?.reelWatchEndpoint,
-    value.navigationEndpoint?.reelWatchEndpoint,
-    value.reelItemRenderer?.navigationEndpoint?.reelWatchEndpoint,
-    value.tileRenderer?.onSelectCommand?.reelWatchEndpoint
-  ];
-
-  return reelEndpoints.some((endpoint) => {
-    const isAd = endpoint?.adClientParams?.isAd;
-
-    return (
-      isAd === true ||
-      isAd === 'true' ||
-      endpoint?.videoType === REEL_AD_VIDEO_TYPE
-    );
-  });
-}
-
-// YouTube changes the nesting of browse and Shorts responses frequently. Remove
-// the matching renderer wherever it occurs instead of relying on one response path.
-function stripAdditionalYouTubeAds(value, depth = 0) {
-  if (!value || typeof value !== 'object' || depth > 32) return false;
-
-  let changed = false;
-
-  if (Array.isArray(value)) {
-    for (let index = value.length - 1; index >= 0; index -= 1) {
-      if (isAdditionalAdEntry(value[index])) {
-        value.splice(index, 1);
-        changed = true;
-      } else {
-        changed = stripAdditionalYouTubeAds(value[index], depth + 1) || changed;
-      }
-    }
-    return changed;
-  }
-
-  Object.keys(value).forEach((key) => {
-    if (key === 'adSlotRenderer') {
-      delete value[key];
-      changed = true;
-      return;
-    }
-
-    changed = stripAdditionalYouTubeAds(value[key], depth + 1) || changed;
-  });
-
-  return changed;
-}
-
-/**
- * This is a minimal reimplementation of the following uBlock Origin rule:
- * https://github.com/uBlockOrigin/uAssets/blob/3497eebd440f4871830b9b45af0afc406c6eb593/filters/filters.txt#L116
- *
- * This in turn calls the following snippet:
- * https://github.com/gorhill/uBlock/blob/bfdc81e9e400f7b78b2abc97576c3d7bf3a11a0b/assets/resources/scriptlets.js#L365-L470
- *
- * Seems like for now dropping just the adPlacements is enough for YouTube TV
- */
-const origParse = JSON.parse;
-JSON.parse = function () {
-  const r = origParse.apply(this, arguments);
-  rememberPlayerChannel(window, r);
-  rememberPlaybackMetadata(window, r);
-
-  if (configRead('enableAdBlock')) {
-    if (stripYouTubeAds(r)) {
-      console.log('Adblock Removed !');
-    }
-    if (stripAdditionalYouTubeAds(r)) {
-      console.log('Adblock Removed additional renderers !');
-    }
-  }
-
-  if (
-    configRead('enableSponsoredQrCodeBlock') &&
-    stripSponsoredQrCodePopups(r)
-  ) {
-    console.log('Adblock Removed sponsored QR code popups !');
-  }
-
-  return r;
-};

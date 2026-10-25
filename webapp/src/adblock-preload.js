@@ -3,6 +3,8 @@ import {installMediaCapabilityQueries} from './media-capability-queries.mjs';
 installMediaCapabilityQueries(window,document);
 import { markStartup } from './startup-timing.mjs';
 import {rememberPlaybackMetadata} from './playback-metadata.mjs';
+import {rememberPlayerChannel} from './sponsorblock-channels.mjs';
+import {applyAdResponseFilters} from './ad-response-filter.mjs';
 import { installMediaSourceDiagnostics } from './media-source-diagnostics.mjs';
 installMediaSourceDiagnostics(window);
 import { configRead } from './config.js';
@@ -184,6 +186,8 @@ if (!window.__ytafPreloadExecuted) {
         stripShortsFromBrowseResponse(guideResponse);
       }
 
+      applyAdResponseFilters(guideResponse, configRead);
+
       try {
         // The caller only identifies the target and its argument shape. It may
         // be a class constructor (e.g. Z/VUb), not a callable guide callback.
@@ -217,6 +221,7 @@ if (!window.__ytafPreloadExecuted) {
 
       try {
         const value = downstreamParse.apply(this, arguments);
+        rememberPlayerChannel(window, value);
         rememberPlaybackMetadata(window, value);
         if(configRead('hideEndScreens')||configRead('enhanceThumbnails')||configRead('hideGuestPrompts')) {
           try {applyDisplayFilters(value,{
@@ -238,6 +243,7 @@ if (!window.__ytafPreloadExecuted) {
           console.log('[ytaf preload] Shorts blocker removed response entries');
         }
 
+        applyAdResponseFilters(value, configRead);
         return value;
       } finally {
         parsing = false;
@@ -260,6 +266,7 @@ if (!window.__ytafPreloadExecuted) {
     } else {
       JSON.parse = ytafParse;
     }
+    window.__ytafResponseFilterInstalled = JSON.parse === ytafParse;
   }
 
   console.info('[ytaf preload] Early hooks installed');
