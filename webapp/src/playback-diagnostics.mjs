@@ -1,5 +1,5 @@
 import {capabilityQueryReport} from './media-capability-queries.mjs';
-import {voiceSearchReport, voiceSearchSummary} from './voice-search.mjs';
+import {microphoneStatusReport} from './microphone-status.mjs';
 import { startupReport, startupSummary } from './startup-timing.mjs';
 import { createCapabilityTest } from './capability-test.mjs';
 import { homeRefreshReport } from './home-refresh.mjs';
@@ -52,7 +52,6 @@ export function frontendPlaybackReport(doc,win) {
     `Resume: ${win.__ytafResume?.status || 'not initialized'}`,
     `Local fallback: ${win.__ytafResume?.localStatus || 'not initialized'}`,
     `Auto quality startup: ${win.__ytafAutoQuality?.status || 'not initialized'}`,
-    voiceSearchReport(win),
     clockReport(win),
     capabilityQueryReport(win),
     `Thumbnail progress: ${win.__ytafThumbnailProgress?.status || 'not initialized'}`,
@@ -90,7 +89,7 @@ export function playbackSummary(doc, win, nativeReport) {
     sponsor.fetchStatus === 'fetch-error' ? 'Could not load segments' :
     Array.isArray(sponsor.segments) && sponsor.segments.length ? `${sponsor.segments.length} segments loaded` :
     sponsor.fetchStatus === 'no-segments' ? 'No segments for this video' : 'Waiting for segments';
-  return `Latest playback decoder\n${decoder}\n${startupSummary(win, nativeReport)}\nPlayback: ${state}\nSponsorBlock: ${sponsorStatus}\n\n${voiceSearchSummary(win, nativeReport)}`;
+  return `Latest playback decoder\n${decoder}\n${startupSummary(win, nativeReport)}\nPlayback: ${state}\nSponsorBlock: ${sponsorStatus}\n\nVoice search language: YouTube setting\n${microphoneStatusReport(nativeReport)}`;
 }
 export function createPlaybackDiagnostics(doc, win) {
   const panel = doc.createElement('div'); panel.className = 'ytaf-playback-diagnostics';

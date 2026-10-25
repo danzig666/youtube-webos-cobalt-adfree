@@ -1,117 +1,53 @@
 # Hungarian in-app voice search
 
-Under **GREEN → General → Voice search language**, choose **Hungarian / Magyar**.
-Then open YouTube Search and select its microphone using the remote's OK button
-or cursor. Wake the Magic Remote first. The TV can remain in English.
+In **YouTube's own Settings → Language**, choose **Magyar**. Then open YouTube
+Search and select its microphone with OK or the Magic Remote cursor. The TV can
+remain English; YouTube's menus and voice search will use Hungarian.
+[YouTube language settings](https://support.google.com/youtube/answer/87604?hl=en).
 
-If the voice-only override is ignored, try **YouTube's own Settings → Language →
-Magyar** in the existing installation. This also changes YouTube's menus; webOS
-can remain English. [YouTube documents that its language setting changes Voice
-Search language](https://support.google.com/youtube/answer/87604?hl=en).
-This is a workaround to test on the TV, not confirmation that our independent
-voice-language setting works.
+The separate GREEN-menu voice-language selector and its request/recognizer
+overrides have been removed. Existing saved override values are ignored and
+discarded on the next settings save. YouTube controls recognition language.
 
-The other choices are YouTube default and English. Preferences persist through
-the existing private app store. This setting does not translate the GREEN menu
-or change webOS settings. The physical microphone button can still open LG's
-system assistant; that assistant retains LG's own speech language configuration.
+## Confirmed on the C3
 
-## Implementation
+The tester confirmed audio capture and transcription with the original-ID
+`youtube.leanback.v4` 2.6.39 package, then confirmed Hungarian recognition after
+setting YouTube's language to Magyar. The separate-ID
+`com.cobalt.youtube.adfree` package returned LG recording error 300 with zero
+audio bytes on this TV. This suggests an app-identity restriction; it does not
+define the general meaning of error 300. C4 microphone support is unverified.
+
+The physical microphone button can still launch LG's system assistant, which
+uses LG's own language settings. The EN label on YouTube's microphone screen
+was not an operable language picker on the tested C3.
+
+## Microphone implementation
 
 The native microphone is adapted from RF1705 upstream commit
-`34823b47e43ee11b907002eb82ff76bbe4040031`, including the capture and shutdown work
-in [#116](https://github.com/RF1705/youtube-webos-cobalt-adfree/pull/116) and
+`34823b47e43ee11b907002eb82ff76bbe4040031`, including
+[#116](https://github.com/RF1705/youtube-webos-cobalt-adfree/pull/116) and
 [#118](https://github.com/RF1705/youtube-webos-cobalt-adfree/pull/118).
-It borrows the app-named libhelpers connection and requests voiceconductor's
+It borrows the app-named libhelpers LS2 connection and requests voiceconductor's
 recordVoice PCM socket. This supplies mono 16-bit 16 kHz audio to Cobalt's
-existing microphone/MediaRecorder path. It does not call LG's English recognizer.
+MediaRecorder path. YouTube/Google performs recognition.
 
-Recognition remains with YouTube/Google. No separate speech server, API key or
-offline recognition model is introduced. Audio is sent through YouTube's normal
-voice-search route only when the user starts a search; it is not saved to disk
-or included in logs. Native buffers are bounded, preserve sample alignment and
-unread data, and are cleared on close. Recording sessions have a 30-second limit.
+Voice libraries load on demand. Buffers are bounded and cleared on close;
+recording sessions last at most 30 seconds. Backgrounding or stopping the app
+closes the microphone. Returning to the app permits a new capture without
+reopening it automatically. Missing helper support or service permissions
+produces a microphone error. Native capture and its cleanup are unchanged by
+removing the language override.
 
-The preload applies an explicit `hu-HU` language when a Web Speech recognizer
-starts. For YouTube/Google voice HTTP requests, it replaces existing language
-query fields, YouTube client `hl`, and supported JSON recognition-language
-fields, and supplies Accept-Language. Fetch and XHR hooks preserve unrelated
-queries, authentication, binary audio, request credentials and abort signals.
-They leave ordinary playback/search/feed requests unchanged. Unknown settings
-fall back to YouTube default. Nothing initiates recording automatically.
-
-Voice libraries are resolved on demand with guarded symbols; they do not become
-new eager GLib/LS2 loader dependencies. JSON-C 0.18 is statically linked from the
-pinned SDK and its MIT notice is packaged. The app does not create extra LS2
-roles or require root. Missing helpers, permissions or service support fail
-capture normally. Shared-dispatch tasks time out before starting; cancelled tasks
-cannot retain stack references. If a dispatcher stalls during cleanup, subscribed
-userdata stays alive until cancellation can run. A new capture uses fresh state.
-Backgrounding or stopping the application closes the microphone and prevents
-hidden recording. Returning to the app permits a new capture without reopening
-the microphone automatically.
-
-## Diagnostics and limits
-
-Focus the voice-language control after a search to see the requested language
-and native microphone state. Diagnostics includes fixed recognition-attempt and
-voice-request counters. It never includes audio, transcriptions, search
-queries, recording tickets, socket paths, authorization or service URLs. Reading
-the voice control does not collect a native report during hidden-menu startup.
-
-Counters show that an override was requested, not that the recognition service
-accepted it or produced Hungarian text. Service-selected language can depend on
-the YouTube client and endpoint. A protobuf-only or changed recognition request
-may need further adaptation. Actual Hungarian recognition still requires a TV
-test. The C3 capture result below applies to the original app ID; C4 capture is
-unverified. Upstream's capture test was on a Nano85.
+The short Diagnostics summary shows native microphone state, a fixed failure
+operation/numeric code, and delivered-byte/non-silent counters. It includes no
+recordings, transcripts, search queries, recording tickets, socket paths or
+authentication data. Hidden settings do not collect native reports at startup.
 
 ## Validation
 
-- `npm --prefix webapp test`: recognizer language, endpoint/metadata isolation,
-  fetch/XHR/Request handling, binary streaming, abort signals, persistence,
-  duplicate installation, locked APIs and diagnostic privacy.
-- `bash scripts/test-webos-microphone.sh`: real socket PCM, overflow, reopen,
-  delayed tickets/replies, shared dispatcher interruption, bounded close/open,
-  native helper ABI and lazy library symbol resolution.
-- `bash scripts/test-native-host.sh <Cobalt 23.lts.6 checkout>`: full host suite
-  with the overlay applied twice. Requires pkg-config, GLib/json-c headers.
-- `python3 scripts/test-voice-search-browser.py`: actual production UI at 720p
-  and 1080p; cursor choice and persistence, mocked Hungarian voice request with
-  English browser locale, unchanged audio, and no hidden startup report.
-- `python3 scripts/test-settings-browser.py`: all categories and dropdowns.
-- ARMv7 softfp C++14 compilation of the native capture/library sources and
-  inspection for eager GLib/LS2 references. Full Gold workflow checks remain
-  separate from on-TV speech recognition validation.
-
-The bundled AAC fallback and existing legacy/shared playback paths are retained.
-
-## C3 follow-up and 2.6.39 test
-
-The tester reports that the on-screen YouTube microphone fails and the native
-status becomes Unavailable. The physical microphone button opens LG's assistant.
-Enabling LG voice recognition did not establish working in-app capture. The EN
-label was not an operable language picker on this screen; changing it is not a
-verified workaround.
-
-2.6.39 tries the SDK's public app connection if the private connection is absent,
-has no dispatcher, or cannot accept the initial recording call. It does not start
-a second subscription after the first was accepted. The setting displays a fixed
-failure operation/symbol, numeric LG error code when present, and delivered audio
-byte/non-silent counters. These are diagnostics, not recordings or transcripts.
-The fallback is a compatibility candidate and still needs the C3 test.
-
-The C3 tester subsequently confirmed that **the original-ID
-`youtube.leanback.v4` 2.6.39 package captures audio and transcribes speech**.
-The separate-ID `com.cobalt.youtube.adfree` package returned LG recording error
-300 with zero audio bytes on this TV. This comparison suggests an app-identity
-restriction on that firmware; it does not establish support on other TVs or
-define the general meaning of error 300. Hungarian recognition still fails even
-with working capture. Do not describe the Hungarian setting as TV-validated.
-
-Voice status is now shown directly under the General voice-language setting
-and in the short summary above Diagnostics technical details. It distinguishes
-MediaRecorder starts, Web Speech starts, matching voice requests and native
-audio delivery. Recording counters observe only successful `start()` calls;
-they do not read audio. A recording alone does not prove a language override
-reached the recognizer, and an override does not prove service acceptance.
+- `npm --prefix webapp test`
+- `npm --prefix webapp run build -- --env production`
+- `python3 scripts/test-settings-browser.py`
+- `bash scripts/test-webos-microphone.sh` for native capture changes
+- `bash scripts/test-native-host.sh <Cobalt 23.lts.6 checkout>` for native changes

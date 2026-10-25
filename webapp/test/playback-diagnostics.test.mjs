@@ -80,13 +80,10 @@ test('decoder summary clearly distinguishes TV firmware, bundled fallback and un
   assert.doesNotMatch(playbackSummary(doc,{},'Audio decoder: secret token\n'),/secret|token/);
 });
 
-test('voice status is in the top diagnostics summary without searching the technical log',()=>{
+test('microphone status stays in the summary and language follows YouTube',()=>{
   const doc={querySelector:()=>null};
-  const win={__ytafVoiceSearch:{read:()=> 'hu-HU',recordings:1,requests:0,starts:0}};
-  const summary=playbackSummary(doc,win,'Magic Remote microphone: Stopped\nMicrophone audio bytes: 32000; non-silent: yes\n');
-  assert.match(summary,/Voice search: Hungarian \/ Magyar/);
-  assert.match(summary,/has not reached a matching recognition request/);
-  assert.match(summary,/Recordings: 1/);
+  const summary=playbackSummary(doc,{},'Magic Remote microphone: Stopped\nMicrophone audio bytes: 32000; non-silent: yes\n');
+  assert.match(summary,/Voice search language: YouTube setting/);
   assert.match(summary,/Microphone: Stopped/);
   assert.match(summary,/Audio received: 32000 bytes/);
 });

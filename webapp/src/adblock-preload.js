@@ -6,8 +6,6 @@ import {rememberPlaybackMetadata} from './playback-metadata.mjs';
 import { installMediaSourceDiagnostics } from './media-source-diagnostics.mjs';
 installMediaSourceDiagnostics(window);
 import { configRead } from './config.js';
-import { installVoiceSearch } from './voice-search.mjs';
-installVoiceSearch(window, configRead);
 import {
   isBrowseResponse,
   isGuideResponse,

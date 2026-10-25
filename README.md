@@ -36,7 +36,7 @@ The original ad blocking, Return YouTube Dislike, automatic account selection, s
 | Blue settings interface | Inter typography, TV-safe margins, instant category switching on focus/hover, visible focus and direct option lists |
 | Home refresh | YouTube’s in-place soft-refresh command, available in General and on number keys; confirmed working on the LG C3 |
 | Magic Remote support | Cursor selection and wheel scrolling in settings, option lists, help and diagnostics |
-| In-app voice search | Magic Remote microphone capture with YouTube default, Hungarian or English recognition requests; independent of the TV language, with microphone status and bounded cleanup. C3/C4 recognition needs device confirmation. |
+| In-app voice search | Magic Remote microphone capture with language controlled by YouTube. Hungarian voice search confirmed on C3 with the original-ID package; microphone status and bounded cleanup. |
 | Bundled software AAC | Private ARMv7 audio decoder for the existing legacy playback path; avoids relying on firmware AAC libraries |
 | Video quality profiles | Safe 1080p SDR, 4K SDR or 4K HDR; saved on the TV and applied after a full restart |
 | SponsorBlock category actions | Auto skip, Ask first, Markers only or Off for each category |
@@ -65,7 +65,7 @@ Press **GREEN** to open settings. Use arrows and **OK**, the cursor or the wheel
 
 **Playback → Higher-quality Auto startup** briefly requests the highest level exposed by YouTube, then returns to Auto. It defaults off, respects manual quality choices and does not expand the TV’s codec/HDR capabilities. **Left/Right always use YouTube’s normal seeking. Channel + / − use quick seeking**, with the visible target and 0.5-second delay after release by default. Choose 0.8 seconds, 1 second or Off under **Playback → Channel + / − quick seek**. Existing automatic-seek delays are preserved. Channel seeking stays inactive in menus and recommendation lists. The startup-quality idea comes from [LawfulGremlin’s v2 branch](https://github.com/LawfulGremlin/youtube-webos-cobalt/tree/v2); see [behavior and validation](docs/auto-quality-and-channel-seeking.md).
 
-**Hungarian voice search:** choose **General → Voice search language → Hungarian / Magyar**, then use the microphone inside YouTube Search. The TV may stay in English. The physical remote microphone button can still launch LG’s system assistant, which uses LG’s own speech settings. Actual C3/C4 Hungarian recognition needs confirmation. [Implementation and validation](docs/hungarian-voice-search.md).
+**Hungarian voice search:** in **YouTube’s own Settings → Language**, choose **Magyar**, then use the microphone inside YouTube Search. The TV may stay in English. This works on the tested C3 with the original-ID package. The physical remote microphone button can still launch LG’s system assistant. [Details](docs/hungarian-voice-search.md).
 
 Four optional display controls are under **General** and default off. Logo visibility changes immediately; feed/video filters apply when the next response loads. Use Home refresh when desired. Sharper thumbnails depend on YouTube’s available image variants. These options do not automatically refresh the Home feed or disable normal sign-in.
 

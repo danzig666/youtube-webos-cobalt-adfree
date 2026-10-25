@@ -53,6 +53,7 @@ def check_settings(browser, width, height):
     page.wait_for_function("window.__ytafUiInitialized")
     page.keyboard.press("=")
     page.locator(".ytaf-ui-container").wait_for(state="visible")
+    assert page.locator("#__voice_language").count() == 0
     choices_checked = 0
     for category in ["general", "playback", "captions", "remote", "sponsorblock", "diagnostics"]:
         page.locator("#__settings_" + category).hover()
