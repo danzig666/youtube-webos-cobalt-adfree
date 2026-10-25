@@ -16,6 +16,7 @@ import { createSeekPreview } from './seek-preview.mjs';
 import { startPlaybackSpeed, playbackRates } from './playback-speed.mjs';
 import { ensureSettingsMounted } from './settings-mount.mjs';
 import { createSettingsSections } from './settings-sections.mjs';
+import { createVoiceSettings } from './voice-search.mjs';
 import { wheelScrollDelta } from './wheel-scroll.mjs';
 import { createMenuBackGuard } from './menu-back-guard.mjs';
 import { createCaptionSettings } from './caption-preferences.mjs';
@@ -344,6 +345,7 @@ export function userScriptStartUI() {
       callbackConfig('startupPage')
     )
   );
+  uiContainer.appendChild(createVoiceSettings(document, window, choiceTools, configRead, configWrite));
   const refreshHome = createHomeRefresh(document, window, showNotification, () => {
     if (isContainerOpen()) closeContainer();
   });

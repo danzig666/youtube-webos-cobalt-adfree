@@ -1,4 +1,5 @@
 import {capabilityQueryReport} from './media-capability-queries.mjs';
+import {voiceSearchReport} from './voice-search.mjs';
 import { startupReport, startupSummary } from './startup-timing.mjs';
 import { createCapabilityTest } from './capability-test.mjs';
 import { homeRefreshReport } from './home-refresh.mjs';
@@ -51,6 +52,7 @@ export function frontendPlaybackReport(doc,win) {
     `Resume: ${win.__ytafResume?.status || 'not initialized'}`,
     `Local fallback: ${win.__ytafResume?.localStatus || 'not initialized'}`,
     `Auto quality startup: ${win.__ytafAutoQuality?.status || 'not initialized'}`,
+    voiceSearchReport(win),
     clockReport(win),
     capabilityQueryReport(win),
     `Thumbnail progress: ${win.__ytafThumbnailProgress?.status || 'not initialized'}`,

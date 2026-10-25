@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import {installVoiceSearch} from '../src/voice-search.mjs';
 const source = fs.readFileSync(new URL('../src/adblock-main.js', import.meta.url), 'utf8')
   .replace(/^import[^\n]*\n/gm, '').replaceAll('export async function ', 'async function ');
 test('relaunch and global error logging omit launch URLs, reasons, messages and stacks', async () => {
@@ -11,7 +12,7 @@ test('relaunch and global error logging omit launch URLs, reasons, messages and 
   const context = vm.createContext({Date: {now: () => now}, console: {info: log, warn: log, error: log},
     window: {launchParams: {url: secret}, addEventListener: (name, fn) => handlers.set(name, fn)},
     document: {addEventListener: (name, fn) => handlers.set(name, fn)},
-    installMediaCapabilityQueries() {}, markStartup() {}, watchStartupScreen() {}, resetAutoLogin() {}, handleRelaunch: detail => {relaunched = detail;}, handleInitialLaunch() {throw new Error(secret);},
+    installVoiceSearch, installMediaCapabilityQueries() {}, markStartup() {}, watchStartupScreen() {}, resetAutoLogin() {}, handleRelaunch: detail => {relaunched = detail;}, handleInitialLaunch() {throw new Error(secret);},
     userScriptStartUI() {throw new Error(secret);}, configRead() {}, startConfiguredFeatures() {throw new Error(secret);},
     userScriptStartAdBlock() {}, userScriptStartSponsorBlock() {}, userScriptStartReturnYouTubeDislike() {}});
   vm.runInContext(source, context);

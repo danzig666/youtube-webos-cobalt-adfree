@@ -21,6 +21,7 @@ const defaultConfig = {
   sponsorBlockExcludedChannels: [],
   sponsorBlockActions: {},
   startupPage: 'home',
+  voiceSearchLanguage: 'youtube',
   enableSponsoredQrCodeBlock: true,
   enableSponsorBlock: true,
   enableSponsorBlockSponsor: true,

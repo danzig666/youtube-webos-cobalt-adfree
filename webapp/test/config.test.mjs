@@ -62,6 +62,14 @@ test('channel exceptions persist through a fresh configuration load without acco
   const reloaded=load(s.saved());
   assert.equal(reloaded.context.configRead('sponsorBlockExcludedChannels')[0].id, 'UCaaaaaaaaaaaaaaaaaaaaaa');
 });
+test('voice language defaults to YouTube and Hungarian persists independently of other preferences',()=>{
+  const state=load('{"startupPage":"subscriptions"}');
+  assert.equal(state.context.configRead('voiceSearchLanguage'),'youtube');
+  state.context.configWrite('voiceSearchLanguage','hu-HU');
+  const restored=load(state.saved());
+  assert.equal(restored.context.configRead('voiceSearchLanguage'),'hu-HU');
+  assert.equal(restored.context.configRead('startupPage'),'subscriptions');
+});
 
 test('caption and DeArrow defaults are opt-in and their preferences survive reload',()=>{
   const s=load('{}');

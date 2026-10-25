@@ -12,6 +12,8 @@ import './ui.js';
 
 import { handleInitialLaunch, handleRelaunch } from './utils';
 import { configRead } from './config.js';
+import { installVoiceSearch } from './voice-search.mjs';
+installVoiceSearch(window, configRead);
 import { userScriptStartUI } from './ui.js';
 import { userScriptStartSponsoredQrCodeUI } from './sponsored-qr-code-ui.js';
 import { userScriptStartAdBlock } from './adblock.js';
