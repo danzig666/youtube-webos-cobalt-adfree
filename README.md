@@ -6,14 +6,14 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 ## Download and install
 
-**[Recommended fallback release: v2.6.35-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.35-beta.1)**
+**[Latest compatibility release: v2.6.37-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.37-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
-| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.35-beta.1/com.cobalt.youtube.adfree_2.6.35_arm.ipk) | Installs alongside official YouTube |
-| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.35-beta.1/youtube.leanback.v4_2.6.35_arm.ipk) | **Replaces official YouTube** |
+| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.37-beta.1/com.cobalt.youtube.adfree_2.6.37_arm.ipk) | Installs alongside official YouTube |
+| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.37-beta.1/youtube.leanback.v4_2.6.37_arm.ipk) | **Replaces official YouTube** |
 
-[Experimental C3 firmware-only build: 2.6.36-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.36-beta.1) omits bundled FDK-AAC. **C4 / webOS 26 (43.21.73): livestreams reportedly fail in 2.6.36 and work in 2.6.35 using the bundled AAC fallback. Use 2.6.35 on that configuration.** The Homebrew catalog stays on 2.6.35; normal builds retain the fallback.
+[Experimental C3 firmware-only build: 2.6.36-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.36-beta.1) omits bundled FDK-AAC. **C4 / webOS 26 (43.21.73): livestreams reportedly fail in 2.6.36 and work in 2.6.35 using the bundled AAC fallback. Use 2.6.37, which restores the fallback.** The Homebrew catalog offers 2.6.37; normal builds retain the fallback.
 
 Install using webOS Device Manager or `ares-cli` with Developer Mode, or Homebrew Channel on a compatible setup. Update the same package ID you already use, then fully close and reopen the app. Checksums and build records accompany each release.
 
@@ -151,7 +151,17 @@ technical details by two lines; wheel jumps are limited in Diagnostics. Validate
 
 
 The **2.6.36 firmware-only experiment** omits the bundled FDK-AAC library for
-C3 testing. The regular Homebrew catalog stays on 2.6.35, which retains its
-fallback. It also defers hidden Diagnostics collection until the page is opened
+C3 testing. The compatibility catalog skipped that experiment and now offers
+2.6.37 with the bundled fallback restored. It also defers hidden Diagnostics collection until the page is opened
 and exposes audio/graphics/font startup timings. Startup speedup is not yet
 measured on a TV. See [experiment details](docs/cold-start-firmware-aac-experiment.md).
+
+
+Version **2.6.37** restores bundled AAC in both IPKs and normal build defaults,
+following a C4 / webOS 26 (43.21.73) report that livestreams fail in firmware-only
+2.6.36 and work with the 2.6.35 fallback. It keeps the deferred Diagnostics and
+lazy decoder startup improvements. Both final ARM Gold packages were checked for
+the fallback library, exported AAC decoder symbols, source/identity hashes and
+licenses. The 413 web tests, nine packaging tests and complete native suite pass.
+This exact release still needs C4 confirmation; no global audio-sync offset was
+added.

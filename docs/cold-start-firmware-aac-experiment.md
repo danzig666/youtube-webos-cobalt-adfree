@@ -37,8 +37,9 @@ The C3's firmware FFmpeg 59/avutil 57 passed the isolated AAC-LC decode. Earlier
 2.6.34 playback worked, but its chosen backend was unconfirmed. A firmware-only
 package is an opt-in C3 experiment, not a replacement for compatibility builds.
 Older TVs without compatible firmware AAC may lose AAC/live playback in this
-experiment. The normal Homebrew catalog stays on 2.6.35. Its packages and bundled
-FDK fallback remain available in the prior release.
+experiment. The normal Homebrew catalog skipped 2.6.36 and now offers 2.6.37
+with the FDK fallback restored. The known-working 2.6.35 packages remain available
+for rollback.
 
 Removing an unused codec has not been shown to fix the pre-logo delay. Test a
 fully closed app after installation, compare the time to the logo and usable
@@ -68,7 +69,10 @@ these host/build checks do not establish cross-device playback compatibility.
 
 ### C4 compatibility decision
 
-Keep 2.6.35 as the recommended compatibility release for this configuration.
+[2.6.37-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.37-beta.1)
+restores the fallback and is the new compatibility recommendation; keep the
+confirmed working 2.6.35 release available for rollback. The exact 2.6.37 build
+still needs C4 confirmation.
 Retain the packaged FDK fallback in all normal push, scheduled and default manual
 builds; keep firmware-only packaging explicitly opt-in. This does not disable
 firmware AAC on TVs where it works or revert the independent startup changes.
@@ -109,3 +113,16 @@ omitted), compared with YTAFNB. The observation is therefore not specific to
 removing the bundled library. Both versions can select firmware FFmpeg AAC, so
 this comparison does not rule that decoder path in or out. No global delay or
 model-specific timing policy is justified by the currently available evidence.
+
+
+## Compatibility release 2.6.37
+
+Both identity-specific ARM Gold IPKs restore bundled FDK-AAC 2.0.3 from pinned
+source `716f4394641d53f0d79c9ddac3fa93b03a49f278`. Their native source is
+`b5dc6dd33761a8bf26731272f7e5c91284783c98`. Source CI and the full native build
+passed, including 413 web tests, nine package tests and real AAC decoding. Final
+package inspection verifies the bundled library and decoder symbols, licenses,
+required runtime libraries and matching source/identity hashes. Checksums and
+[build records](releases/v2.6.37-beta.1/manifest.json) accompany both IPKs. The
+startup changes remain; startup speed with the restored fallback and playback
+on the reporting C4 remain device-validation items.

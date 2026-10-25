@@ -238,7 +238,9 @@ limited to the verified FFmpeg 59 / avutil 57 ABI. No arbitrary newer ABI is loa
 and no C4-specific timing offset is inferred from this result.
 
 Normal package builds retain FDK. Firmware-only packages remain an explicit
-manual experiment, and 2.6.35 remains the compatibility recommendation. See the
+manual experiment. 2.6.37 restores the fallback as the new compatibility release;
+2.6.35 remains a confirmed working rollback for the reporting C4. This exact
+2.6.37 build still needs C4 confirmation. See the
 [device feedback and packaging decision](cold-start-firmware-aac-experiment.md#c4-compatibility-decision).
 
 Host regression tests decode the actual fixture with 100 alternating seek
