@@ -6,12 +6,14 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 ## Download and install
 
-**[Latest release: v2.6.35-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.35-beta.1)**
+**[Recommended fallback release: v2.6.35-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.35-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
 | Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.35-beta.1/com.cobalt.youtube.adfree_2.6.35_arm.ipk) | Installs alongside official YouTube |
 | Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.35-beta.1/youtube.leanback.v4_2.6.35_arm.ipk) | **Replaces official YouTube** |
+
+[Experimental C3 firmware-only build: 2.6.36-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.36-beta.1) omits bundled FDK-AAC. The Homebrew catalog stays on 2.6.35.
 
 Install using webOS Device Manager or `ares-cli` with Developer Mode, or Homebrew Channel on a compatible setup. Update the same package ID you already use, then fully close and reopen the app. Checksums and build records accompany each release.
 

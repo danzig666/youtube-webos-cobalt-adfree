@@ -44,3 +44,13 @@ screen, play the known AAC livestream, then open GREEN → Diagnostics. The summ
 identifies the selected decoder and startup phases without searching event logs.
 No root or SSH is needed for the test. No caches, account data or settings are
 cleared by this work.
+
+## Build verification
+
+[2.6.36-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.36-beta.1)
+contains verified firmware-only IPKs for both application identities. Both full
+ARM Gold binaries, 413 web tests, the complete native host suite, nine packaging
+tests and 720p/1080p settings checks passed. The published IPKs contain no
+FDK-AAC library or FDK build record; their required runtime libraries and legal
+notices remain. The normal Homebrew catalog was verified unchanged at 2.6.35.
+C3 playback and cold-start speed remain to be measured.
