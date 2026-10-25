@@ -78,3 +78,18 @@ it does not establish C3/C4 support.
   separate from on-TV speech recognition validation.
 
 The bundled AAC fallback and existing legacy/shared playback paths are retained.
+
+## C3 follow-up and 2.6.39 test
+
+The tester reports that the on-screen YouTube microphone fails and the native
+status becomes Unavailable. The physical microphone button opens LG's assistant.
+Enabling LG voice recognition did not establish working in-app capture. The EN
+label was not an operable language picker on this screen; changing it is not a
+verified workaround.
+
+2.6.39 tries the SDK's public app connection if the private connection is absent,
+has no dispatcher, or cannot accept the initial recording call. It does not start
+a second subscription after the first was accepted. The setting displays a fixed
+failure operation/symbol, numeric LG error code when present, and delivered audio
+byte/non-silent counters. These are diagnostics, not recordings or transcripts.
+The fallback is a compatibility candidate and still needs the C3 test.

@@ -8,7 +8,7 @@ namespace shared {
 namespace webos {
 // Borrow the app-named connection already managed by webOS libhelpers/SDL.
 // The caller must never detach or unregister it.
-LSHandle* LgNativeAppBus();
+LSHandle* LgNativeAppBus(bool public_only = false);
 }  // namespace webos
 }  // namespace shared
 }  // namespace starboard

@@ -29,10 +29,12 @@ namespace {
 std::string path;
 bool reject_record = false;
 bool reject_register = false;
+bool private_context_unavailable = false;
 unsigned reply_delay_ms = 0;
 unsigned stop_reply_delay_ms = 0;
 std::atomic<int> stops{0}, cancellations{0}, handles{0};
 LSHandle app_bus;
+LSHandle unattached_bus;
 std::vector<std::pair<LSMessageToken, GSource*>> pending;
 struct Reply {
   LSHandle* bus;
@@ -61,7 +63,10 @@ void Queue(LSHandle* bus, LSFilterFunc callback, void* data,
 namespace starboard {
 namespace shared {
 namespace webos {
-LSHandle* LgNativeAppBus() { return reject_register ? nullptr : &app_bus; }
+LSHandle* LgNativeAppBus(bool public_only) {
+  if (reject_register) return nullptr;
+  return private_context_unavailable && !public_only ? &unattached_bus : &app_bus;
+}
 }  // namespace webos
 }  // namespace shared
 }  // namespace starboard
@@ -265,7 +270,9 @@ int main() {
   assert(CopyMicrophoneReport().find("Stopped") != std::string::npos);
   SetMicrophoneForeground(true);
   assert(CopyMicrophoneReport().find("Stopped") != std::string::npos);
+  private_context_unavailable = true;
   assert(SbMicrophoneOpen(microphone));
+  private_context_unavailable = false;
   assert(SbMicrophoneClose(microphone));
   SbMicrophoneDestroy(microphone);
   g_main_loop_quit(app_loop);

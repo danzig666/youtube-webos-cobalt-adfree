@@ -282,6 +282,27 @@ export function voiceSearchReport(win) {
       : '; waiting for a voice search')
   );
 }
+export function microphoneStatusReport(report) {
+  const match =
+    /^Magic Remote microphone: (Not started|Opening|Recording|Unavailable|Stopped)$/m.exec(
+      report
+    );
+  if (!match) return 'Microphone status requires the updated native runtime.';
+  const lines = ['Microphone: ' + match[1]];
+  const detail = /^Microphone detail: ([A-Za-z0-9 :(),./_-]{1,120})$/m.exec(
+    report
+  );
+  const audio =
+    /^Microphone audio bytes: ([0-9]{1,10}); non-silent: (yes|no)$/m.exec(
+      report
+    );
+  if (detail) lines.push(detail[1]);
+  if (audio)
+    lines.push(
+      'Audio received: ' + audio[1] + ' bytes; non-silent: ' + audio[2]
+    );
+  return lines.join('\n');
+}
 export function createVoiceSettings(doc, win, choices, read, write) {
   win.__ytafDisposeVoiceSettings?.();
   const panel = doc.createElement('div');
@@ -308,13 +329,7 @@ export function createVoiceSettings(doc, win, choices, read, write) {
     if (readNative) {
       try {
         const report = win.h5vcc?.system?.getYtafMediaReport?.() || '';
-        const match =
-          /^Magic Remote microphone: (Not started|Opening|Recording|Unavailable|Stopped)$/m.exec(
-            report
-          );
-        nativeStatus = match
-          ? 'Microphone: ' + match[1]
-          : 'Microphone status requires the updated native runtime.';
+        nativeStatus = microphoneStatusReport(report);
       } catch (_) {
         nativeStatus = 'Microphone status unavailable.';
       }

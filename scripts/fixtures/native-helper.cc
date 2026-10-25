@@ -11,6 +11,7 @@ class HLunaServiceBridge {
  public:
   static HLunaServiceBridge* instance();
   LSHandle* PrivateHandle();
+  LSHandle* PublicHandle();
 };
 
 HLunaServiceBridge* HLunaServiceBridge::instance() {
@@ -19,6 +20,9 @@ HLunaServiceBridge* HLunaServiceBridge::instance() {
 }
 
 LSHandle* HLunaServiceBridge::PrivateHandle() {
+  return std::getenv("YTAF_TEST_NO_HANDLE") || std::getenv("YTAF_TEST_PUBLIC_ONLY") ? nullptr : &handle;
+}
+LSHandle* HLunaServiceBridge::PublicHandle() {
   return std::getenv("YTAF_TEST_NO_HANDLE") ? nullptr : &handle;
 }
 

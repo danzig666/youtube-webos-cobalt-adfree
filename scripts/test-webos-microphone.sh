@@ -20,6 +20,7 @@ printf 'extern "C" int unsupported() { return 0; }\n' | \
   "$repo_root/cobalt-platform/webos/arm/lg_native_bus.cc" -ldl \
   -o "$test_dir/test-lg-native-bus"
 LD_LIBRARY_PATH="$test_dir/helpers" "$test_dir/test-lg-native-bus"
+LD_LIBRARY_PATH="$test_dir/helpers" YTAF_TEST_PUBLIC_ONLY=1 "$test_dir/test-lg-native-bus"
 LD_LIBRARY_PATH="$test_dir/helpers" YTAF_TEST_NO_HANDLE=1 \
   "$test_dir/test-lg-native-bus" --unavailable
 LD_LIBRARY_PATH="$test_dir/unsupported" "$test_dir/test-lg-native-bus" --unavailable

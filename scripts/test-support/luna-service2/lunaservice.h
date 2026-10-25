@@ -9,6 +9,7 @@ struct LSMessage;
 using LSMessageToken = unsigned long;
 constexpr LSMessageToken LSMESSAGE_TOKEN_INVALID = 0;
 struct LSError {
+  int error_code;
   char* message;
 };
 using LSFilterFunc = bool (*)(LSHandle*, LSMessage*, void*);

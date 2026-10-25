@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "starboard/webos/arm/lg_native_bus.h"
+#include "starboard/webos/arm/webos_microphone_report.h"
 #include "starboard/webos/arm/lg_voice_api.inc"
 #include "starboard/webos/arm/lg_bus_dispatch.h"
 
@@ -70,9 +71,10 @@ struct LgVoiceCapture::Impl : std::enable_shared_from_this<LgVoiceCapture::Impl>
   std::string ticket;
   std::chrono::steady_clock::time_point deadline;
 
-  void Fail(const std::string& reason) {
+  void Fail(const char* reason, int code = 0) {
     std::lock_guard<std::mutex> lock(mutex);
-    error = reason;
+    error = std::string(reason) + (code ? " (" + std::to_string(code) + ")" : "");
+    SetMicrophoneDetail(reason, code);
   }
 
   bool OnBus(const std::function<void()>& function) {
@@ -135,9 +137,7 @@ struct LgVoiceCapture::Impl : std::enable_shared_from_this<LgVoiceCapture::Impl>
          !json_object_get_boolean(result))) {
       json_object* code = nullptr;
       json_object_object_get_ex(object, "errorCode", &code);
-      self->Fail("recordVoice failed (" +
-                 std::string(code ? json_object_get_string(code) : "-1") +
-                 ")");
+      self->Fail("LG rejected microphone recording", code ? json_object_get_int(code) : -1);
     } else {
       std::string ticket = StringField(object, "voiceTicket");
       std::string path = StringField(object, "websocket");
@@ -337,6 +337,7 @@ struct LgVoiceCapture::Impl : std::enable_shared_from_this<LgVoiceCapture::Impl>
       {
         std::lock_guard<std::mutex> lock(mutex);
         error = "Microphone libraries unavailable";
+        SetMicrophoneDetail(VoiceApi().failure);
         ready = true;
       }
       ready_cv.notify_all();
@@ -348,17 +349,32 @@ struct LgVoiceCapture::Impl : std::enable_shared_from_this<LgVoiceCapture::Impl>
     loop = g_main_loop_new(context, false);
     LSError ls_error;
     LSErrorInit(&ls_error);
-    bus = LgNativeAppBus();
-    if (bus) bus_context = LSGmainGetContext(bus, &ls_error);
-    bool ok = bus && bus_context;
-    if (bus_context) g_main_context_ref(bus_context);
-    if (ok) {
+    LSHandle* candidates[] = {LgNativeAppBus(), LgNativeAppBus(true)};
+    bool ok = false;
+    LSHandle* previous = nullptr;
+    for (auto* candidate : candidates) {
+      if (!candidate || candidate == previous) continue;
+      previous = candidate;
+      if (bus_context) { g_main_context_unref(bus_context); bus_context = nullptr; }
+      LSErrorFree(&ls_error); LSErrorInit(&ls_error);
+      bus = candidate;
+      bus_context = LSGmainGetContext(bus, &ls_error);
+      if (!bus_context) {
+        SetMicrophoneDetail("LG app dispatcher unavailable", ls_error.error_code);
+        continue;
+      }
+      g_main_context_ref(bus_context);
       const bool dispatched = OnBus([&] {
         ok = LSCall(bus, kRecord,
                     "{\"subscribe\":true,\"socketType\":\"socket\"}",
                     QueueRecord, this, &token, &ls_error);
       });
+      if (!dispatched) SetMicrophoneDetail("LG app dispatcher timed out");
+      else if (!ok) SetMicrophoneDetail("LG recording call failed", ls_error.error_code);
+      else SetMicrophoneDetail("Waiting for microphone audio");
       ok = dispatched && ok;
+      // Never start another subscription after the first was accepted.
+      if (ok || token != LSMESSAGE_TOKEN_INVALID) break;
     }
     {
       std::lock_guard<std::mutex> lock(mutex);

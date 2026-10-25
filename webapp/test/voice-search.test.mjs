@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   installVoiceSearch,
+  microphoneStatusReport,
   voiceSearchReport,
   voiceRequestBody,
   voiceRequestUrl,
@@ -301,4 +302,21 @@ test('diagnostics retain only fixed route/language counters, never audio, transc
   });
   assert.match(voiceSearchReport(f.win), /hu-HU.*voice requests 1/);
   assert.doesNotMatch(voiceSearchReport(f.win), /secret|\/api|https/);
+});
+
+test('microphone status shows a bounded operation/code and audio counters without copying other native report data', () => {
+  const report =
+    'Magic Remote microphone: Unavailable\nMicrophone detail: LG rejected microphone recording (code 6020)\nMicrophone audio bytes: 0; non-silent: no\nSecret account: private\n';
+  assert.match(
+    microphoneStatusReport(report),
+    /LG rejected microphone recording \(code 6020\)/
+  );
+  assert.match(microphoneStatusReport(report), /Audio received: 0 bytes/);
+  assert.doesNotMatch(microphoneStatusReport(report), /private|Secret/);
+  assert.doesNotMatch(
+    microphoneStatusReport(
+      'Magic Remote microphone: Unavailable\nMicrophone detail: https:\/\/private?token=secret\n'
+    ),
+    /secret|private/
+  );
 });

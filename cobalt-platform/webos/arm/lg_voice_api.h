@@ -8,6 +8,7 @@ namespace starboard { namespace shared { namespace webos {
 struct VoiceLibraryApi {
   VoiceLibraryApi();
   bool ready = false;
+  const char* failure = "Voice libraries unavailable";
   decltype(&::g_main_context_new) g_main_context_new_fn = nullptr;
   decltype(&::g_main_context_push_thread_default) g_main_context_push_thread_default_fn = nullptr;
   decltype(&::g_main_context_pop_thread_default) g_main_context_pop_thread_default_fn = nullptr;

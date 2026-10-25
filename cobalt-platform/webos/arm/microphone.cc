@@ -3,6 +3,7 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+#include <algorithm>
 
 #include "starboard/common/log.h"
 #include "starboard/webos/arm/lg_voice_capture.h"
@@ -22,6 +23,9 @@ std::mutex g_microphone_mutex;
 bool g_foreground = true;
 using starboard::shared::webos::MicrophoneReportState;
 using starboard::shared::webos::MicrophoneStatus;
+using starboard::shared::webos::SetMicrophoneDetail;
+using starboard::shared::webos::MicrophoneAudioBytes;
+using starboard::shared::webos::MicrophoneNonSilent;
 }  // namespace
 
 namespace starboard { namespace shared { namespace webos {
@@ -54,6 +58,9 @@ bool SbMicrophoneIsSampleRateSupported(SbMicrophoneId id, int rate) {
 
 SbMicrophone SbMicrophoneCreate(SbMicrophoneId id, int rate, int size) {
   std::lock_guard<std::mutex> lock(g_microphone_mutex);
+  if (g_microphone) SetMicrophoneDetail("Microphone already allocated");
+  else if (!SbMicrophoneIsSampleRateSupported(id, rate)) SetMicrophoneDetail("Unsupported microphone sample rate", rate);
+  else if (size < 320 || size > 4 * 1024 * 1024) SetMicrophoneDetail("Unsupported microphone buffer size");
   if (g_microphone || !SbMicrophoneIsSampleRateSupported(id, rate) ||
       size < 320 || size > 4 * 1024 * 1024)
     return kSbMicrophoneInvalid;
@@ -63,7 +70,10 @@ SbMicrophone SbMicrophoneCreate(SbMicrophoneId id, int rate, int size) {
 bool SbMicrophoneOpen(SbMicrophone microphone) {
   std::lock_guard<std::mutex> lock(g_microphone_mutex);
   if (!microphone || microphone != g_microphone) return false;
-  if (!g_foreground) return false;
+  if (!g_foreground) { SetMicrophoneDetail("Capture blocked while app is backgrounded"); return false; }
+  SetMicrophoneDetail("Opening microphone");
+  MicrophoneAudioBytes().store(0);
+  MicrophoneNonSilent().store(false);
   MicrophoneReportState().store(MicrophoneStatus::kOpening);
   bool opened = microphone->capture.Open();
   MicrophoneReportState().store(opened ? MicrophoneStatus::kRecording : MicrophoneStatus::kUnavailable);
@@ -77,6 +87,12 @@ int SbMicrophoneRead(SbMicrophone microphone, void* data, int size) {
   std::lock_guard<std::mutex> lock(g_microphone_mutex);
   if (!microphone || microphone != g_microphone || size < 0) return -1;
   int read = microphone->capture.Read(data, size);
+  if (read > 0) {
+    MicrophoneAudioBytes().fetch_add(static_cast<unsigned>(read));
+    const auto* bytes = static_cast<const unsigned char*>(data);
+    if (std::any_of(bytes, bytes + read, [](unsigned char value) { return value != 0; }))
+      MicrophoneNonSilent().store(true);
+  }
   if (read < 0) MicrophoneReportState().store(microphone->capture.Error().empty() ? MicrophoneStatus::kStopped : MicrophoneStatus::kUnavailable);
   if (read < 0 && !microphone->error_reported && !microphone->capture.Error().empty()) {
     microphone->error_reported = true;
