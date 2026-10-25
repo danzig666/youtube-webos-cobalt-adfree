@@ -5,15 +5,6 @@ static_library("starboard_platform") {
     "application_sdl.cc",
     "application_sdl.h",
     "main.cc",
-    "lg_native_bus.cc",
-    "lg_native_bus.h",
-    "lg_bus_dispatch.h",
-    "lg_voice_capture.cc",
-    "lg_voice_capture.h",
-    "lg_voice_api.h",
-    "lg_voice_api.cc",
-    "lg_voice_api.inc",
-    "microphone.cc",
     "webos_microphone_report.h",
     "webos_startup_timing.h",
     "webos_startup_timing.cc",
@@ -77,7 +68,21 @@ static_library("starboard_platform") {
     "//starboard/linux/shared:starboard_platform",
     "//starboard/shared/starboard/player:video_dmp",
   ]
-  deps = [ "//third_party/libjpeg-turbo:libjpeg", ":firmware_ffmpeg_probe" ]
+  deps = [ "//third_party/libjpeg-turbo:libjpeg", ":firmware_ffmpeg_probe", ":voice_capture" ]
+  configs += [ "//starboard/build/config:starboard_implementation" ]
+}
+
+# Keep vendor capture headers scoped to these files. Existing Cobalt sources
+# retain their compiler flags and header resolution, including cached builds.
+source_set("voice_capture") {
+  check_includes = false
+  sources = [ "lg_native_bus.cc", "lg_native_bus.h", "lg_bus_dispatch.h",
+              "lg_voice_capture.cc", "lg_voice_capture.h", "lg_voice_api.cc",
+              "lg_voice_api.h", "lg_voice_api.inc", "microphone.cc",
+              "webos_microphone_report.h" ]
+  voice_sysroot = getenv("WEBOS_SDK_ROOT") + "/arm-webos-linux-gnueabi/sysroot"
+  include_dirs = [ "$voice_sysroot/usr/include/glib-2.0",
+                   "$voice_sysroot/usr/lib/glib-2.0/include" ]
   configs += [ "//starboard/build/config:starboard_implementation" ]
 }
 
