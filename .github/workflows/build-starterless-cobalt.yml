@@ -107,7 +107,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y binutils ca-certificates cmake curl findutils g++ git gzip jq make ninja-build patch perl python3 rsync sed xz-utils
+          sudo apt-get install -y binutils ca-certificates cmake curl findutils g++ git gzip jq make ninja-build patch perl python3 rsync sed xz-utils pkg-config libglib2.0-dev libjson-c-dev
 
       - name: Download pinned webOS ARM SDK
         env:

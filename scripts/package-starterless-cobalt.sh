@@ -69,6 +69,11 @@ if grep -aFq -- '--ytaf-ffmpeg-aac-probe' "$build_dir/cobalt" &&
   echo "Missing firmware FFmpeg probe header license." >&2
   exit 4
 fi
+if grep -aFq 'Magic Remote microphone:' "$build_dir/cobalt" &&
+   [[ ! -s "$build_dir/content/licenses/json-c.txt" ]]; then
+  echo "Missing voice JSON-C license." >&2
+  exit 4
+fi
 
 # Never package a starterless binary from before the early-preload integration.
 # Gold builds compile non-fatal LOG() strings out, so verify the runtime path

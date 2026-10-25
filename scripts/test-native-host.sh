@@ -9,6 +9,7 @@ trap 'rm -rf "$test_dir"' EXIT
 # regressions. This deliberately prepares the supplied Cobalt checkout.
 bash "$repo_root/scripts/install-webos-starboard-platform.sh" "$cobalt_root"
 bash "$repo_root/scripts/install-webos-starboard-platform.sh" "$cobalt_root"
+bash "$repo_root/scripts/test-webos-microphone.sh"
 
 flags=(-std=c++14 -Wall -Wextra -Werror -pthread -fsanitize=undefined
        -fno-sanitize-recover=all -I"$repo_root/cobalt-platform/webos/arm")

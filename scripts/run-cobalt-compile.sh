@@ -45,4 +45,8 @@ if [[ "$rc" == 0 && -f starboard/webos/arm/ffmpeg5/COPYING.LGPLv2.1 ]]; then
   mkdir -p "$OUT_DIR/content/licenses"
   cp starboard/webos/arm/ffmpeg5/COPYING.LGPLv2.1 "$OUT_DIR/content/licenses/ffmpeg5-headers.txt"
 fi
+if [[ "$rc" == 0 && -f starboard/webos/arm/json-c-LICENSE.txt ]]; then
+  mkdir -p "$OUT_DIR/content/licenses"
+  cp starboard/webos/arm/json-c-LICENSE.txt "$OUT_DIR/content/licenses/json-c.txt"
+fi
 exit "$rc"

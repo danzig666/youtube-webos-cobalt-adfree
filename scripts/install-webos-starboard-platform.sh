@@ -269,6 +269,13 @@ if not target.exists() or target.read_text() != text:
     target.write_text(text)
 PYMETA
 
+if ! grep -q 'LG voiceconductor supplies microphone' \
+  "$cobalt_root/starboard/linux/shared/BUILD.gn"; then
+  microphone_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-microphone.patch"
+  git -C "$cobalt_root" apply --check "$microphone_patch"
+  git -C "$cobalt_root" apply "$microphone_patch"
+fi
+
 echo "Installed webos-arm Starboard platform into: $platform_target"
 
 if ! grep -q 'StartupStage::kFontsReady' "$cobalt_root/cobalt/renderer/rasterizer/skia/skia/src/ports/SkFontMgr_cobalt.cc"; then

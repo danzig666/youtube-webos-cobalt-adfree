@@ -1,0 +1,26 @@
+// Private aliases: never interpose GLib/LS2 symbols used by other libraries.
+#ifndef YTAF_VOICE_API_DIRECT
+#include "starboard/webos/arm/lg_voice_api.h"
+#define g_main_context_new (::starboard::shared::webos::VoiceApi().g_main_context_new_fn)
+#define g_main_context_push_thread_default (::starboard::shared::webos::VoiceApi().g_main_context_push_thread_default_fn)
+#define g_main_context_pop_thread_default (::starboard::shared::webos::VoiceApi().g_main_context_pop_thread_default_fn)
+#define g_main_context_ref (::starboard::shared::webos::VoiceApi().g_main_context_ref_fn)
+#define g_main_context_unref (::starboard::shared::webos::VoiceApi().g_main_context_unref_fn)
+#define g_main_loop_new (::starboard::shared::webos::VoiceApi().g_main_loop_new_fn)
+#define g_main_loop_run (::starboard::shared::webos::VoiceApi().g_main_loop_run_fn)
+#define g_main_loop_quit (::starboard::shared::webos::VoiceApi().g_main_loop_quit_fn)
+#define g_main_loop_unref (::starboard::shared::webos::VoiceApi().g_main_loop_unref_fn)
+#define g_idle_source_new (::starboard::shared::webos::VoiceApi().g_idle_source_new_fn)
+#define g_timeout_source_new (::starboard::shared::webos::VoiceApi().g_timeout_source_new_fn)
+#define g_source_set_callback (::starboard::shared::webos::VoiceApi().g_source_set_callback_fn)
+#define g_source_attach (::starboard::shared::webos::VoiceApi().g_source_attach_fn)
+#define g_source_unref (::starboard::shared::webos::VoiceApi().g_source_unref_fn)
+#define g_source_destroy (::starboard::shared::webos::VoiceApi().g_source_destroy_fn)
+#define LSCall (::starboard::shared::webos::VoiceApi().LSCall_fn)
+#define LSCallOneReply (::starboard::shared::webos::VoiceApi().LSCallOneReply_fn)
+#define LSCallCancel (::starboard::shared::webos::VoiceApi().LSCallCancel_fn)
+#define LSErrorInit (::starboard::shared::webos::VoiceApi().LSErrorInit_fn)
+#define LSErrorFree (::starboard::shared::webos::VoiceApi().LSErrorFree_fn)
+#define LSMessageGetPayload (::starboard::shared::webos::VoiceApi().LSMessageGetPayload_fn)
+#define LSGmainGetContext (::starboard::shared::webos::VoiceApi().LSGmainGetContext_fn)
+#endif

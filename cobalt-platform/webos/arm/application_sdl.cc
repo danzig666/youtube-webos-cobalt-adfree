@@ -18,6 +18,7 @@
 #include "starboard/webos/arm/webos_startup_timing.h"
 #include "starboard/webos/arm/webos_media_diagnostics.h"
 #include "starboard/webos/arm/webos_scroll_input.h"
+#include "starboard/webos/arm/webos_microphone_report.h"
 
 namespace starboard {
 namespace shared {
@@ -446,6 +447,8 @@ void ApplicationSdl::WakeSystemEventWait() {
 void ApplicationSdl::OnLifecycleEvent(WebOsLifecycleEvent event) {
   const auto actions = lifecycle_.OnLifecycleEvent(event);
   if (actions.empty()) return;
+  if (actions.blur || actions.conceal || actions.stop) SetMicrophoneForeground(false);
+  else if (actions.reveal || actions.focus) SetMicrophoneForeground(true);
   MediaEvent diagnostic;
   diagnostic.event = MediaEventType::kLifecycle;
   diagnostic.pts_us = static_cast<int>(lifecycle_.state());

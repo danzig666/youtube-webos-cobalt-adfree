@@ -12,6 +12,10 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 class StarterlessPackageTests(unittest.TestCase):
+    def test_voice_runtime_requires_json_c_notice(self):
+        self.check_rejected('exit 0\n', 'Missing voice JSON-C license',
+                            binary_id='Magic Remote microphone:')
+
     def test_gold_workflow_scopes_artifact_assets_to_each_package(self):
         import textwrap
         workflow = (ROOT / '.github/workflows/build-starterless-cobalt.yml').read_text()
