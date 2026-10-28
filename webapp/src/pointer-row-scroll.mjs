@@ -66,7 +66,7 @@ export function startPointerRowScroll(doc, win, read) {
       const box = bounds(node);
       if (!box || !visible(node)) continue;
       const style = win.getComputedStyle(node);
-      const scrollable = /^(auto|scroll)$/.test(style.overflowX) &&
+      const scrollable = /^(auto|scroll)$/.test(style.overflowX || style.overflow) &&
         Number.isFinite(node.scrollLeft) && node.scrollWidth > node.clientWidth + 2;
       if (!scrollable && !node.matches?.(rails)) continue;
       const siblings = node.querySelectorAll(cards);
@@ -100,6 +100,12 @@ export function startPointerRowScroll(doc, win, read) {
     const active = doc.activeElement;
     return active === target || card.contains(active) || target.contains?.(active);
   }
+  function rtl(row) {
+    if (row.scrollLeft < 0 || win.getComputedStyle(row).direction === 'rtl') return true;
+    // Cobalt's CSSStyleDeclaration omits .direction; HTML dir still works.
+    const owner = ancestor(row,'[dir]');
+    return owner?.getAttribute('dir')?.toLowerCase() === 'rtl';
+  }
   function step(time) {
     motion = null;
     const a = animation;
@@ -120,10 +126,9 @@ export function startPointerRowScroll(doc, win, read) {
   }
   function reveal(row, card, target) {
     if (!row.scrollable) return;
-    const style = win.getComputedStyle(row.node);
     // RTL scrollLeft conventions differ across Cobalt/browser versions. Its
     // native focus system owns RTL reveal instead of guessing offsets here.
-    if (style.direction === 'rtl') return;
+    if (rtl(row.node)) return;
     const rect = bounds(card);
     if (!rect) return;
     // PlxNative reveals inside its outer margin, while the adjacent card can
@@ -145,7 +150,10 @@ export function startPointerRowScroll(doc, win, read) {
     const point = pending; pending = null;
     try {
       if (!point || blocked()) {cancel();return;}
-      const hit = doc.elementFromPoint(point.x,point.y);
+      // Cobalt 23 has no Document.elementFromPoint(). Its native mouse-event
+      // target is already hit-tested; retain the latest target for that frame.
+      const hit = typeof doc.elementFromPoint === 'function'
+        ? doc.elementFromPoint(point.x,point.y) : point.target;
       if (ancestor(hit,overlays) || ancestor(hit,'input, textarea, select, ytlr-guide-entry-renderer')) {cancel();return;}
       const card = ancestor(hit,cards);
       const rect = bounds(card);
@@ -165,7 +173,7 @@ export function startPointerRowScroll(doc, win, read) {
         if (node.hasAttribute?.('tabindex') && Number(node.getAttribute('tabindex')) <= -2) {native = true;break;}
       // YouTube owns transformed/virtual rows. The browser/native engine also
       // owns RTL offsets, whose sign differs between implementations.
-      native = native || !row.scrollable || win.getComputedStyle(row.node).direction === 'rtl';
+      native = native || !row.scrollable || rtl(row.node);
       if (native) target.focus();
       else target.focus({preventScroll:true});
       if (blocked() || !attached(card) || !ownsFocus(card,target)) return;
@@ -184,7 +192,7 @@ export function startPointerRowScroll(doc, win, read) {
       if (Math.hypot(x-dpadAt.x,y-dpadAt.y) < 120 * scale()) return;
       dpadAt = null;
     }
-    pending = {x,y};
+    pending = {x,y,target:event.target};
     if (frame === null) frame = win.requestAnimationFrame(update);
   }
   function key() {dpadAt = lastPoint || {x:0,y:0};cancel();}

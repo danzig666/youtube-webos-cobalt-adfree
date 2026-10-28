@@ -21,6 +21,10 @@ They keep a small peek of the neighbouring card available at the edge so the
 pointer can continue through the row without switching to the arrow keys.
 No transforms, synthetic arrow keys or clicks are injected.
 
+Cobalt 23's DOM is checked explicitly: the controller falls back to the native
+mouse event target without `document.elementFromPoint`, uses the supported
+`overflow` property without `overflowX`, and does not require `Element.closest`.
+
 The pointer must actually move to acquire another card. Holding it stationary
 does not keep advancing through the row. After a keypress it must travel about
 120 pixels at 1080p (scaled with the viewport) before hover takes focus again.
