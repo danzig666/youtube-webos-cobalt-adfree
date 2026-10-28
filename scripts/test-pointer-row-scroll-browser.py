@@ -85,11 +85,41 @@ def run(browser, width, height):
     assert page.evaluate('[rail.scrollLeft,scrollWrites,focuses.length]') == snapshot, 'A stationary cursor must not run through the row'
     assert page.evaluate('window.scrollY') == 0
     # Reveal the clipped first card on the left, without clicking.
-    page.mouse.move(84, target['y'])
-    page.wait_for_timeout(1100)
+    for i in range(12):
+        if page.evaluate('rail.scrollLeft') == 0: break
+        page.mouse.move(84 + i % 2, target['y'])
+        page.wait_for_timeout(1100)
     assert page.evaluate('rail.scrollLeft') == 0
 
+    # The neighboring card stays reachable at the edge after each reveal.
+    # Actual pointer movement advances; leaving it stationary never does.
+    reset()
+    for i in range(3):
+        target = edge()
+        before_offset = page.evaluate('rail.scrollLeft')
+        page.mouse.move(target['x'] - i % 2, target['y'])
+        page.wait_for_timeout(1100)
+        assert page.evaluate('document.activeElement.id') == target['id']
+        assert page.evaluate('rail.scrollLeft') > before_offset
+
+    # A shared focusable track must not win over the card's own nested link.
+    reset()
+    target = edge()
+    page.evaluate('''id => {
+      track.tabIndex=0;
+      const card=document.getElementById(id);card.removeAttribute('tabindex');
+      const link=document.createElement('a');link.href='#';link.tabIndex=0;
+      link.id='nested-card-link';link.style='display:block;width:100%;height:100%';
+      card.replaceChildren(link);
+    }''', target['id'])
+    page.mouse.move(target['x'],target['y'])
+    page.wait_for_timeout(1100)
+    assert page.evaluate('document.activeElement.id') == 'nested-card-link'
+    assert page.evaluate('rail.scrollLeft') > 0
+    page.evaluate("document.getElementById('nested-card-link').parentElement.tabIndex=0;track.removeAttribute('tabindex')")
+
     # Arrow navigation owns focus until deliberate pointer movement resumes.
+    reset()
     target = edge()
     page.mouse.move(target['x'], target['y'])
     page.wait_for_timeout(1100)

@@ -83,10 +83,18 @@ export function startPointerRowScroll(doc, win, read) {
     return null;
   }
   function focusTarget(card, row) {
-    for (let node = card; node && node !== row; node = node.parentElement)
-      if (node.hasAttribute?.('tabindex') || node.matches?.('a[href], button')) return node;
+    if (card.hasAttribute?.('tabindex') || card.matches?.('a[href], button')) return card;
     const nested = card.querySelector?.('[tabindex], a[href]');
-    return nested || card;
+    if (nested) return nested;
+    // A surrounding native focus wrapper is valid only when it belongs to
+    // this card, rather than being a shared list/container for many cards.
+    const rect = bounds(card);
+    for (let node = card.parentElement; node && node !== row; node = node.parentElement) {
+      const box = bounds(node);
+      if (rect && box && Math.abs(box.width-rect.width) < 8 && Math.abs(box.height-rect.height) < 8 &&
+          (node.hasAttribute?.('tabindex') || node.matches?.('a[href], button'))) return node;
+    }
+    return card;
   }
   function ownsFocus(card, target) {
     const active = doc.activeElement;
@@ -118,7 +126,12 @@ export function startPointerRowScroll(doc, win, read) {
     if (style.direction === 'rtl') return;
     const rect = bounds(card);
     if (!rect) return;
-    const left = Math.max(0, row.box.left), right = Math.min(win.innerWidth, row.box.right);
+    // PlxNative reveals inside its outer margin, while the adjacent card can
+    // still be hit in that margin. Keep a small peek inside a DOM row's hard
+    // clip too, so the pointer can reach the next card in either direction.
+    const peek = Math.min(80 * scale(), rect.width / 3, row.box.width / 6);
+    const left = Math.max(0, row.box.left) + peek;
+    const right = Math.min(win.innerWidth, row.box.right) - peek;
     const current = row.node.scrollLeft;
     const goal = horizontalReveal(current,left,right,rect.left,rect.right,
       row.node.scrollWidth - row.node.clientWidth,28 * scale());

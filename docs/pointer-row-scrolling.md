@@ -17,6 +17,8 @@ The DOM implementation focuses YouTube's existing card controls. Cobalt hybrid
 navigation (`tabindex <= -2`), transformed/virtual rows and RTL rows keep their
 native focus/scroll behavior. Ordinary horizontal DOM scrollers use a bounded,
 critically damped reveal animation inspired by PlxNative's scroll spring.
+They keep a small peek of the neighbouring card available at the edge so the
+pointer can continue through the row without switching to the arrow keys.
 No transforms, synthetic arrow keys or clicks are injected.
 
 The pointer must actually move to acquire another card. Holding it stationary
