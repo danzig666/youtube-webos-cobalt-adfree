@@ -45,7 +45,9 @@ concurrency:
 jobs:
   build:
     name: Cobalt ${{ inputs.cobalt_ref || '23.lts.6' }} from ${{ github.ref_name }}
-    runs-on: ubuntu-latest
+    # Keep the legacy FFmpeg 5 host validation toolchain reproducible; the
+    # ubuntu-latest migration to 26.04 crashes its actual AAC decode probe.
+    runs-on: ubuntu-24.04
     timeout-minutes: 360
 
     env:
