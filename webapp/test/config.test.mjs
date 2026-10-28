@@ -71,6 +71,13 @@ test('obsolete voice language preference is ignored without losing other prefere
   assert.equal(load(state.saved()).context.configRead('startupPage'),'subscriptions');
 });
 
+test('pointer row scrolling defaults on and a saved off choice survives reload',()=>{
+  const state=load('{}');
+  assert.equal(state.context.configRead('pointerRowScroll'),true);
+  state.context.configWrite('pointerRowScroll',false);
+  assert.equal(load(state.saved()).context.configRead('pointerRowScroll'),false);
+});
+
 test('caption and DeArrow defaults are opt-in and their preferences survive reload',()=>{
   const s=load('{}');
   assert.equal(s.context.configRead('captionMode'),'youtube');

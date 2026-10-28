@@ -38,6 +38,7 @@ The original ad blocking, Return YouTube Dislike, automatic account selection, s
 | Blue settings interface | Inter typography, TV-safe margins, instant category switching on focus/hover, visible focus and direct option lists |
 | Home refresh | YouTube’s in-place soft-refresh command, available in General and on number keys; confirmed working on the LG C3 |
 | Magic Remote support | Cursor selection and wheel scrolling in settings, option lists, help and diagnostics |
+| Pointer row scrolling | PlxNative-style hover focus and smooth reveal of clipped cards in horizontal browsing rows; on by default, with an off switch in General |
 | In-app voice search | Magic Remote microphone capture with language controlled by YouTube. Hungarian voice search confirmed on C3 with the original-ID package; microphone status and bounded cleanup. |
 | Bundled software AAC | Private ARMv7 audio decoder for the existing legacy playback path; avoids relying on firmware AAC libraries |
 | Video quality profiles | Safe 1080p SDR, 4K SDR or 4K HDR; saved on the TV and applied after a full restart |
@@ -70,6 +71,8 @@ Press **GREEN** to open settings. Use arrows and **OK**, the cursor or the wheel
 **Hungarian voice search:** in **YouTube’s own Settings → Language**, choose **Magyar**, then use the microphone inside YouTube Search. The TV may stay in English. This works on the tested C3 with the original-ID package. The physical remote microphone button can still launch LG’s system assistant. [Details](docs/hungarian-voice-search.md).
 
 **Ad blocking defaults on.** Home, continuation and Shorts ads are filtered before YouTube renders the response, including nested ad tiles and mastheads. Sponsored QR blocking has its own switch. Adapted from [upstream #119](https://github.com/RF1705/youtube-webos-cobalt-adfree/pull/119), with our Cobalt DOM fallback retained. [Details](docs/early-ad-filtering.md).
+
+**General → Pointer row scrolling** follows [PlxNative](https://github.com/danzig666/plx-native): point at a clipped card near either end of a horizontal row to reveal it. Arrow keys take over until you deliberately move the pointer again. It defaults on and excludes playback and menus. [Behavior and validation](docs/pointer-row-scrolling.md).
 
 Four optional display controls are under **General** and default off. Logo visibility changes immediately; feed/video filters apply when the next response loads. Use Home refresh when desired. Sharper thumbnails depend on YouTube’s available image variants. These options do not automatically refresh the Home feed or disable normal sign-in.
 

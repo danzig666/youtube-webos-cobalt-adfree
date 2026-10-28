@@ -1,0 +1,162 @@
+"""Production-bundle pointer row regressions using YouTube-shaped DOM fixtures.
+
+Requires the production webpack build, Playwright and system Chromium. These
+fixtures exercise DOM interaction; native YouTube/Cobalt integration needs a TV.
+"""
+import importlib.util
+from pathlib import Path
+from urllib.parse import urlparse
+from playwright.sync_api import sync_playwright
+
+ROOT = Path(__file__).resolve().parents[1]
+spec = importlib.util.spec_from_file_location('settings', ROOT / 'scripts/test-settings-browser.py')
+settings = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(settings)
+cards = ''.join(f'<ytlr-tile-renderer tabindex="0" id="card{i}"><span>Video {i}</span></ytlr-tile-renderer>' for i in range(10))
+HTML = settings.HTML.replace('</head>', '''<style>
+#rail {position:absolute;left:80px;right:80px;top:160px;height:240px;overflow-x:auto;overflow-y:hidden;}
+#track {display:flex;gap:28px;width:max-content;}
+ytlr-tile-renderer {display:block;flex:0 0 240px;height:200px;background:#3478a0;}
+ytlr-tile-renderer:focus {outline:2px solid white;outline-offset:-2px;}
+</style></head>''').replace('<button id="outside"', f'<ytlr-shelf-renderer id="rail"><div id="track">{cards}</div></ytlr-shelf-renderer><button id="outside"')
+
+
+def run(browser, width, height):
+    context = browser.new_context(viewport={'width': width, 'height': height})
+    errors = []
+
+    def route(r):
+        u = urlparse(r.request.url)
+        if u.netloc != 'test.invalid':
+            return r.abort()
+        if u.path in ['/adblockMain.js', '/adblockMain.css']:
+            return r.fulfill(body=(ROOT / 'webapp/output' / u.path[1:]).read_bytes(),
+                             content_type='text/css' if u.path.endswith('.css') else 'text/javascript')
+        if u.path.startswith('/fonts/'):
+            return r.fulfill(body=(ROOT / 'webapp/output/fonts' / Path(u.path).name).read_bytes(), content_type='font/woff2')
+        return r.fulfill(body=HTML, content_type='text/html')
+
+    context.route('**/*', route)
+    page = context.new_page()
+    page.on('pageerror', lambda error: errors.append(str(error)))
+    page.goto('http://test.invalid/tv#/')
+    page.wait_for_function('window.__ytafUiInitialized && window.__ytafPointerRows')
+    page.evaluate('''() => {
+      window.activations=0;window.focuses=[];window.scrollWrites=0;
+      const native=Object.getOwnPropertyDescriptor(Element.prototype,'scrollLeft');
+      Object.defineProperty(rail,'scrollLeft',{get(){return native.get.call(this);},set(v){scrollWrites++;native.set.call(this,v);}});
+      document.querySelectorAll('ytlr-tile-renderer').forEach(n=>{
+        n.addEventListener('click',()=>activations++);
+        n.addEventListener('focus',()=>focuses.push(n.id));
+      });
+      // Cobalt does not supply Element.closest().
+      Element.prototype.closest=undefined;
+    }''')
+
+    def edge():
+        return page.evaluate('''() => {
+          const box=rail.getBoundingClientRect();
+          for(const card of document.querySelectorAll('ytlr-tile-renderer')) {
+            const r=card.getBoundingClientRect();
+            if(r.left<box.right-5 && r.right>box.right+5)
+              return {id:card.id,x:box.right-8,y:r.top+80};
+          }
+          throw Error('fixture has no clipped card');
+        }''')
+
+    def reset():
+        page.mouse.move(width / 2, 60)
+        page.evaluate('rail.scrollLeft=0;document.activeElement.blur()')
+        page.wait_for_timeout(50)
+
+    reset()
+    target = edge()
+    page.mouse.move(target['x'], target['y'])
+    page.wait_for_timeout(1100)
+    assert page.evaluate('document.activeElement.id') == target['id']
+    revealed = page.evaluate('''id => {
+      const r=document.getElementById(id).getBoundingClientRect(),b=rail.getBoundingClientRect();
+      return {right:r.right,edge:b.right,offset:rail.scrollLeft};
+    }''', target['id'])
+    assert revealed['offset'] > 0 and revealed['right'] <= revealed['edge'] - 10, revealed
+    assert page.evaluate('activations') == 0, 'Hover must not activate videos'
+    snapshot = page.evaluate('[rail.scrollLeft,scrollWrites,focuses.length]')
+    page.wait_for_timeout(1300)
+    assert page.evaluate('[rail.scrollLeft,scrollWrites,focuses.length]') == snapshot, 'A stationary cursor must not run through the row'
+    assert page.evaluate('window.scrollY') == 0
+    # Reveal the clipped first card on the left, without clicking.
+    page.mouse.move(84, target['y'])
+    page.wait_for_timeout(1100)
+    assert page.evaluate('rail.scrollLeft') == 0
+
+    # Arrow navigation owns focus until deliberate pointer movement resumes.
+    target = edge()
+    page.mouse.move(target['x'], target['y'])
+    page.wait_for_timeout(1100)
+    page.keyboard.press('ArrowLeft')
+    page.evaluate("card0.focus({preventScroll:true})")
+    page.mouse.move(target['x'] - 2, target['y'])
+    page.wait_for_timeout(100)
+    assert page.evaluate('document.activeElement.id') == 'card0'
+    page.mouse.move(width / 2, 60)
+
+    # Playback, dragging and visible native menus cannot acquire row focus.
+    for mode in ['watch', 'shorts', 'dialog', 'drag', 'hidden']:
+        reset()
+        target = edge()
+        if mode == 'watch': page.evaluate("document.body.className='WEB_PAGE_TYPE_WATCH'")
+        if mode == 'shorts': page.evaluate("document.body.className='WEB_PAGE_TYPE_SHORTS'")
+        if mode == 'dialog': page.evaluate("let n=document.createElement('div');n.id='dialog';n.setAttribute('role','dialog');n.style='position:absolute;top:5px;left:10px;width:20px;height:20px';document.body.appendChild(n)")
+        if mode == 'hidden': page.evaluate("rail.style.opacity='0'")
+        writes_before = page.evaluate('scrollWrites')
+        focus_before = page.evaluate('focuses.length')
+        if mode == 'drag': page.mouse.down()
+        page.mouse.move(target['x'], target['y'])
+        page.wait_for_timeout(100)
+        assert page.evaluate('scrollWrites') == writes_before, mode
+        assert page.evaluate('focuses.length') == focus_before, mode
+        # Chromium itself can scroll a selection during a held drag. The
+        # feature must leave that native gesture alone, without its own writes.
+        if mode != 'drag': assert page.evaluate('rail.scrollLeft') == 0, mode
+        if mode == 'drag': page.mouse.up()
+        page.evaluate("document.body.className='';document.getElementById('dialog')?.remove();rail.style.opacity='1'")
+
+    # Opening settings cancels an animation, and the switch is durable.
+    reset()
+    target = edge()
+    page.mouse.move(target['x'], target['y'])
+    page.wait_for_timeout(80)
+    page.keyboard.press('=')
+    paused = page.evaluate('rail.scrollLeft')
+    page.wait_for_timeout(300)
+    assert page.evaluate('rail.scrollLeft') == paused
+    assert page.get_by_role('checkbox', name='Pointer row scrolling', exact=True).get_attribute('aria-checked') == 'true'
+    page.get_by_role('checkbox', name='Pointer row scrolling', exact=True).click()
+    assert page.evaluate('JSON.parse(h5vcc.system.getYtafUiPreferences()).pointerRowScroll') is False
+    page.keyboard.press('Escape')
+    reset()
+    target = edge()
+    page.mouse.move(target['x'], target['y'])
+    page.wait_for_timeout(200)
+    assert page.evaluate('rail.scrollLeft') == 0
+
+    # The native hybrid-navigation branch focuses normally and never writes
+    # scrollLeft in competition with Cobalt's own focus/scroll engine.
+    page.evaluate("window.__ytafConfigState.pointerRowScroll=true;document.querySelectorAll('ytlr-tile-renderer').forEach(n=>n.tabIndex=-2)")
+    reset()
+    target = edge()
+    before = page.evaluate('scrollWrites')
+    page.mouse.move(target['x'], target['y'])
+    page.wait_for_timeout(200)
+    assert page.evaluate('document.activeElement.id') == target['id']
+    assert page.evaluate('scrollWrites') == before
+    assert not errors, errors
+    print(f'{width}x{height}: clipped cards reveal both ways; hover never activates; stationary/D-pad/modal/playback/drag guards; saved switch; native-focus ownership passed', flush=True)
+    context.close()
+
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(executable_path='/usr/bin/chromium', args=['--no-sandbox'])
+    for width, height in [(1280, 720), (1920, 1080)]:
+        run(browser, width, height)
+    browser.close()
