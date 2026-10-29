@@ -1,6 +1,6 @@
 // Pointer focus + minimal row reveal, following PlxNative's CardRow and HitMap:
 // https://github.com/danzig666/plx-native/tree/47fd8bbc6c2ca70ab90507b3dc6ccf02672182f7/rust-modules/src/ui
-// DOM adaptation; virtual rows use bounded YouTube navigation, never activation.
+// DOM adaptation: pixel-based reveal for both scroll containers and virtual tracks.
 const cards = 'ytlr-tile-renderer, ytlr-grid-video-renderer, ytlr-video-renderer, ytlr-compact-video-renderer';
 const candidates = cards + ', [tabindex]';
 const rails = 'ytlr-shelf-renderer, ytlr-horizontal-list-renderer, [role="list"]';
@@ -29,8 +29,8 @@ function ancestor(node, selector, stop = null) {
 export function startPointerRowScroll(doc, win, read) {
   let frame = null, motion = null, pending = null, lastPoint = null;
   let dpadAt = null, pressed = false, menu = false, stopped = false, lastCard = null;
-  let animation = null, nativeReveal = null, lastDirection = 0;
-  const ownKeys = new WeakSet();
+  let animation = null, nativeReveal = null;
+  const tracks = new Map();
   const api = {moves: 0, status: 'Point at a video card to reveal it.', destroy};
   const scale = () => Math.max(0.5, (win.innerWidth || 1920) / 1920);
   function cancelMotion() {
@@ -41,7 +41,7 @@ export function startPointerRowScroll(doc, win, read) {
   }
   function cancel() {
     if (frame !== null) win.cancelAnimationFrame(frame);
-    frame = null; pending = null; lastCard = null; lastDirection = 0; cancelMotion();
+    frame = null; pending = null; lastCard = null; cancelMotion();
   }
   function attached(node) { return Boolean(node && doc.documentElement?.contains(node)); }
   function visible(node) {
@@ -89,7 +89,7 @@ export function startPointerRowScroll(doc, win, read) {
         if (scrollable) return {node, box, scrollable};
         // An inner clipping/transform wrapper may sit inside the real rail.
         // Keep looking for the ancestor whose scrollLeft can actually move.
-        if (!fallback || box.width < fallback.box.width) fallback = {node, box, scrollable};
+        if (!fallback || box.width <= fallback.box.width) fallback = {node, box, scrollable};
       }
     }
     return fallback;
@@ -123,61 +123,95 @@ export function startPointerRowScroll(doc, win, read) {
     const owner = ancestor(row,'[dir]');
     return owner?.getAttribute('dir')?.toLowerCase() === 'rtl';
   }
-  function edgeDirection(row, point) {
-    const edge = 96 * scale();
-    const left = Math.max(0,row.box.left), right = Math.min(win.innerWidth,row.box.right);
-    return point.x >= right-edge ? 1 : point.x <= left+edge ? -1 : 0;
-  }
-  function navigateRow(row, card, point) {
-    const left = Math.max(0,row.box.left), right = Math.min(win.innerWidth,row.box.right);
-    const direction = edgeDirection(row, point);
-    const before = bounds(card);
-    if (!direction || !before) {api.status = 'Card focused; move the pointer closer to a row edge.';return;}
-    const peers = row.node.querySelectorAll(candidates);
-    let contentBeyondEdge = direction>0 ? before.right>right+2 : before.left<left-2;
-    for (let i=0; !contentBeyondEdge && i<peers.length && i<100; i++) {
-      const r = bounds(peers[i]);
-      if (!r || Math.abs((r.top+r.bottom-before.top-before.bottom)/2)>before.height/2) continue;
-      contentBeyondEdge = direction>0 ? r.right>right+2 : r.left<left-2;
-    }
-    if (!contentBeyondEdge) {api.status = 'Row end reached; no navigation sent.';return;}
-    let remaining = 6;
-    const advance = () => {
-      nativeReveal = null;
-      if (blocked() || !attached(card) || !attached(row.node) || !row.node.contains(doc.activeElement)) return;
-      const current = bounds(card);
-      if (!current) return;
-      if (Math.abs(current.left-before.left)>2) {api.status = 'Row movement confirmed.';return;}
-      if (!remaining--) {api.status = 'YouTube navigation sent; row did not move.';return;}
-      api.status = 'Requesting YouTube row navigation.';
-      const target = doc.activeElement;
-      for (const type of ['keydown','keyup']) {
-        const code = direction>0 ? 39 : 37, key = direction>0 ? 'ArrowRight' : 'ArrowLeft';
-        const event = new win.KeyboardEvent(type,{bubbles:true,cancelable:true,key,code:key,keyCode:code,which:code});
-        for (const field of ['keyCode','which'])
-          if (event[field] !== code) Object.defineProperty(event,field,{get:()=>code});
-        ownKeys.add(event);
-        target.dispatchEvent(event);
+  // Find the shared content track, never translate the clipping viewport or
+  // a shelf heading. Reject containers that also contain another video row.
+  function trackFor(row, card) {
+    const rect = bounds(card);
+    for (let node = card.parentElement; node && node !== row.node; node = node.parentElement) {
+      const peers = node.querySelectorAll(candidates);
+      let horizontal = false, otherRow = false;
+      for (let i=0; i<peers.length && i<200; i++) {
+        if (peers[i] === card || peers[i].contains(card) || card.contains(peers[i])) continue;
+        const r = bounds(peers[i]);
+        if (!r) continue;
+        if (Math.abs((r.top+r.bottom-rect.top-rect.bottom)/2)>rect.height/2) otherRow = true;
+        else if (Math.abs(r.left-rect.left)>rect.width/2) horizontal = true;
       }
-      nativeReveal = win.setTimeout(advance,200);
-    };
-    nativeReveal = win.setTimeout(advance,180);
+      if (horizontal && !otherRow) return node;
+    }
+    return null;
+  }
+  function releaseTracks() {
+    for (const [node,state] of tracks) {
+      // YouTube may replace a transform itself. Never restore stale state over
+      // an application update, and do not keep detached rows alive.
+      if (node.style.getPropertyValue('transform') === state.written) {
+        if (state.original) node.style.setProperty('transform',state.original,state.priority);
+        else node.style.removeProperty('transform');
+      }
+      if (node.style.getPropertyValue('transition') === 'none') {
+        if (state.transition) node.style.setProperty('transition',state.transition,state.transitionPriority);
+        else node.style.removeProperty('transition');
+      }
+    }
+    tracks.clear();
+  }
+  function priority(style,name) {
+    // Cobalt exposes setProperty's priority argument, but no getPropertyPriority.
+    return new RegExp('(?:^|;)\\s*'+name+'\\s*:[^;]*!important\\s*(?:;|$)','i').test(style.cssText) ? 'important' : '';
+  }
+  function pixelTrack(row,card) {
+    for (const [old] of tracks) if (!attached(old)) tracks.delete(old);
+    const node = trackFor(row,card);
+    if (!node) return null;
+    let state = tracks.get(node);
+    if (state && node.style.getPropertyValue('transform') !== state.written) {
+      // Native navigation changed the row. Its new transform becomes the base.
+      state.original = node.style.getPropertyValue('transform');
+      state.priority = priority(node.style,'transform');
+      const base = win.getComputedStyle(node).transform;
+      state.base = base && base !== 'none' ? base : '';
+      state.offset = 0;state.written = state.original;
+      if (node.style.getPropertyValue('transition') !== 'none') {
+        state.transition = node.style.getPropertyValue('transition');
+        state.transitionPriority = priority(node.style,'transition');
+      }
+    }
+    if (!state) {
+      const style = node.style, base = win.getComputedStyle(node).transform;
+      state = {node,offset:0,base:base && base !== 'none' ? base : '',
+        original:style.getPropertyValue('transform'),priority:priority(style,'transform'),
+        transition:style.getPropertyValue('transition'),transitionPriority:priority(style,'transition'),
+        written:style.getPropertyValue('transform')};
+      tracks.set(node,state);
+    }
+    return state;
+  }
+  function writeOffset(a,value) {
+    if (!a.track) {a.row.scrollLeft = value;return a.row.scrollLeft;}
+    const state = a.track;
+    state.offset = value;
+    state.node.style.setProperty('transition','none');
+    state.node.style.setProperty('transform','translateX('+value+'px) '+state.base,state.priority);
+    state.written = state.node.style.getPropertyValue('transform');
+    return value;
   }
   function step(time) {
     motion = null;
     const a = animation;
     if (!a || !Number.isFinite(time) || blocked() || !attached(a.row) || !attached(a.card) ||
-        !ownsFocus(a.card, a.focus) || Math.abs(a.row.scrollLeft - a.last) > 2) {cancelMotion();return;}
+        !ownsFocus(a.card, a.focus) ||
+        (a.track ? !attached(a.track.node) || a.track.node.style.getPropertyValue('transform') !== a.track.written
+          : Math.abs(a.row.scrollLeft - a.last) > 2)) {cancelMotion();return;}
     // Exact critically damped spring, like PlxNative K_SCROLL=170, with a
-    // bounded lifetime. Only a real horizontal scroll container is written.
+    // bounded lifetime. Virtual tracks use the same spring in pixel space.
     const t = Math.max(0, Math.min(1, (time - a.start) / 1000));
     const omega = Math.sqrt(170);
     const progress = 1 - (1 + omega * t) * Math.exp(-omega * t);
     a.last = a.from + (a.to - a.from) * progress;
-    a.row.scrollLeft = a.last;
-    a.last = a.row.scrollLeft;
+    a.last = writeOffset(a,a.last);
     if (Math.abs(a.to - a.last) < 0.5 || t >= 1 || --a.remaining <= 0) {
-      a.row.scrollLeft = a.to;
+      writeOffset(a,a.to);
       const after = bounds(a.card);
       api.status = after && Math.abs(after.left-a.cardLeft)>2 ? 'Row movement confirmed.' : 'Scroll requested; card position did not change.';
       animation = null; return;
@@ -185,24 +219,42 @@ export function startPointerRowScroll(doc, win, read) {
     motion = win.requestAnimationFrame(step);
   }
   function reveal(row, card, target) {
-    if (!row.scrollable) return;
-    // RTL scrollLeft conventions differ across Cobalt/browser versions. Its
-    // native focus system owns RTL reveal instead of guessing offsets here.
     if (rtl(row.node)) return;
     const rect = bounds(card);
     if (!rect) return;
-    // PlxNative reveals inside its outer margin, while the adjacent card can
-    // still be hit in that margin. Keep a small peek inside a DOM row's hard
-    // clip too, so the pointer can reach the next card in either direction.
-    const peek = Math.min(80 * scale(), rect.width / 3, row.box.width / 6);
-    const left = Math.max(0, row.box.left) + peek;
-    const right = Math.min(win.innerWidth, row.box.right) - peek;
-    const current = row.node.scrollLeft;
-    const goal = horizontalReveal(current,left,right,rect.left,rect.right,
-      row.node.scrollWidth - row.node.clientWidth,28 * scale());
-    if (Math.abs(goal - current) < 0.5) {api.status = 'Card already inside the row viewport.';return;}
-    if (win.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {row.node.scrollLeft = goal;return;}
-    animation = {row:row.node,card,focus:target,cardLeft:rect.left,from:current,to:goal,last:current,start:win.performance.now(),remaining:120};
+    // Leave about half a neighbouring card visible, rather than snapping the
+    // row to a tile index. The same nearest-reveal rule works in either direction.
+    const peek = Math.min(120 * scale(), rect.width / 2, row.box.width / 4);
+    const viewportLeft = Math.max(0,row.box.left), viewportRight = Math.min(win.innerWidth,row.box.right);
+    const left = viewportLeft + peek, right = viewportRight - peek;
+    let track = null, current, goal;
+    if (row.scrollable) {
+      current = row.node.scrollLeft;
+      goal = horizontalReveal(current,left,right,rect.left,rect.right,
+        row.node.scrollWidth-row.node.clientWidth,28*scale());
+    } else {
+      track = pixelTrack(row,card);
+      if (!track) {api.status = 'No separate horizontal track found.';return;}
+      const peers = track.node.querySelectorAll(candidates);
+      let first = rect.left, last = rect.right;
+      for (let i=0;i<peers.length && i<200;i++) {
+        const r = bounds(peers[i]);
+        if (!r || Math.abs((r.top+r.bottom-rect.top-rect.bottom)/2)>rect.height/2) continue;
+        first = Math.min(first,r.left);last = Math.max(last,r.right);
+      }
+      current = track.offset;
+      const lower = current+viewportRight-last, upper = current+viewportLeft-first;
+      if (lower>upper) {api.status = 'Entire row already fits.';return;}
+      // Translate is the inverse of scrollLeft. Keep the nearest legal offset
+      // and preserve YouTube's existing transform as the base of our translation.
+      goal = upper-horizontalReveal(upper-current,left,right,rect.left,rect.right,
+        upper-lower,28*scale());
+    }
+    if (Math.abs(goal-current)<0.5) {api.status = 'Card already inside the row viewport.';return;}
+    const a = {row:row.node,card,focus:target,track,cardLeft:rect.left,from:current,to:goal,last:current,start:win.performance.now(),remaining:120};
+    if (win.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {writeOffset(a,goal);return;}
+    animation = a;
+    api.status = 'Smoothly revealing the pointed card.';
     motion = win.requestAnimationFrame(step);
   }
   function update() {
@@ -254,19 +306,7 @@ export function startPointerRowScroll(doc, win, read) {
         cancel();api.status = 'Card found but vertically clipped.';return;
       }
       const row = rowFor(card,rect);
-      if (card === lastCard) {
-        // Moving within a focused card can enter or leave the edge zone.
-        // Reevaluate the zone without refocusing or restarting every movement.
-        if (row && !row.scrollable) {
-          const direction = edgeDirection(row,point);
-          if (direction !== lastDirection) {
-            lastDirection = direction;
-            cancelMotion();
-            navigateRow(row,card,point);
-          }
-        }
-        return;
-      }
+      if (card === lastCard) return;
       cancelMotion();
       if (!row) {lastCard = null;api.status = 'Card found; horizontal row unavailable.';return;}
       const target = focusTarget(card,row.node);
@@ -276,8 +316,7 @@ export function startPointerRowScroll(doc, win, read) {
       let native = false;
       for (let node = target; node && node !== row.node; node = node.parentElement)
         if (node.hasAttribute?.('tabindex') && Number(node.getAttribute('tabindex')) <= -2) {native = true;break;}
-      // YouTube owns transformed/virtual rows. The browser/native engine also
-      // owns RTL offsets, whose sign differs between implementations.
+      // Preserve native focus semantics. RTL offsets remain browser-owned.
       native = native || !row.scrollable || rtl(row.node);
       const beforeFocus = row.node.scrollLeft;
       if (native) target.focus();
@@ -285,9 +324,8 @@ export function startPointerRowScroll(doc, win, read) {
       if (blocked() || !attached(card)) return;
       if (!ownsFocus(card,target)) {api.status = 'Card found; YouTube did not accept focus.';return;}
       lastCard = card;
-      lastDirection = row.scrollable ? 0 : edgeDirection(row,point);
       api.status = 'Card focus accepted; checking row movement.';
-      if (!row.scrollable) navigateRow(row,card,point);
+      if (!row.scrollable) reveal(row,card,target);
       else if (!native) reveal(row,card,target);
       else if (row.scrollable && !rtl(row.node)) {
         // Native focus is not a guarantee of native scrolling. Give it time
@@ -315,27 +353,28 @@ export function startPointerRowScroll(doc, win, read) {
     pending = {x,y,target:event.target};
     if (frame === null) frame = win.requestAnimationFrame(update);
   }
-  function key(event) {if (ownKeys.has(event)) return;dpadAt = lastPoint || {x:0,y:0};cancel();}
+  function key() {dpadAt = lastPoint || {x:0,y:0};cancel();releaseTracks();}
   function down() {pressed = true;cancel();}
   function up() {pressed = false;}
   function leave() {lastPoint = null;cancel();}
   function openMenu() {menu = true;cancel();}
   function closeMenu() {menu = false;lastCard = null;}
-  function config(event) {if (event.detail?.key === 'pointerRowScroll') cancel();}
+  function config(event) {if (event.detail?.key === 'pointerRowScroll') {cancel();releaseTracks();}}
   function blur() {pressed = false;leave();}
+  function route() {leave();releaseTracks();}
   const bindings = [
     [doc,'pointermove',move,true],[doc,'mousemove',move,true],[win,'keydown',key,true],
     [doc,'pointerdown',down,true],[win,'pointerup',up,true],[win,'pointercancel',blur,true],
     [doc,'mousedown',down,true],[win,'mouseup',up,true],
     [doc,'wheel',leave,true],[doc,'mouseleave',leave,false],
-    [win,'blur',blur,false],[win,'pagehide',blur,false],[win,'resize',leave,false],
-    [win,'hashchange',leave,false],[doc,'yt-navigate-finish',leave,false],
+    [win,'blur',blur,false],[win,'pagehide',route,false],[win,'resize',route,false],
+    [win,'hashchange',route,false],[doc,'yt-navigate-finish',route,false],
     [doc,'visibilitychange',blur,false],[doc,'ytaf-menu-opened',openMenu,false],
     [doc,'ytaf-menu-closed',closeMenu,false],[doc,'ytaf-config-changed',config,false]
   ];
   for (const [owner,type,callback,capture] of bindings) owner.addEventListener(type,callback,capture);
   function destroy() {
-    stopped = true;cancel();
+    stopped = true;cancel();releaseTracks();
     for (const [owner,type,callback,capture] of bindings) owner.removeEventListener(type,callback,capture);
   }
   return api;

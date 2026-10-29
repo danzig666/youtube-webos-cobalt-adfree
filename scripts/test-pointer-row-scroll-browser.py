@@ -51,6 +51,7 @@ def run(browser, width, height):
       });
       // Cobalt does not supply Element.closest().
       Element.prototype.closest=undefined;
+      CSSStyleDeclaration.prototype.getPropertyPriority=undefined;
       // Its Document also omits this modern browser hit-test API.
       document.elementFromPoint=undefined;
       const computed=window.getComputedStyle;
@@ -215,44 +216,56 @@ def run(browser, width, height):
     page.evaluate("p=>document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))", target)
     page.wait_for_timeout(1400)
     assert page.evaluate('rail.scrollLeft') > 0, page.evaluate('({status:__ytafPointerRows.status,focus:document.activeElement.id,offset:rail.scrollLeft,controls:[...document.querySelectorAll("[tabindex]")].map(n=>({tag:n.localName,id:n.id,rect:n.getBoundingClientRect().toJSON()}))})')
-    # YouTube can own a transform-based row with no writable DOM offset.
+    # Virtual rows: no keyboard navigation, smooth pixel positions (including
+    # partial tiles), both directions, native-transform preservation and handoff.
     reset()
-    page.evaluate("rail.style.overflow='hidden';document.querySelectorAll('[tabindex]').forEach(n=>{if(rail.contains(n))n.focus=function(){HTMLElement.prototype.focus.call(this,{preventScroll:true})}});window.navCount=0;rail.addEventListener('keydown',e=>{if(e.keyCode===39){e.preventDefault();navCount++;if(!window.ignoreNav)track.style.transform='translateX(-268px)'}})")
-    # First hover inside the same card, outside the edge zone. Moving to its
-    # edge must be evaluated even though focus has not changed.
-    page.evaluate("track.style.gap='0px';document.querySelectorAll('ytlr-tile-renderer').forEach(n=>n.style.flex='0 0 '+(rail.clientWidth/2)+'px')")
-    interior = page.evaluate("() => {const b=rail.getBoundingClientRect();return {x:b.right-130*(innerWidth/1920),y:b.top+80}}")
-    page.evaluate("p=>document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))", interior)
-    page.wait_for_timeout(250)
-    focused = page.evaluate('document.activeElement.id')
-    assert page.evaluate('__ytafPointerRows.status') == 'Card focused; move the pointer closer to a row edge.'
-    assert page.evaluate('navCount') == 0
+    page.evaluate("rail.style.overflow='hidden';document.querySelectorAll('[tabindex]').forEach(n=>{if(rail.contains(n))n.focus=function(){HTMLElement.prototype.focus.call(this,{preventScroll:true})}});window.navCount=0;rail.addEventListener('keydown',()=>navCount++)")
     point = page.evaluate("() => {const b=rail.getBoundingClientRect();return {x:b.right-8,y:b.top+80}}")
-    # Leave the edge before its delay expires: no queued navigation may fire.
-    page.evaluate("p=>document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))", point)
-    page.wait_for_timeout(50)
-    page.evaluate("p=>document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))", interior)
-    page.wait_for_timeout(300)
+    send = lambda p: page.evaluate("p=>document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))",p)
+    page.evaluate("window.positions=[];window.capture=true;function sample(){positions.push(track.getBoundingClientRect().left);if(capture)requestAnimationFrame(sample)};requestAnimationFrame(sample)")
+    send(point)
+    page.wait_for_timeout(1200)
+    page.evaluate('capture=false')
     assert page.evaluate('navCount') == 0
-    assert page.evaluate('document.activeElement.id') == focused
-
-    page.evaluate("p=>document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))", point)
-    page.wait_for_timeout(1000)
-    assert page.evaluate('navCount') == 1, page.evaluate('({count:navCount,status:__ytafPointerRows.status})')
-    assert page.evaluate('__ytafPointerRows.status') == 'Row movement confirmed.'
-    page.wait_for_timeout(600)
-    assert page.evaluate('navCount') == 1, 'Stationary pointer must not keep navigating'
+    assert page.evaluate('rail.scrollLeft') == 0
+    assert page.evaluate('__ytafPointerRows.status') == 'Row movement confirmed.', page.evaluate('__ytafPointerRows.status')
+    positions = page.evaluate('positions')
+    assert len(set(round(x,1) for x in positions)) > 10, positions
+    assert 0 < positions[0]-positions[-1] < 400, "Reveal only the hovered card, not the entire row"
+    assert all(b <= a+0.5 for a,b in zip(positions,positions[1:])), positions
+    settled = page.evaluate('track.getBoundingClientRect().left')
+    page.wait_for_timeout(400)
+    assert page.evaluate('track.getBoundingClientRect().left') == settled
+    # Some neighbouring card remains partially visible, rather than tile snapping.
+    assert page.evaluate("() => {const b=rail.getBoundingClientRect();return [...track.querySelectorAll('[tabindex]')].some(n=>{const r=n.getBoundingClientRect();return r.left<b.right-5&&r.right>b.right+5})}")
+    # Return left from multiple offsets, including the row's original beginning.
+    for i in range(6):
+        send({'x':84+i%2,'y':point['y']})
+        page.wait_for_timeout(1100)
+        if abs(page.evaluate('track.getBoundingClientRect().left')-80) < 1: break
+    assert abs(page.evaluate('track.getBoundingClientRect().left')-80) < 1
+    assert page.evaluate('navCount') == 0, 'Left hover must not open the sidebar'
+    # Existing YouTube translation is composed with our pixel offset.
     page.mouse.move(width/2,60)
-    page.evaluate("track.style.transform='';window.leftCount=0;rail.addEventListener('keydown',e=>{if(e.keyCode===37){e.preventDefault();leftCount++}})")
-    page.evaluate("() => {const b=rail.getBoundingClientRect();document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:b.left+8,clientY:b.top+80}))}")
-    page.wait_for_timeout(700)
-    assert page.evaluate('leftCount') == 0, 'First card must not navigate out to the sidebar'
-    page.mouse.move(width/2,60)
-    page.evaluate("window.ignoreNav=true;navCount=0")
-    page.evaluate("p=>document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))", point)
-    page.wait_for_timeout(1600)
-    assert page.evaluate('navCount') == 6
-    assert page.evaluate('__ytafPointerRows.status') == 'YouTube navigation sent; row did not move.'
+    page.evaluate("track.style.transform='translateX(-268px)';track.style.transition='transform 0.2s linear'")
+    page.wait_for_timeout(250)
+    send({'x':84,'y':point['y']})
+    page.wait_for_timeout(1200)
+    assert page.evaluate('track.getBoundingClientRect().left') > -188
+    assert page.evaluate('navCount') == 0
+    # D-pad restores native styles before handing navigation back to YouTube.
+    page.keyboard.press('ArrowRight')
+    assert page.evaluate('track.style.transform') == 'translateX(-268px)'
+    assert page.evaluate('track.style.transition') == 'transform 0.2s linear'
+    assert page.evaluate('activations') == 0
+    # A YouTube update during our spring must win, including during cleanup.
+    send(point)
+    page.wait_for_timeout(120)
+    page.evaluate("track.style.transform='translateX(-400px)'")
+    page.wait_for_timeout(300)
+    assert page.evaluate('track.style.transform') == 'translateX(-400px)'
+    page.evaluate('__ytafPointerRows.destroy()')
+    assert page.evaluate('track.style.transform') == 'translateX(-400px)'
     assert not errors, errors
     print(f'{width}x{height}: clipped cards reveal both ways; hover never activates; stationary/D-pad/modal/playback/drag guards; saved switch; native-focus ownership passed', flush=True)
     context.close()
