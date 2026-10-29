@@ -8,7 +8,7 @@ on:
       manifest:
         description: Checked prerelease manifest committed with its provenance records
         required: true
-        default: docs/releases/v2.6.46-beta.1/manifest.json
+        default: docs/releases/v2.6.47-beta.1/manifest.json
         type: string
 permissions:
   contents: write
@@ -25,5 +25,5 @@ jobs:
       - name: Verify completed builds and publish both packages
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_MANIFEST: ${{ inputs.manifest || 'docs/releases/v2.6.46-beta.1/manifest.json' }}
+          RELEASE_MANIFEST: ${{ inputs.manifest || 'docs/releases/v2.6.47-beta.1/manifest.json' }}
         run: python3 scripts/publish-workflow-ipks.py "$RELEASE_MANIFEST"
