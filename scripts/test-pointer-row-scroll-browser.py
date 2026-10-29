@@ -21,7 +21,7 @@ ytlr-tile-renderer:focus {outline:2px solid white;outline-offset:-2px;}
 </style></head>''').replace('<button id="outside"', f'<ytlr-shelf-renderer id="rail"><div id="track">{cards}</div></ytlr-shelf-renderer><button id="outside"')
 
 
-def run(browser, width, height):
+def run(browser, width, height, virtual):
     context = browser.new_context(viewport={'width': width, 'height': height})
     errors = []
 
@@ -64,215 +64,101 @@ def run(browser, width, height):
       };
     }''')
 
-    def edge():
-        return page.evaluate('''() => {
-          const box=rail.getBoundingClientRect();
-          for(const card of document.querySelectorAll('ytlr-tile-renderer')) {
-            const r=card.getBoundingClientRect();
-            if(r.left<box.right-5 && r.right>box.right+5)
-              return {id:card.id,x:box.right-8,y:r.top+80};
-          }
-          throw Error('fixture has no clipped card');
-        }''')
+    page.evaluate("""virtual => {
+      if(virtual) rail.style.overflow='hidden';
+      window.navCount=0;rail.addEventListener('keydown',()=>navCount++);
+      // Different clock origins and long frame gaps must not cause jumps.
+      const raf=window.requestAnimationFrame;
+      window.clockJump=60000;
+      window.requestAnimationFrame=fn=>raf(t=>fn(t+clockJump));
+      window.scanCount=0;
+      const query=Document.prototype.querySelectorAll;
+      Document.prototype.querySelectorAll=function(s){scanCount++;return query.call(this,s)};
+    }""",virtual)
+    def send(x,y):
+        page.evaluate("p=>document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))",{'x':x,'y':y})
+    def offset():
+        return page.evaluate('track.getBoundingClientRect().left')
+    def steady():
+        before=offset();page.wait_for_timeout(350)
+        assert abs(offset()-before)<1,(before,offset())
 
-    def reset():
-        page.mouse.move(width / 2, 60)
-        page.evaluate('rail.scrollLeft=0;document.activeElement.blur()')
-        page.wait_for_timeout(50)
-
-    reset()
-    target = edge()
-    page.mouse.move(target['x'], target['y'])
-    page.wait_for_timeout(1100)
-    assert page.evaluate('document.activeElement.id') == target['id']
-    revealed = page.evaluate('''id => {
-      const r=document.getElementById(id).getBoundingClientRect(),b=rail.getBoundingClientRect();
-      return {right:r.right,edge:b.right,offset:rail.scrollLeft};
-    }''', target['id'])
-    assert revealed['offset'] > 0 and revealed['right'] <= revealed['edge'] - 10, revealed
-    assert page.evaluate('activations') == 0, 'Hover must not activate videos'
-    snapshot = page.evaluate('[rail.scrollLeft,scrollWrites,focuses.length]')
-    page.wait_for_timeout(1300)
-    assert page.evaluate('[rail.scrollLeft,scrollWrites,focuses.length]') == snapshot, 'A stationary cursor must not run through the row'
-    assert page.evaluate('window.scrollY') == 0
-    # Reveal the clipped first card on the left, without clicking.
+    right=width-88;left=88;y=240
+    baseline=offset()
+    send(right,y)
+    page.wait_for_timeout(800)
+    first=offset()
+    page.wait_for_timeout(800)
+    second=offset()
+    assert second < first-80 and first < baseline-80,(baseline,first,second)
+    assert page.evaluate('navCount')==0
+    assert page.evaluate('activations')==0
+    assert page.evaluate('focuses.length')==0,'Panning must not trigger native focus snapping'
+    # Repeated pointer packets on the same row do not restart motion or scan
+    # every card. Slow frames are clamped to one small movement increment.
+    scans=page.evaluate('scanCount')
+    page.evaluate("window.samples=[];window.sampling=true;function sample(){samples.push(track.getBoundingClientRect().left);if(sampling)requestAnimationFrame(sample)};requestAnimationFrame(sample)")
     for i in range(12):
-        if page.evaluate('rail.scrollLeft') == 0: break
-        page.mouse.move(84 + i % 2, target['y'])
-        page.wait_for_timeout(1100)
-    assert page.evaluate('rail.scrollLeft') == 0
-
-    # The neighboring card stays reachable at the edge after each reveal.
-    # Actual pointer movement advances; leaving it stationary never does.
-    reset()
-    for i in range(3):
-        target = edge()
-        before_offset = page.evaluate('rail.scrollLeft')
-        page.mouse.move(target['x'] - i % 2, target['y'])
-        page.wait_for_timeout(1100)
-        assert page.evaluate('document.activeElement.id') == target['id']
-        assert page.evaluate('rail.scrollLeft') > before_offset
-
-    # A shared focusable track must not win over the card's own nested link.
-    reset()
-    target = edge()
-    page.evaluate('''id => {
-      track.tabIndex=0;
-      const card=document.getElementById(id);card.removeAttribute('tabindex');
-      const link=document.createElement('a');link.href='#';link.tabIndex=0;
-      link.id='nested-card-link';link.style='display:block;width:100%;height:100%';
-      card.replaceChildren(link);
-    }''', target['id'])
-    page.mouse.move(target['x'],target['y'])
-    page.wait_for_timeout(1100)
-    assert page.evaluate('document.activeElement.id') == 'nested-card-link'
-    assert page.evaluate('rail.scrollLeft') > 0
-    page.evaluate("document.getElementById('nested-card-link').parentElement.tabIndex=0;track.removeAttribute('tabindex')")
-
-    # Arrow navigation owns focus until deliberate pointer movement resumes.
-    reset()
-    target = edge()
-    page.mouse.move(target['x'], target['y'])
-    page.wait_for_timeout(1100)
-    page.keyboard.press('ArrowLeft')
-    page.evaluate("card0.focus({preventScroll:true})")
-    page.mouse.move(target['x'] - 2, target['y'])
-    page.wait_for_timeout(100)
-    assert page.evaluate('document.activeElement.id') == 'card0'
-    page.mouse.move(width / 2, 60)
-
-    # Playback, dragging and visible native menus cannot acquire row focus.
-    for mode in ['watch', 'shorts', 'dialog', 'drag', 'hidden']:
-        reset()
-        target = edge()
-        if mode == 'watch': page.evaluate("document.body.className='WEB_PAGE_TYPE_WATCH'")
-        if mode == 'shorts': page.evaluate("document.body.className='WEB_PAGE_TYPE_SHORTS'")
-        if mode == 'dialog': page.evaluate("let n=document.createElement('div');n.id='dialog';n.setAttribute('role','dialog');n.style='position:absolute;top:5px;left:10px;width:20px;height:20px';document.body.appendChild(n)")
-        if mode == 'hidden': page.evaluate("rail.style.opacity='0'")
-        writes_before = page.evaluate('scrollWrites')
-        focus_before = page.evaluate('focuses.length')
-        if mode == 'drag': page.mouse.down()
-        page.mouse.move(target['x'], target['y'])
-        page.wait_for_timeout(100)
-        assert page.evaluate('scrollWrites') == writes_before, mode
-        assert page.evaluate('focuses.length') == focus_before, mode
-        # Chromium itself can scroll a selection during a held drag. The
-        # feature must leave that native gesture alone, without its own writes.
-        if mode != 'drag': assert page.evaluate('rail.scrollLeft') == 0, mode
-        if mode == 'drag': page.mouse.up()
-        page.evaluate("document.body.className='';document.getElementById('dialog')?.remove();rail.style.opacity='1'")
-
-    # Opening settings cancels an animation, and the switch is durable.
-    reset()
-    target = edge()
-    page.mouse.move(target['x'], target['y'])
-    page.wait_for_timeout(80)
-    page.keyboard.press('=')
-    paused = page.evaluate('rail.scrollLeft')
-    page.wait_for_timeout(300)
-    assert page.evaluate('rail.scrollLeft') == paused
-    assert page.get_by_role('checkbox', name='Pointer row scrolling', exact=True).get_attribute('aria-checked') == 'true'
-    page.get_by_role('checkbox', name='Pointer row scrolling', exact=True).click()
-    assert page.evaluate('JSON.parse(h5vcc.system.getYtafUiPreferences()).pointerRowScroll') is False
-    page.keyboard.press('Escape')
-    reset()
-    target = edge()
-    page.mouse.move(target['x'], target['y'])
-    page.wait_for_timeout(200)
-    assert page.evaluate('rail.scrollLeft') == 0
-
-    # A hybrid focus that actually scrolls owns the row; no competing writes.
-    page.evaluate("window.__ytafConfigState.pointerRowScroll=true;document.querySelectorAll('ytlr-tile-renderer').forEach(n=>n.tabIndex=-2)")
-    reset()
-    target = edge()
-    page.evaluate("id => {document.getElementById(id).focus=function(){HTMLElement.prototype.focus.call(this,{preventScroll:true});setTimeout(()=>rail.scrollLeft+=100,30)}}", target['id'])
-    before = page.evaluate('scrollWrites')
-    page.mouse.move(target['x'], target['y'])
-    page.wait_for_timeout(400)
-    assert page.evaluate('document.activeElement.id') == target['id']
-    assert page.evaluate('scrollWrites') == before + 1
-    # Cobalt may send pointer events without compatibility mouse events.
-    # Focus can succeed without starting a native row scroll.
-    reset()
-    target = edge()
-    page.evaluate("document.querySelectorAll('ytlr-tile-renderer').forEach(n=>{n.focus=function(){HTMLElement.prototype.focus.call(this,{preventScroll:true})}})")
-    page.evaluate("p => document.getElementById(p.id).dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y,buttons:0}))", target)
-    page.wait_for_timeout(1300)
-    assert page.evaluate('document.activeElement.id') == target['id']
-    assert page.evaluate('rail.scrollLeft') > 0, 'Native focus without native scrolling must reveal the clipped card'
-
-    # A per-card focus wrapper can include metadata outside the card bounds.
-    reset()
-    target = edge()
-    page.evaluate("id => {const c=document.getElementById(id); c.removeAttribute('tabindex');c.textContent='Video';const w=document.createElement('div');w.id='card-wrapper';w.tabIndex=-2;w.style='flex:0 0 240px;height:230px';c.before(w);w.appendChild(c)}", target['id'])
-    page.evaluate("p => document.getElementById(p.id).dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))", target)
-    page.wait_for_timeout(400)
-    assert page.evaluate('document.activeElement.id') == 'card-wrapper'
-    # Different renderer names and a covering event target, as can occur on
-    # the TV, must resolve by geometry rather than fixture component names.
-    reset()
-    target = edge()
-    page.evaluate("document.querySelectorAll('ytlr-tile-renderer').forEach(n=>{const c=document.createElement('ytlr-test-video-card');for(const a of n.attributes)c.setAttribute(a.name,a.value);c.style='display:block;flex:0 0 240px;height:200px';c.innerHTML=n.innerHTML;n.replaceWith(c)})")
-    page.evaluate("p=>document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))", target)
-    page.wait_for_timeout(1400)
-    assert page.evaluate('rail.scrollLeft') > 0, page.evaluate('({status:__ytafPointerRows.status,focus:document.activeElement.id,offset:rail.scrollLeft,controls:[...document.querySelectorAll("[tabindex]")].map(n=>({tag:n.localName,id:n.id,rect:n.getBoundingClientRect().toJSON()}))})')
-    # Virtual rows: no keyboard navigation, smooth pixel positions (including
-    # partial tiles), both directions, native-transform preservation and handoff.
-    reset()
-    page.evaluate("rail.style.overflow='hidden';document.querySelectorAll('[tabindex]').forEach(n=>{if(rail.contains(n))n.focus=function(){HTMLElement.prototype.focus.call(this,{preventScroll:true})}});window.navCount=0;rail.addEventListener('keydown',()=>navCount++)")
-    point = page.evaluate("() => {const b=rail.getBoundingClientRect();return {x:b.right-8,y:b.top+80}}")
-    send = lambda p: page.evaluate("p=>document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))",p)
-    page.evaluate("window.positions=[];window.capture=true;function sample(){positions.push(track.getBoundingClientRect().left);if(capture)requestAnimationFrame(sample)};requestAnimationFrame(sample)")
-    send(point)
-    page.wait_for_timeout(1200)
-    page.evaluate('capture=false')
-    assert page.evaluate('navCount') == 0
-    assert page.evaluate('rail.scrollLeft') == 0
-    assert page.evaluate('__ytafPointerRows.status') == 'Row movement confirmed.', page.evaluate('__ytafPointerRows.status')
-    positions = page.evaluate('positions')
-    assert len(set(round(x,1) for x in positions)) > 10, positions
-    assert 0 < positions[0]-positions[-1] < 400, "Reveal only the hovered card, not the entire row"
-    assert all(b <= a+0.5 for a,b in zip(positions,positions[1:])), positions
-    settled = page.evaluate('track.getBoundingClientRect().left')
-    page.wait_for_timeout(400)
-    assert page.evaluate('track.getBoundingClientRect().left') == settled
-    # Some neighbouring card remains partially visible, rather than tile snapping.
-    assert page.evaluate("() => {const b=rail.getBoundingClientRect();return [...track.querySelectorAll('[tabindex]')].some(n=>{const r=n.getBoundingClientRect();return r.left<b.right-5&&r.right>b.right+5})}")
-    # Return left from multiple offsets, including the row's original beginning.
-    for i in range(6):
-        send({'x':84+i%2,'y':point['y']})
-        page.wait_for_timeout(1100)
-        if abs(page.evaluate('track.getBoundingClientRect().left')-80) < 1: break
-    assert abs(page.evaluate('track.getBoundingClientRect().left')-80) < 1
-    assert page.evaluate('navCount') == 0, 'Left hover must not open the sidebar'
-    # Existing YouTube translation is composed with our pixel offset.
-    page.mouse.move(width/2,60)
-    page.evaluate("track.style.transform='translateX(-268px)';track.style.transition='transform 0.2s linear'")
+        send(right-i%2,y)
+        page.wait_for_timeout(20)
+    page.evaluate('clockJump+=20000')
     page.wait_for_timeout(250)
-    send({'x':84,'y':point['y']})
-    page.wait_for_timeout(1200)
-    assert page.evaluate('track.getBoundingClientRect().left') > -188
-    assert page.evaluate('navCount') == 0
-    # D-pad restores native styles before handing navigation back to YouTube.
-    page.keyboard.press('ArrowRight')
-    assert page.evaluate('track.style.transform') == 'translateX(-268px)'
-    assert page.evaluate('track.style.transition') == 'transform 0.2s linear'
-    assert page.evaluate('activations') == 0
-    # A YouTube update during our spring must win, including during cleanup.
-    send(point)
-    page.wait_for_timeout(120)
-    page.evaluate("track.style.transform='translateX(-400px)'")
-    page.wait_for_timeout(300)
-    assert page.evaluate('track.style.transform') == 'translateX(-400px)'
-    page.evaluate('__ytafPointerRows.destroy()')
-    assert page.evaluate('track.style.transform') == 'translateX(-400px)'
-    assert not errors, errors
-    print(f'{width}x{height}: clipped cards reveal both ways; hover never activates; stationary/D-pad/modal/playback/drag guards; saved switch; native-focus ownership passed', flush=True)
+    page.evaluate('sampling=false')
+    samples=page.evaluate('samples')
+    assert len(samples)>10
+    assert all(-16<=b-a<=1 for a,b in zip(samples,samples[1:])),samples
+    assert page.evaluate('scanCount')-scans<30
+    # Moving inward stops without snapping to a complete tile.
+    send(width/2,y)
+    steady()
+    assert page.evaluate("() => {const b=rail.getBoundingClientRect();return [...track.querySelectorAll('[tabindex]')].some(n=>{const r=n.getBoundingClientRect();return (r.left<b.right-2&&r.right>b.right+2)||(r.left<b.left-2&&r.right>b.left+2)})}")
+    send(left,y)
+    page.wait_for_timeout(800)
+    first=offset();page.wait_for_timeout(800);second=offset()
+    assert second>first+60,(first,second)
+    # Continue all the way to the left end without leaving the row for sidebar.
+    page.wait_for_timeout(2200)
+    assert abs(offset()-baseline)<1,(offset(),baseline)
+    steady()
+    assert page.evaluate('navCount')==0
+    # Menu opening, wheel input and held drags stop ongoing scrolling.
+    for stop in ['menu','wheel','drag']:
+        send(width/2,60);send(right,y);page.wait_for_timeout(300)
+        if stop=='menu':page.evaluate("document.dispatchEvent(new Event('ytaf-menu-opened'))")
+        elif stop=='wheel':page.evaluate("document.dispatchEvent(new WheelEvent('wheel',{deltaY:20}))")
+        else:page.evaluate("document.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,buttons:1}))")
+        steady()
+        if stop=='menu':page.evaluate("document.dispatchEvent(new Event('ytaf-menu-closed'))")
+        if stop=='drag':page.evaluate("window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}))")
+    send(width/2,60);send(right,y);page.wait_for_timeout(300)
+    page.keyboard.press('ArrowDown')
+    steady()
+    # Tiny pointer movement after remote navigation must not reacquire control.
+    send(right-2,y);steady()
+    send(width/2,60)
+    page.evaluate("document.body.classList.add('WEB_PAGE_TYPE_WATCH')")
+    send(right,y);steady()
+    page.evaluate("document.body.classList.remove('WEB_PAGE_TYPE_WATCH')")
+    send(width/2,60)
+    if virtual:
+        page.evaluate("track.style.transform='translateX(-268px)';track.style.transition='transform 0.2s linear'")
+        page.wait_for_timeout(250)
+        send(left,y);page.wait_for_timeout(300)
+        assert offset()>-188
+        # An application transform update wins, including on destruction.
+        page.evaluate("track.style.transform='translateX(-400px)'")
+        page.wait_for_timeout(300)
+        assert page.evaluate('track.style.transform')=='translateX(-400px)'
+        page.evaluate('__ytafPointerRows.destroy()')
+        assert page.evaluate('track.style.transform')=='translateX(-400px)'
+    else:page.evaluate('__ytafPointerRows.destroy()')
+    steady()
+    assert not errors,errors
+    print(f'{width}x{height} {"virtual" if virtual else "DOM"}: continuous both ways; stop/end bounds; no focus/key jumps; clock/scan/guard checks passed',flush=True)
     context.close()
 
-
 with sync_playwright() as p:
-    browser = p.chromium.launch(executable_path='/usr/bin/chromium', args=['--no-sandbox'])
-    for width, height in [(1280, 720), (1920, 1080)]:
-        run(browser, width, height)
+    browser=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
+    for width,height in [(1280,720),(1920,1080)]:
+        for virtual in [False,True]:run(browser,width,height,virtual)
     browser.close()

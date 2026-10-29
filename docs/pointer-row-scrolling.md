@@ -1,39 +1,37 @@
 # Pointer row scrolling
 
-Enabled by default. Toggle **GREEN → General → Pointer row scrolling**.
-Point at a partly visible video card near either side of a horizontal browsing
-row. Focus follows the pointer and a damped spring moves the row only far enough
-to reveal the card, leaving part of the neighbouring tile visible. Hover never
-activates a video. Moving back to a card on the left reveals it the same way.
-Holding the pointer stationary does not keep advancing through the row.
+Enabled by default under **GREEN → General → Pointer row scrolling**.
+Keep the Magic Remote pointer near either edge of a horizontal browsing row to
+pan continuously. Speed increases toward the edge and ramps up gradually.
+Move inward or outside the row to stop at any pixel position, including partial
+tiles. Scrolling stops at either end. Hovering never activates a video.
 
-The reference is [PlxNative CardRow](https://github.com/danzig666/plx-native/blob/47fd8bbc6c2ca70ab90507b3dc6ccf02672182f7/rust-modules/src/ui/card_row.rs):
-nearest legal pixel offset, a breathing gap and a critically damped spring with
-K_SCROLL=170. This is not whole-tile navigation or an endless edge-hover timer.
+2.6.47 replaces the single-card reveal from 2.6.46. It keeps the pixel-offset
+approach inspired by PlxNative, but uses continuous edge panning to address the
+reported one-movement limit. It does not refocus passing tiles or inject arrow
+keys. Gaps between cards at the edge remain part of the same row.
 
-Real DOM scroll containers use `scrollLeft`. YouTube's virtual rows use a
-translation on the shared horizontal content track, composed with its existing
-transform. The clipping viewport is not translated. Positions are clamped to
-laid-out row content; there is no rounding to tile indices. A track containing
-multiple video rows is rejected. RTL remains native-owned.
+Real DOM scroll containers use `scrollLeft`. Virtual rows translate a separate
+horizontal content track while preserving YouTube's existing transform. An
+external transform update stops our movement. Remote keys, route changes,
+resize, disabling the setting and destruction restore native styles. Menus,
+wheel input, drags, playback screens and backgrounding stop panning. RTL remains
+native-owned. Deliberate pointer movement after a keypress restores hover control.
 
-A YouTube transform update stops our animation and becomes the next base.
-Remote key input restores the native styles before handing control back.
-Route changes, resize, disabling the setting and destruction also restore styles.
-Menu opening, wheel scrolling, pointer dragging and backgrounding stop animation.
-After a keypress, deliberate pointer movement of about 120 pixels at 1080p
-(scaled with the viewport) restores hover control.
+The active row geometry is reused instead of scanning the whole page for every
+pointer packet. Animation uses only requestAnimationFrame timestamps, clamps
+long frame gaps to small movement increments and does not run at rest or at row
+ends. Popup checks during motion are bounded to one per 200 ms. Scrolling is
+limited to currently laid-out row content; native virtualization may need further
+TV-specific adaptation.
 
-Cobalt 23 has no `document.elementFromPoint`, `Element.closest`, computed
-`overflowX` or `getPropertyPriority`. The implementation uses native event targets,
-bounded geometry hit testing, `overflow` and the inline declaration's priority.
-No startup scan or idle polling is required. Detached tracks are discarded.
-Playback/Shorts screens, popups, hidden rows and vertically clipped cards are
-excluded. The saved off setting survives updates.
+Cobalt 23 missing APIs are explicitly avoided: `elementFromPoint`, `closest`,
+computed `overflowX` and `getPropertyPriority`. A short status under the setting
+includes animation frame count and largest frame gap; no video/account data is
+collected.
 
-2.6.46 replaces the arrow-event fallback from 2.6.44/45 with pixel-based movement.
-Browser fixtures at 720p and 1080p check intermediate spring positions, partial
-tiles, right-to-left return, stationary stopping, native-transform preservation,
-D-pad handoff, native updates during motion, and the existing UI guards. They
-exercise the production bundle with Cobalt's missing APIs removed. Actual live
-YouTube DOM behavior still needs TV confirmation.
+Validation uses the production bundle at 720p/1080p with Cobalt's missing APIs
+removed: sustained movement both ways, tile gaps, stopping at partial tiles,
+row bounds, no focus/arrow jumps, repeated pointer packets without repeated DOM
+scans, mismatched clock origins and delayed frames, native transform updates,
+remote/menu/wheel/drag/playback guards. TV smoothness still needs confirmation.

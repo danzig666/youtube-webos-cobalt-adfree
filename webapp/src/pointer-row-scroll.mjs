@@ -31,7 +31,7 @@ export function startPointerRowScroll(doc, win, read) {
   let dpadAt = null, pressed = false, menu = false, stopped = false, lastCard = null;
   let animation = null, nativeReveal = null;
   const tracks = new Map();
-  const api = {moves: 0, status: 'Point at a video card to reveal it.', destroy};
+  const api = {moves: 0, frames: 0, maxFrameGap: 0, status: 'Point at a video card to reveal it.', destroy};
   const scale = () => Math.max(0.5, (win.innerWidth || 1920) / 1920);
   function cancelMotion() {
     if (nativeReveal !== null) win.clearTimeout(nativeReveal);
@@ -191,47 +191,65 @@ export function startPointerRowScroll(doc, win, read) {
     if (!a.track) {a.row.scrollLeft = value;return a.row.scrollLeft;}
     const state = a.track;
     state.offset = value;
-    state.node.style.setProperty('transition','none');
+    if (state.node.style.getPropertyValue('transition') !== 'none') state.node.style.setProperty('transition','none');
     state.node.style.setProperty('transform','translateX('+value+'px) '+state.base,state.priority);
     state.written = state.node.style.getPropertyValue('transform');
     return value;
   }
+  function edgeSpeed(box, point) {
+    if (!point || point.y < box.top || point.y > box.bottom) return 0;
+    const left = Math.max(0,box.left), right = Math.min(win.innerWidth,box.right);
+    if (point.x < left || point.x > right) return 0;
+    const band = Math.min(180*scale(),(right-left)/4);
+    const amount = point.x < left+band ? -(left+band-point.x)/band
+      : point.x > right-band ? (point.x-right+band)/band : 0;
+    return amount*420*scale();
+  }
+  function fastBlocked() {
+    return stopped || menu || !read('pointerRowScroll') || doc.hidden ||
+      doc.body?.classList.contains('WEB_PAGE_TYPE_WATCH') || doc.body?.classList.contains('WEB_PAGE_TYPE_SHORTS');
+  }
   function step(time) {
     motion = null;
     const a = animation;
-    if (!a || !Number.isFinite(time) || blocked() || !attached(a.row) || !attached(a.card) ||
-        !ownsFocus(a.card, a.focus) ||
+    if (!a || !Number.isFinite(time) || fastBlocked() || !attached(a.row) ||
+        (!a.edge && (!attached(a.card) || !ownsFocus(a.card, a.focus))) ||
         (a.track ? !attached(a.track.node) || a.track.node.style.getPropertyValue('transform') !== a.track.written
           : Math.abs(a.row.scrollLeft - a.last) > 2)) {cancelMotion();return;}
-    // Exact critically damped spring, like PlxNative K_SCROLL=170, with a
-    // bounded lifetime. Virtual tracks use the same spring in pixel space.
-    const t = Math.max(0, Math.min(1, (time - a.start) / 1000));
-    const omega = Math.sqrt(170);
-    const progress = 1 - (1 + omega * t) * Math.exp(-omega * t);
-    a.last = a.from + (a.to - a.from) * progress;
-    a.last = writeOffset(a,a.last);
-    if (Math.abs(a.to - a.last) < 0.5 || t >= 1 || --a.remaining <= 0) {
-      writeOffset(a,a.to);
-      const after = bounds(a.card);
-      api.status = after && Math.abs(after.left-a.cardLeft)>2 ? 'Row movement confirmed.' : 'Scroll requested; card position did not change.';
-      animation = null; return;
+    // Use only rAF timestamps, never mix them with a different clock origin.
+    if (a.start === null) {a.start = time;a.previous = time;}
+    const gap = Math.max(0,time-a.previous);
+    api.frames++;api.maxFrameGap = Math.max(api.maxFrameGap,Math.round(gap));
+    a.previous = time;
+    if (a.edge) {
+      // Full DOM/popup checks are bounded, not repeated on every frame or move.
+      if (time-a.checked > 200) {
+        a.checked = time;
+        if (blocked()) {cancel();return;}
+      }
+      const speed = edgeSpeed(a.box,lastPoint);
+      if (!speed) {cancelMotion();api.status = 'Pointer left the edge; scrolling stopped.';return;}
+      const dt = Math.min(0.033,gap/1000);
+      a.velocity += (speed-a.velocity)*(1-Math.exp(-dt/0.12));
+      const next = Math.max(a.lower,Math.min(a.upper,a.last+(a.track?-1:1)*a.velocity*dt));
+      const moved = Math.abs(next-a.last);
+      a.last = writeOffset(a,next);
+      if (dt>0 && moved<0.001 && Math.abs(a.velocity)>1) {
+        cancelMotion();api.status = 'Row end reached.';return;
+      }
+      api.status = speed<0 ? 'Scrolling left.' : 'Scrolling right.';
+      motion = win.requestAnimationFrame(step);return;
     }
-    motion = win.requestAnimationFrame(step);
   }
   function reveal(row, card, target) {
     if (rtl(row.node)) return;
     const rect = bounds(card);
     if (!rect) return;
-    // Leave about half a neighbouring card visible, rather than snapping the
-    // row to a tile index. The same nearest-reveal rule works in either direction.
-    const peek = Math.min(120 * scale(), rect.width / 2, row.box.width / 4);
     const viewportLeft = Math.max(0,row.box.left), viewportRight = Math.min(win.innerWidth,row.box.right);
-    const left = viewportLeft + peek, right = viewportRight - peek;
-    let track = null, current, goal;
+    let track = null, current, lower = 0, upper = 0;
     if (row.scrollable) {
       current = row.node.scrollLeft;
-      goal = horizontalReveal(current,left,right,rect.left,rect.right,
-        row.node.scrollWidth-row.node.clientWidth,28*scale());
+      upper = row.node.scrollWidth-row.node.clientWidth;
     } else {
       track = pixelTrack(row,card);
       if (!track) {api.status = 'No separate horizontal track found.';return;}
@@ -243,16 +261,12 @@ export function startPointerRowScroll(doc, win, read) {
         first = Math.min(first,r.left);last = Math.max(last,r.right);
       }
       current = track.offset;
-      const lower = current+viewportRight-last, upper = current+viewportLeft-first;
+      lower = current+viewportRight-last;upper = current+viewportLeft-first;
       if (lower>upper) {api.status = 'Entire row already fits.';return;}
-      // Translate is the inverse of scrollLeft. Keep the nearest legal offset
-      // and preserve YouTube's existing transform as the base of our translation.
-      goal = upper-horizontalReveal(upper-current,left,right,rect.left,rect.right,
-        upper-lower,28*scale());
     }
-    if (Math.abs(goal-current)<0.5) {api.status = 'Card already inside the row viewport.';return;}
-    const a = {row:row.node,card,focus:target,track,cardLeft:rect.left,from:current,to:goal,last:current,start:win.performance.now(),remaining:120};
-    if (win.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {writeOffset(a,goal);return;}
+    const edge = Boolean(edgeSpeed(row.box,lastPoint));
+    if (!edge) {api.status = 'Point near either row edge to scroll.';return;}
+    const a = {row:row.node,card,focus:target,track,last:current,start:null,previous:null,edge,box:row.box,lower,upper,velocity:0,checked:0};
     animation = a;
     api.status = 'Smoothly revealing the pointed card.';
     motion = win.requestAnimationFrame(step);
@@ -284,11 +298,17 @@ export function startPointerRowScroll(doc, win, read) {
         for (let i = 0; i < nodes.length && i < 400; i++) {
           const node = nodes[i], r = bounds(node);
           if (!r || r.width < 80*scale() || r.height < 45*scale() ||
-              point.x < r.left || point.x > r.right || point.y < r.top || point.y > r.bottom ||
-              r.width*r.height >= smallest || !visible(node) ||
+              point.y < r.top || point.y > r.bottom || !visible(node) ||
               ancestor(node,overlays) || ancestor(node,'ytlr-guide-entry-renderer')) continue;
-          if (!rowFor(node,r)) continue;
-          card = node;smallest = r.width*r.height;
+          const distance = Math.max(0,r.left-point.x,point.x-r.right);
+          if (distance>40*scale()) continue;
+          const row = rowFor(node,r);
+          if (!row || (distance>0 && !edgeSpeed(row.box,point))) continue;
+          // Gaps between cards at the edge still belong to the row. Prefer a
+          // direct hit, then the nearest card, then the smallest nested control.
+          const score = distance*10000000+r.width*r.height;
+          if (score>=smallest) continue;
+          card = node;smallest = score;
         }
       }
       const rect = bounds(card);
@@ -306,37 +326,19 @@ export function startPointerRowScroll(doc, win, read) {
         cancel();api.status = 'Card found but vertically clipped.';return;
       }
       const row = rowFor(card,rect);
-      if (card === lastCard) return;
+      if (card === lastCard && animation) return;
       cancelMotion();
       if (!row) {lastCard = null;api.status = 'Card found; horizontal row unavailable.';return;}
       const target = focusTarget(card,row.node);
       if (typeof target?.focus !== 'function') return;
-      // Cobalt's tabindex <= -2 is a native hybrid-navigation item. Let its
-      // focus/scroll engine animate the row; never compete with scrollLeft.
-      let native = false;
-      for (let node = target; node && node !== row.node; node = node.parentElement)
-        if (node.hasAttribute?.('tabindex') && Number(node.getAttribute('tabindex')) <= -2) {native = true;break;}
-      // Preserve native focus semantics. RTL offsets remain browser-owned.
-      native = native || !row.scrollable || rtl(row.node);
-      const beforeFocus = row.node.scrollLeft;
-      if (native) target.focus();
-      else target.focus({preventScroll:true});
-      if (blocked() || !attached(card)) return;
-      if (!ownsFocus(card,target)) {api.status = 'Card found; YouTube did not accept focus.';return;}
-      lastCard = card;
-      api.status = 'Card focus accepted; checking row movement.';
-      if (!row.scrollable) reveal(row,card,target);
-      else if (!native) reveal(row,card,target);
-      else if (row.scrollable && !rtl(row.node)) {
-        // Native focus is not a guarantee of native scrolling. Give it time
-        // to start, then reveal only if the scroll offset is still unchanged.
-        nativeReveal = win.setTimeout(() => {
-          nativeReveal = null;
-          if (blocked() || !attached(card) || !ownsFocus(card,target) ||
-              Math.abs(row.node.scrollLeft-beforeFocus) > 2) return;
-          reveal(row,card,target);
-        }, 180);
+      // Edge panning must not focus each passing tile: native focus can snap
+      // the row and compete with pixel motion. Clicking still uses native hits.
+      if (!edgeSpeed(row.box,lastPoint)) {
+        if (row.scrollable) target.focus({preventScroll:true});else target.focus();
       }
+      if (blocked() || !attached(card)) return;
+      lastCard = card;
+      reveal(row,card,target);
     } catch (_) {cancel();api.status = 'Pointer scrolling is unavailable on this row.';}
   }
   function move(event) {
@@ -346,6 +348,13 @@ export function startPointerRowScroll(doc, win, read) {
     lastPoint = {x,y};
     api.moves++;
     if (pressed || event.buttons || stopped || !read('pointerRowScroll')) {cancel();return;}
+    // Keep the active row while its contents move under a stationary pointer.
+    // Repeated mouse events must not scan the page, refocus tiles or reset speed.
+    if (!dpadAt && animation?.edge) {
+      if (fastBlocked()) {cancel();return;}
+      if (edgeSpeed(animation.box,lastPoint)) return;
+      cancel();api.status = 'Pointer left the edge; scrolling stopped.';
+    }
     if (dpadAt) {
       if (Math.hypot(x-dpadAt.x,y-dpadAt.y) < 120 * scale()) return;
       dpadAt = null;

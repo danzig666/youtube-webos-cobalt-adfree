@@ -355,12 +355,14 @@ export function userScriptStartUI() {
     configRead('pointerRowScroll'), callbackConfig('pointerRowScroll')));
   const pointerHelp = document.createElement('div');
   pointerHelp.className = 'ytaf-setting-help';
-  pointerHelp.textContent = 'Point at a video card near the edge to reveal it smoothly. Arrow keys take over until you move the pointer again. Applies to horizontal browsing rows.';
+  pointerHelp.textContent = 'Keep the pointer near either row edge to scroll. Move inward to stop. Arrow keys take over until you move the pointer again.';
   uiContainer.appendChild(pointerHelp);
   document.addEventListener('ytaf-menu-opened', () => {
     pointerHelp.textContent = 'Point at a partly visible video card near either edge. Pointer movements received: ' +
       (window.__ytafPointerRows?.moves || 0) + '. Last result: ' +
-      (window.__ytafPointerRows?.status || 'Not started.');
+      (window.__ytafPointerRows?.status || 'Not started.') + ' Frames: ' +
+      (window.__ytafPointerRows?.frames || 0) + '; largest frame gap: ' +
+      (window.__ytafPointerRows?.maxFrameGap || 0) + ' ms.';
   });
   uiContainer.appendChild(choiceTools.add('__clock_display', 'Clock (upper right)', configRead('clockDisplay'), [
     {value:'off',label:'Off'},
