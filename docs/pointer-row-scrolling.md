@@ -19,7 +19,10 @@ reveal follows. Transformed/virtual rows and RTL rows retain native scrolling. O
 critically damped reveal animation inspired by PlxNative's scroll spring.
 They keep a small peek of the neighbouring card available at the edge so the
 pointer can continue through the row without switching to the arrow keys.
-No transforms, synthetic arrow keys or clicks are injected.
+Virtual rows without a writable DOM offset use a bounded sequence of YouTube
+Left/Right navigation events at the row edge. It stops when card geometry moves,
+on normal remote input/menu opening, or after six attempts. It does not activate
+videos or navigate beyond the row end. No transforms or clicks are injected.
 
 Cobalt 23's DOM is checked explicitly: the controller falls back to the native
 mouse event target without `document.elementFromPoint`, uses the supported

@@ -1,6 +1,6 @@
 // Pointer focus + minimal row reveal, following PlxNative's CardRow and HitMap:
 // https://github.com/danzig666/plx-native/tree/47fd8bbc6c2ca70ab90507b3dc6ccf02672182f7/rust-modules/src/ui
-// Independent DOM adaptation; no video activation, synthetic keys or transforms.
+// DOM adaptation; virtual rows use bounded YouTube navigation, never activation.
 const cards = 'ytlr-tile-renderer, ytlr-grid-video-renderer, ytlr-video-renderer, ytlr-compact-video-renderer';
 const candidates = cards + ', [tabindex]';
 const rails = 'ytlr-shelf-renderer, ytlr-horizontal-list-renderer, [role="list"]';
@@ -30,6 +30,7 @@ export function startPointerRowScroll(doc, win, read) {
   let frame = null, motion = null, pending = null, lastPoint = null;
   let dpadAt = null, pressed = false, menu = false, stopped = false, lastCard = null;
   let animation = null, nativeReveal = null;
+  const ownKeys = new WeakSet();
   const api = {moves: 0, status: 'Point at a video card to reveal it.', destroy};
   const scale = () => Math.max(0.5, (win.innerWidth || 1920) / 1920);
   function cancelMotion() {
@@ -88,7 +89,7 @@ export function startPointerRowScroll(doc, win, read) {
         if (scrollable) return {node, box, scrollable};
         // An inner clipping/transform wrapper may sit inside the real rail.
         // Keep looking for the ancestor whose scrollLeft can actually move.
-        if (!fallback) fallback = {node, box, scrollable};
+        if (!fallback || box.width < fallback.box.width) fallback = {node, box, scrollable};
       }
     }
     return fallback;
@@ -122,6 +123,42 @@ export function startPointerRowScroll(doc, win, read) {
     const owner = ancestor(row,'[dir]');
     return owner?.getAttribute('dir')?.toLowerCase() === 'rtl';
   }
+  function navigateRow(row, card, point) {
+    const edge = 96 * scale();
+    const left = Math.max(0,row.box.left), right = Math.min(win.innerWidth,row.box.right);
+    const direction = point.x >= right-edge ? 1 : point.x <= left+edge ? -1 : 0;
+    const before = bounds(card);
+    if (!direction || !before) {api.status = 'Card focused; move the pointer closer to a row edge.';return;}
+    const peers = row.node.querySelectorAll(candidates);
+    let contentBeyondEdge = direction>0 ? before.right>right+2 : before.left<left-2;
+    for (let i=0; !contentBeyondEdge && i<peers.length && i<100; i++) {
+      const r = bounds(peers[i]);
+      if (!r || Math.abs((r.top+r.bottom-before.top-before.bottom)/2)>before.height/2) continue;
+      contentBeyondEdge = direction>0 ? r.right>right+2 : r.left<left-2;
+    }
+    if (!contentBeyondEdge) {api.status = 'Row end reached; no navigation sent.';return;}
+    let remaining = 6;
+    const advance = () => {
+      nativeReveal = null;
+      if (blocked() || !attached(card) || !attached(row.node) || !row.node.contains(doc.activeElement)) return;
+      const current = bounds(card);
+      if (!current) return;
+      if (Math.abs(current.left-before.left)>2) {api.status = 'Row movement confirmed.';return;}
+      if (!remaining--) {api.status = 'YouTube navigation sent; row did not move.';return;}
+      api.status = 'Requesting YouTube row navigation.';
+      const target = doc.activeElement;
+      for (const type of ['keydown','keyup']) {
+        const code = direction>0 ? 39 : 37, key = direction>0 ? 'ArrowRight' : 'ArrowLeft';
+        const event = new win.KeyboardEvent(type,{bubbles:true,cancelable:true,key,code:key,keyCode:code,which:code});
+        for (const field of ['keyCode','which'])
+          if (event[field] !== code) Object.defineProperty(event,field,{get:()=>code});
+        ownKeys.add(event);
+        target.dispatchEvent(event);
+      }
+      nativeReveal = win.setTimeout(advance,200);
+    };
+    nativeReveal = win.setTimeout(advance,180);
+  }
   function step(time) {
     motion = null;
     const a = animation;
@@ -136,7 +173,10 @@ export function startPointerRowScroll(doc, win, read) {
     a.row.scrollLeft = a.last;
     a.last = a.row.scrollLeft;
     if (Math.abs(a.to - a.last) < 0.5 || t >= 1 || --a.remaining <= 0) {
-      a.row.scrollLeft = a.to; animation = null; return;
+      a.row.scrollLeft = a.to;
+      const after = bounds(a.card);
+      api.status = after && Math.abs(after.left-a.cardLeft)>2 ? 'Row movement confirmed.' : 'Scroll requested; card position did not change.';
+      animation = null; return;
     }
     motion = win.requestAnimationFrame(step);
   }
@@ -156,9 +196,9 @@ export function startPointerRowScroll(doc, win, read) {
     const current = row.node.scrollLeft;
     const goal = horizontalReveal(current,left,right,rect.left,rect.right,
       row.node.scrollWidth - row.node.clientWidth,28 * scale());
-    if (Math.abs(goal - current) < 0.5) return;
+    if (Math.abs(goal - current) < 0.5) {api.status = 'Card already inside the row viewport.';return;}
     if (win.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {row.node.scrollLeft = goal;return;}
-    animation = {row:row.node,card,focus:target,from:current,to:goal,last:current,start:win.performance.now(),remaining:120};
+    animation = {row:row.node,card,focus:target,cardLeft:rect.left,from:current,to:goal,last:current,start:win.performance.now(),remaining:120};
     motion = win.requestAnimationFrame(step);
   }
   function update() {
@@ -229,8 +269,9 @@ export function startPointerRowScroll(doc, win, read) {
       if (blocked() || !attached(card)) return;
       if (!ownsFocus(card,target)) {api.status = 'Card found; YouTube did not accept focus.';return;}
       lastCard = card;
-      api.status = 'Video row follows the pointer.';
-      if (!native) reveal(row,card,target);
+      api.status = 'Card focus accepted; checking row movement.';
+      if (!row.scrollable) navigateRow(row,card,point);
+      else if (!native) reveal(row,card,target);
       else if (row.scrollable && !rtl(row.node)) {
         // Native focus is not a guarantee of native scrolling. Give it time
         // to start, then reveal only if the scroll offset is still unchanged.
@@ -257,7 +298,7 @@ export function startPointerRowScroll(doc, win, read) {
     pending = {x,y,target:event.target};
     if (frame === null) frame = win.requestAnimationFrame(update);
   }
-  function key() {dpadAt = lastPoint || {x:0,y:0};cancel();}
+  function key(event) {if (ownKeys.has(event)) return;dpadAt = lastPoint || {x:0,y:0};cancel();}
   function down() {pressed = true;cancel();}
   function up() {pressed = false;}
   function leave() {lastPoint = null;cancel();}

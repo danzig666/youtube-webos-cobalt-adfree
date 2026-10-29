@@ -215,6 +215,27 @@ def run(browser, width, height):
     page.evaluate("p=>document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))", target)
     page.wait_for_timeout(1400)
     assert page.evaluate('rail.scrollLeft') > 0, page.evaluate('({status:__ytafPointerRows.status,focus:document.activeElement.id,offset:rail.scrollLeft,controls:[...document.querySelectorAll("[tabindex]")].map(n=>({tag:n.localName,id:n.id,rect:n.getBoundingClientRect().toJSON()}))})')
+    # YouTube can own a transform-based row with no writable DOM offset.
+    reset()
+    page.evaluate("rail.style.overflow='hidden';document.querySelectorAll('[tabindex]').forEach(n=>{if(rail.contains(n))n.focus=function(){HTMLElement.prototype.focus.call(this,{preventScroll:true})}});window.navCount=0;rail.addEventListener('keydown',e=>{if(e.keyCode===39){e.preventDefault();navCount++;if(!window.ignoreNav)track.style.transform='translateX(-268px)'}})")
+    point = page.evaluate("() => {const b=rail.getBoundingClientRect();return {x:b.right-8,y:b.top+80}}")
+    page.evaluate("p=>document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))", point)
+    page.wait_for_timeout(1000)
+    assert page.evaluate('navCount') == 1, page.evaluate('({count:navCount,status:__ytafPointerRows.status})')
+    assert page.evaluate('__ytafPointerRows.status') == 'Row movement confirmed.'
+    page.wait_for_timeout(600)
+    assert page.evaluate('navCount') == 1, 'Stationary pointer must not keep navigating'
+    page.mouse.move(width/2,60)
+    page.evaluate("track.style.transform='';window.leftCount=0;rail.addEventListener('keydown',e=>{if(e.keyCode===37){e.preventDefault();leftCount++}})")
+    page.evaluate("() => {const b=rail.getBoundingClientRect();document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:b.left+8,clientY:b.top+80}))}")
+    page.wait_for_timeout(700)
+    assert page.evaluate('leftCount') == 0, 'First card must not navigate out to the sidebar'
+    page.mouse.move(width/2,60)
+    page.evaluate("window.ignoreNav=true;navCount=0")
+    page.evaluate("p=>document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))", point)
+    page.wait_for_timeout(1600)
+    assert page.evaluate('navCount') == 6
+    assert page.evaluate('__ytafPointerRows.status') == 'YouTube navigation sent; row did not move.'
     assert not errors, errors
     print(f'{width}x{height}: clipped cards reveal both ways; hover never activates; stationary/D-pad/modal/playback/drag guards; saved switch; native-focus ownership passed', flush=True)
     context.close()
