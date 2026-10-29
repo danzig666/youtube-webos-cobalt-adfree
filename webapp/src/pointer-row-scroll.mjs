@@ -63,7 +63,7 @@ export function startPointerRowScroll(doc, win, read) {
     return false;
   }
   function rowFor(card, rect) {
-    let node = card.parentElement;
+    let node = card.parentElement, fallback = null;
     for (let depth = 0; node && node !== doc.body && depth < 12; depth++, node = node.parentElement) {
       const box = bounds(node);
       if (!box || !visible(node)) continue;
@@ -83,9 +83,14 @@ export function startPointerRowScroll(doc, win, read) {
         if (other && Math.abs((other.top + other.bottom - rect.top - rect.bottom) / 2) < rect.height / 3 &&
             Math.abs(other.left - rect.left) > rect.width / 2) { horizontal = true; break; }
       }
-      if (horizontal) return {node, box, scrollable};
+      if (horizontal) {
+        if (scrollable) return {node, box, scrollable};
+        // An inner clipping/transform wrapper may sit inside the real rail.
+        // Keep looking for the ancestor whose scrollLeft can actually move.
+        if (!fallback) fallback = {node, box, scrollable};
+      }
     }
-    return null;
+    return fallback;
   }
   function focusTarget(card, row) {
     if (card.hasAttribute?.('tabindex') || card.matches?.('a[href], button')) return card;

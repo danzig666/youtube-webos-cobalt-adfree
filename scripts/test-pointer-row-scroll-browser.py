@@ -15,7 +15,7 @@ spec.loader.exec_module(settings)
 cards = ''.join(f'<ytlr-tile-renderer tabindex="0" id="card{i}"><span>Video {i}</span></ytlr-tile-renderer>' for i in range(10))
 HTML = settings.HTML.replace('</head>', '''<style>
 #rail {position:absolute;left:80px;right:80px;top:160px;height:240px;overflow:auto;}
-#track {display:flex;gap:28px;width:max-content;}
+#track {display:flex;gap:28px;width:max-content;overflow:hidden;}
 ytlr-tile-renderer {display:block;flex:0 0 240px;height:200px;background:#3478a0;}
 ytlr-tile-renderer:focus {outline:2px solid white;outline-offset:-2px;}
 </style></head>''').replace('<button id="outside"', f'<ytlr-shelf-renderer id="rail"><div id="track">{cards}</div></ytlr-shelf-renderer><button id="outside"')
