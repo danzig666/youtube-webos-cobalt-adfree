@@ -2,6 +2,7 @@
 // https://github.com/danzig666/plx-native/tree/47fd8bbc6c2ca70ab90507b3dc6ccf02672182f7/rust-modules/src/ui
 // Independent DOM adaptation; no video activation, synthetic keys or transforms.
 const cards = 'ytlr-tile-renderer, ytlr-grid-video-renderer, ytlr-video-renderer, ytlr-compact-video-renderer';
+const candidates = cards + ', [tabindex]';
 const rails = 'ytlr-shelf-renderer, ytlr-horizontal-list-renderer, [role="list"]';
 const overlays = '.ytaf-ui-container, .ytaf-choice-popup, [role="dialog"], [role="menu"], [role="listbox"]';
 
@@ -74,7 +75,7 @@ export function startPointerRowScroll(doc, win, read) {
       // clipped horizontal rail without requiring one particular component.
       const clipped = /^(hidden|clip)$/.test(style.overflowX || style.overflow);
       if (!scrollable && !clipped && !node.matches?.(rails)) continue;
-      const siblings = node.querySelectorAll(cards);
+      const siblings = node.querySelectorAll(candidates);
       let horizontal = false;
       for (let i = 0; i < siblings.length && i < 100; i++) {
         const sibling = siblings[i];
@@ -102,7 +103,7 @@ export function startPointerRowScroll(doc, win, read) {
     for (let node = card.parentElement; node && node !== row; node = node.parentElement) {
       const box = bounds(node);
       if (rect && box && (node.hasAttribute?.('tabindex') || node.matches?.('a[href], button'))) {
-        const children = node.querySelectorAll(cards);
+        const children = node.querySelectorAll(candidates);
         let shared = false;
         for (let i = 0; i < children.length; i++)
           if (children[i] !== card && !card.contains(children[i]) && !children[i].contains(card)) {shared = true;break;}
@@ -173,11 +174,41 @@ export function startPointerRowScroll(doc, win, read) {
       const hit = typeof doc.elementFromPoint === 'function'
         ? doc.elementFromPoint(point.x,point.y) : point.target;
       if (ancestor(hit,overlays) || ancestor(hit,'input, textarea, select, ytlr-guide-entry-renderer')) {cancel();return;}
-      const card = ancestor(hit,cards);
+      let card = ancestor(hit,cards);
+      // Renderer hosts may have no layout box. Use the actual focus control,
+      // independently of YouTube's component names, before rejecting the hit.
+      if (!bounds(card) || !visible(card)) card = ancestor(hit,'[tabindex]');
+      if (!bounds(card) || !visible(card) || !rowFor(card,bounds(card))) {
+        // Cobalt can target a covering container rather than the tile. Resolve
+        // its coordinates against laid-out cards/focus controls. Bound both
+        // the scan; no idle/background hit-testing is performed.
+        const nodes = doc.querySelectorAll(candidates);
+        let smallest = Infinity;
+        card = null;
+        for (let i = 0; i < nodes.length && i < 400; i++) {
+          const node = nodes[i], r = bounds(node);
+          if (!r || r.width < 80*scale() || r.height < 45*scale() ||
+              point.x < r.left || point.x > r.right || point.y < r.top || point.y > r.bottom ||
+              r.width*r.height >= smallest || !visible(node) ||
+              ancestor(node,overlays) || ancestor(node,'ytlr-guide-entry-renderer')) continue;
+          if (!rowFor(node,r)) continue;
+          card = node;smallest = r.width*r.height;
+        }
+      }
       const rect = bounds(card);
-      // A partially hidden vertical row must not drag the page toward the
-      // pointer. The user reaches it with normal vertical navigation/wheel.
-      if (!card || !visible(card) || !rect || rect.top < 0 || rect.bottom > win.innerHeight) {cancel();api.status = 'Pointer received; no visible video card at this position.';return;}
+      if (!card || !rect) {
+        cancel();
+        // Tags only: no titles, URLs, attributes or account information.
+        let chain = [], node = hit;
+        for (let i=0; node && i<5; i++,node=node.parentElement)
+          if (node.localName) chain.push(String(node.localName).replace(/[^a-z0-9-]/gi,'').slice(0,48));
+        api.status = 'No card found. Pointer target: ' + chain.join(' > ');
+        return;
+      }
+      if (!visible(card)) {cancel();api.status = 'Card found but hidden.';return;}
+      if (rect.top < 0 || rect.bottom > win.innerHeight) {
+        cancel();api.status = 'Card found but vertically clipped.';return;
+      }
       if (card === lastCard) return;
       cancelMotion();
       const row = rowFor(card,rect);

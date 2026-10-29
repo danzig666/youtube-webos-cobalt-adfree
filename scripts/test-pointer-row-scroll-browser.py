@@ -207,6 +207,14 @@ def run(browser, width, height):
     page.evaluate("p => document.getElementById(p.id).dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))", target)
     page.wait_for_timeout(400)
     assert page.evaluate('document.activeElement.id') == 'card-wrapper'
+    # Different renderer names and a covering event target, as can occur on
+    # the TV, must resolve by geometry rather than fixture component names.
+    reset()
+    target = edge()
+    page.evaluate("document.querySelectorAll('ytlr-tile-renderer').forEach(n=>{const c=document.createElement('ytlr-test-video-card');for(const a of n.attributes)c.setAttribute(a.name,a.value);c.style='display:block;flex:0 0 240px;height:200px';c.innerHTML=n.innerHTML;n.replaceWith(c)})")
+    page.evaluate("p=>document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))", target)
+    page.wait_for_timeout(1400)
+    assert page.evaluate('rail.scrollLeft') > 0, page.evaluate('({status:__ytafPointerRows.status,focus:document.activeElement.id,offset:rail.scrollLeft,controls:[...document.querySelectorAll("[tabindex]")].map(n=>({tag:n.localName,id:n.id,rect:n.getBoundingClientRect().toJSON()}))})')
     assert not errors, errors
     print(f'{width}x{height}: clipped cards reveal both ways; hover never activates; stationary/D-pad/modal/playback/drag guards; saved switch; native-focus ownership passed', flush=True)
     context.close()
