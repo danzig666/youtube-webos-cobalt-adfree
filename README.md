@@ -6,14 +6,14 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 ## Download and install
 
-**[Latest release: v2.6.40-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.40-beta.1)**
+**[Latest release: v2.6.41-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.41-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
-| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.40-beta.1/youtube.leanback.v4_2.6.40_arm.ipk) | **Replaces official YouTube; recommended for voice search on the tested C3** |
-| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.40-beta.1/com.cobalt.youtube.adfree_2.6.40_arm.ipk) | Installs alongside official YouTube; microphone capture was rejected on the tested C3 |
+| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.41-beta.1/youtube.leanback.v4_2.6.41_arm.ipk) | **Replaces official YouTube; recommended for voice search on the tested C3** |
+| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.41-beta.1/com.cobalt.youtube.adfree_2.6.41_arm.ipk) | Installs alongside official YouTube; microphone capture was rejected on the tested C3 |
 
-**2.6.40** adds early Home/Shorts ad filtering, keeps ad blocking on by default, and removes the unused voice-language selector. For Hungarian voice search, use **YouTube Settings → Language → Magyar**; the TV may stay English. The Homebrew catalog offers 2.6.40.
+**2.6.41** adds PlxNative-style Magic Remote pointer row scrolling. Hover over a clipped card at either end of a horizontal browsing row to reveal it; toggle it under **GREEN → General → Pointer row scrolling**. It defaults on. Early Home/Shorts ad filtering and removal of the unused voice-language selector are retained. For Hungarian voice search, use **YouTube Settings → Language → Magyar**; the TV may stay English. The Homebrew catalog offers 2.6.41.
 
 Bundled AAC fallback remains included for C4/webOS 26 livestream compatibility, alongside the startup improvements. The older firmware-only 2.6.36 experiment is not recommended for C4 livestreams.
 
