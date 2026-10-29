@@ -1,0 +1,11 @@
+{
+  "repository": "danzig666/youtube-webos-cobalt-adfree",
+  "source_sha": "34a69f9ae71260ceb637f90145a319c3d59d4a0b",
+  "version": "2.6.41",
+  "tag": "v2.6.41-beta.1",
+  "title": "2.6.41 beta 1 \u2014 Magic Remote pointer row scrolling",
+  "native_run": 40789804224,
+  "ci_run": 40789804126,
+  "artifact_id": 12861787081,
+  "update_catalog": true
+}
