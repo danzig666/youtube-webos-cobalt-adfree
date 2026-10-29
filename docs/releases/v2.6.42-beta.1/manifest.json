@@ -1,0 +1,11 @@
+{
+  "repository": "danzig666/youtube-webos-cobalt-adfree",
+  "source_sha": "c920f6ec4d419fe8f6aa348a9cac8a5cb13958a4",
+  "version": "2.6.42",
+  "tag": "v2.6.42-beta.1",
+  "title": "2.6.42 beta 1 \u2014 Pointer scrolling fixes",
+  "native_run": 40794395807,
+  "ci_run": 40794396310,
+  "artifact_id": 12864112513,
+  "update_catalog": true
+}
