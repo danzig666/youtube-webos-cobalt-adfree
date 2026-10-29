@@ -1,0 +1,11 @@
+{
+  "repository": "danzig666/youtube-webos-cobalt-adfree",
+  "source_sha": "6b932b3363a3aafb4a68963cc89127c0d73bd6e7",
+  "version": "2.6.46",
+  "tag": "v2.6.46-beta.1",
+  "title": "2.6.46 beta 1 \u2014 Smooth pointer row scrolling",
+  "native_run": 40944317982,
+  "ci_run": 40944317688,
+  "artifact_id": 12929618253,
+  "update_catalog": true
+}
