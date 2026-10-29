@@ -7,17 +7,17 @@
       "iconUri": "https://raw.githubusercontent.com/danzig666/youtube-webos-cobalt-adfree/main/assets/largeIcon.png",
       "manifest": {
         "id": "com.cobalt.youtube.adfree",
-        "version": "2.6.43",
+        "version": "2.6.44",
         "type": "native",
         "title": "YouTube Cobalt AdFree",
         "iconUri": "https://raw.githubusercontent.com/danzig666/youtube-webos-cobalt-adfree/main/assets/largeIcon.png",
         "sourceUrl": "https://github.com/danzig666/youtube-webos-cobalt-adfree",
         "rootRequired": false,
-        "ipkUrl": "https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.43-beta.1/com.cobalt.youtube.adfree_2.6.43_arm.ipk",
+        "ipkUrl": "https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.44-beta.1/com.cobalt.youtube.adfree_2.6.44_arm.ipk",
         "ipkHash": {
-          "sha256": "2c25e7018b485d6e856c231a12dcafd3fef06e14d0d5c6dd7f5a3b0cf59acc40"
+          "sha256": "024681fac9ef633056a3fdf0b65b157b8595db6b02ffe575115f36fd1dbe51bd"
         },
-        "ipkSize": 17826456
+        "ipkSize": 17826996
       }
     },
     {
@@ -27,17 +27,17 @@
       "iconUri": "https://raw.githubusercontent.com/danzig666/youtube-webos-cobalt-adfree/main/assets/largeIcon.png",
       "manifest": {
         "id": "youtube.leanback.v4",
-        "version": "2.6.43",
+        "version": "2.6.44",
         "type": "native",
         "title": "YouTube AdFree (Original ID)",
         "iconUri": "https://raw.githubusercontent.com/danzig666/youtube-webos-cobalt-adfree/main/assets/largeIcon.png",
         "sourceUrl": "https://github.com/danzig666/youtube-webos-cobalt-adfree",
         "rootRequired": false,
-        "ipkUrl": "https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.43-beta.1/youtube.leanback.v4_2.6.43_arm.ipk",
+        "ipkUrl": "https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.44-beta.1/youtube.leanback.v4_2.6.44_arm.ipk",
         "ipkHash": {
-          "sha256": "a3b2a3be8f41102b233562cd72d71c9c596fd460a87e05cd7994da8b8af24811"
+          "sha256": "1c89a2b969ac9cc67f3db188f23fed0fa21916f3802d352b2ee77902ed86f34a"
         },
-        "ipkSize": 17826596
+        "ipkSize": 17827138
       }
     }
   ]
