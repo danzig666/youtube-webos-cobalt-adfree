@@ -13,9 +13,9 @@ reviewed at `47fd8bbc6c2ca70ab90507b3dc6ccf02672182f7`:
 - [HitMap](https://github.com/danzig666/plx-native/blob/47fd8bbc6c2ca70ab90507b3dc6ccf02672182f7/rust-modules/src/ui/hit.rs)
   gives D-pad navigation ownership until deliberate pointer movement resumes.
 
-The DOM implementation focuses YouTube's existing card controls. Cobalt hybrid
-navigation (`tabindex <= -2`), transformed/virtual rows and RTL rows keep their
-native focus/scroll behavior. Ordinary horizontal DOM scrollers use a bounded,
+The DOM implementation focuses YouTube's existing card controls. Cobalt hybrid navigation (`tabindex <= -2`) gets a brief opportunity to scroll
+natively. If focus succeeds but a real scroll container stays still, a bounded
+reveal follows. Transformed/virtual rows and RTL rows retain native scrolling. Ordinary horizontal DOM scrollers use a bounded,
 critically damped reveal animation inspired by PlxNative's scroll spring.
 They keep a small peek of the neighbouring card available at the edge so the
 pointer can continue through the row without switching to the arrow keys.
@@ -41,3 +41,7 @@ D-pad ownership, popup/playback/drag guards, saved switches and native-focus
 ownership. Existing six-category settings checks also pass. These tests use
 YouTube-shaped fixtures; operation with the live YouTube DOM on a TV still
 needs confirmation.
+
+2.6.42: listens to pointer events directly as well as compatibility mouse events,
+accepts clipping wrappers and per-card focus wrappers with metadata, and shows
+pointer movement count plus the last result beneath the General setting.

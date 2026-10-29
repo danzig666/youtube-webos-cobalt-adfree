@@ -28,10 +28,12 @@ function ancestor(node, selector, stop = null) {
 export function startPointerRowScroll(doc, win, read) {
   let frame = null, motion = null, pending = null, lastPoint = null;
   let dpadAt = null, pressed = false, menu = false, stopped = false, lastCard = null;
-  let animation = null;
-  const api = {status: 'Point at a video card to reveal it.', destroy};
+  let animation = null, nativeReveal = null;
+  const api = {moves: 0, status: 'Point at a video card to reveal it.', destroy};
   const scale = () => Math.max(0.5, (win.innerWidth || 1920) / 1920);
   function cancelMotion() {
+    if (nativeReveal !== null) win.clearTimeout(nativeReveal);
+    nativeReveal = null;
     if (motion !== null) win.cancelAnimationFrame(motion);
     motion = null; animation = null;
   }
@@ -68,7 +70,10 @@ export function startPointerRowScroll(doc, win, read) {
       const style = win.getComputedStyle(node);
       const scrollable = /^(auto|scroll)$/.test(style.overflowX || style.overflow) &&
         Number.isFinite(node.scrollLeft) && node.scrollWidth > node.clientWidth + 2;
-      if (!scrollable && !node.matches?.(rails)) continue;
+      // YouTube changes shelf wrapper names. Geometry also identifies a
+      // clipped horizontal rail without requiring one particular component.
+      const clipped = /^(hidden|clip)$/.test(style.overflowX || style.overflow);
+      if (!scrollable && !clipped && !node.matches?.(rails)) continue;
       const siblings = node.querySelectorAll(cards);
       let horizontal = false;
       for (let i = 0; i < siblings.length && i < 100; i++) {
@@ -91,8 +96,13 @@ export function startPointerRowScroll(doc, win, read) {
     const rect = bounds(card);
     for (let node = card.parentElement; node && node !== row; node = node.parentElement) {
       const box = bounds(node);
-      if (rect && box && Math.abs(box.width-rect.width) < 8 && Math.abs(box.height-rect.height) < 8 &&
-          (node.hasAttribute?.('tabindex') || node.matches?.('a[href], button'))) return node;
+      if (rect && box && (node.hasAttribute?.('tabindex') || node.matches?.('a[href], button'))) {
+        const children = node.querySelectorAll(cards);
+        let shared = false;
+        for (let i = 0; i < children.length; i++)
+          if (children[i] !== card && !card.contains(children[i]) && !children[i].contains(card)) {shared = true;break;}
+        if (!shared) return node;
+      }
     }
     return card;
   }
@@ -149,7 +159,10 @@ export function startPointerRowScroll(doc, win, read) {
     frame = null;
     const point = pending; pending = null;
     try {
-      if (!point || blocked()) {cancel();return;}
+      if (!point || blocked()) {
+        if (point && !menu) api.status = 'Browsing navigation blocked by the current page or a popup.';
+        cancel();return;
+      }
       // Cobalt 23 has no Document.elementFromPoint(). Its native mouse-event
       // target is already hit-tested; retain the latest target for that frame.
       const hit = typeof doc.elementFromPoint === 'function'
@@ -159,11 +172,11 @@ export function startPointerRowScroll(doc, win, read) {
       const rect = bounds(card);
       // A partially hidden vertical row must not drag the page toward the
       // pointer. The user reaches it with normal vertical navigation/wheel.
-      if (!card || !visible(card) || !rect || rect.top < 0 || rect.bottom > win.innerHeight) {cancel();return;}
+      if (!card || !visible(card) || !rect || rect.top < 0 || rect.bottom > win.innerHeight) {cancel();api.status = 'Pointer received; no visible video card at this position.';return;}
       if (card === lastCard) return;
       cancelMotion();
       const row = rowFor(card,rect);
-      if (!row) {lastCard = null;return;}
+      if (!row) {lastCard = null;api.status = 'Card found; horizontal row unavailable.';return;}
       const target = focusTarget(card,row.node);
       if (typeof target?.focus !== 'function') return;
       // Cobalt's tabindex <= -2 is a native hybrid-navigation item. Let its
@@ -174,12 +187,24 @@ export function startPointerRowScroll(doc, win, read) {
       // YouTube owns transformed/virtual rows. The browser/native engine also
       // owns RTL offsets, whose sign differs between implementations.
       native = native || !row.scrollable || rtl(row.node);
+      const beforeFocus = row.node.scrollLeft;
       if (native) target.focus();
       else target.focus({preventScroll:true});
-      if (blocked() || !attached(card) || !ownsFocus(card,target)) return;
+      if (blocked() || !attached(card)) return;
+      if (!ownsFocus(card,target)) {api.status = 'Card found; YouTube did not accept focus.';return;}
       lastCard = card;
       api.status = 'Video row follows the pointer.';
       if (!native) reveal(row,card,target);
+      else if (row.scrollable && !rtl(row.node)) {
+        // Native focus is not a guarantee of native scrolling. Give it time
+        // to start, then reveal only if the scroll offset is still unchanged.
+        nativeReveal = win.setTimeout(() => {
+          nativeReveal = null;
+          if (blocked() || !attached(card) || !ownsFocus(card,target) ||
+              Math.abs(row.node.scrollLeft-beforeFocus) > 2) return;
+          reveal(row,card,target);
+        }, 180);
+      }
     } catch (_) {cancel();api.status = 'Pointer scrolling is unavailable on this row.';}
   }
   function move(event) {
@@ -187,6 +212,7 @@ export function startPointerRowScroll(doc, win, read) {
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     if (lastPoint && x === lastPoint.x && y === lastPoint.y) return;
     lastPoint = {x,y};
+    api.moves++;
     if (pressed || event.buttons || stopped || !read('pointerRowScroll')) {cancel();return;}
     if (dpadAt) {
       if (Math.hypot(x-dpadAt.x,y-dpadAt.y) < 120 * scale()) return;
@@ -204,7 +230,8 @@ export function startPointerRowScroll(doc, win, read) {
   function config(event) {if (event.detail?.key === 'pointerRowScroll') cancel();}
   function blur() {pressed = false;leave();}
   const bindings = [
-    [doc,'mousemove',move,true],[win,'keydown',key,true],
+    [doc,'pointermove',move,true],[doc,'mousemove',move,true],[win,'keydown',key,true],
+    [doc,'pointerdown',down,true],[win,'pointerup',up,true],[win,'pointercancel',blur,true],
     [doc,'mousedown',down,true],[win,'mouseup',up,true],
     [doc,'wheel',leave,true],[doc,'mouseleave',leave,false],
     [win,'blur',blur,false],[win,'pagehide',blur,false],[win,'resize',leave,false],

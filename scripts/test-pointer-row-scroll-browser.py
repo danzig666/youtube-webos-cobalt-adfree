@@ -180,16 +180,33 @@ def run(browser, width, height):
     page.wait_for_timeout(200)
     assert page.evaluate('rail.scrollLeft') == 0
 
-    # The native hybrid-navigation branch focuses normally and never writes
-    # scrollLeft in competition with Cobalt's own focus/scroll engine.
+    # A hybrid focus that actually scrolls owns the row; no competing writes.
     page.evaluate("window.__ytafConfigState.pointerRowScroll=true;document.querySelectorAll('ytlr-tile-renderer').forEach(n=>n.tabIndex=-2)")
     reset()
     target = edge()
+    page.evaluate("id => {document.getElementById(id).focus=function(){HTMLElement.prototype.focus.call(this,{preventScroll:true});setTimeout(()=>rail.scrollLeft+=100,30)}}", target['id'])
     before = page.evaluate('scrollWrites')
     page.mouse.move(target['x'], target['y'])
-    page.wait_for_timeout(200)
+    page.wait_for_timeout(400)
     assert page.evaluate('document.activeElement.id') == target['id']
-    assert page.evaluate('scrollWrites') == before
+    assert page.evaluate('scrollWrites') == before + 1
+    # Cobalt may send pointer events without compatibility mouse events.
+    # Focus can succeed without starting a native row scroll.
+    reset()
+    target = edge()
+    page.evaluate("document.querySelectorAll('ytlr-tile-renderer').forEach(n=>{n.focus=function(){HTMLElement.prototype.focus.call(this,{preventScroll:true})}})")
+    page.evaluate("p => document.getElementById(p.id).dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y,buttons:0}))", target)
+    page.wait_for_timeout(1300)
+    assert page.evaluate('document.activeElement.id') == target['id']
+    assert page.evaluate('rail.scrollLeft') > 0, 'Native focus without native scrolling must reveal the clipped card'
+
+    # A per-card focus wrapper can include metadata outside the card bounds.
+    reset()
+    target = edge()
+    page.evaluate("id => {const c=document.getElementById(id); c.removeAttribute('tabindex');c.textContent='Video';const w=document.createElement('div');w.id='card-wrapper';w.tabIndex=-2;w.style='flex:0 0 240px;height:230px';c.before(w);w.appendChild(c)}", target['id'])
+    page.evaluate("p => document.getElementById(p.id).dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))", target)
+    page.wait_for_timeout(400)
+    assert page.evaluate('document.activeElement.id') == 'card-wrapper'
     assert not errors, errors
     print(f'{width}x{height}: clipped cards reveal both ways; hover never activates; stationary/D-pad/modal/playback/drag guards; saved switch; native-focus ownership passed', flush=True)
     context.close()
