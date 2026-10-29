@@ -218,7 +218,24 @@ def run(browser, width, height):
     # YouTube can own a transform-based row with no writable DOM offset.
     reset()
     page.evaluate("rail.style.overflow='hidden';document.querySelectorAll('[tabindex]').forEach(n=>{if(rail.contains(n))n.focus=function(){HTMLElement.prototype.focus.call(this,{preventScroll:true})}});window.navCount=0;rail.addEventListener('keydown',e=>{if(e.keyCode===39){e.preventDefault();navCount++;if(!window.ignoreNav)track.style.transform='translateX(-268px)'}})")
+    # First hover inside the same card, outside the edge zone. Moving to its
+    # edge must be evaluated even though focus has not changed.
+    page.evaluate("track.style.gap='0px';document.querySelectorAll('ytlr-tile-renderer').forEach(n=>n.style.flex='0 0 '+(rail.clientWidth/2)+'px')")
+    interior = page.evaluate("() => {const b=rail.getBoundingClientRect();return {x:b.right-130*(innerWidth/1920),y:b.top+80}}")
+    page.evaluate("p=>document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))", interior)
+    page.wait_for_timeout(250)
+    focused = page.evaluate('document.activeElement.id')
+    assert page.evaluate('__ytafPointerRows.status') == 'Card focused; move the pointer closer to a row edge.'
+    assert page.evaluate('navCount') == 0
     point = page.evaluate("() => {const b=rail.getBoundingClientRect();return {x:b.right-8,y:b.top+80}}")
+    # Leave the edge before its delay expires: no queued navigation may fire.
+    page.evaluate("p=>document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))", point)
+    page.wait_for_timeout(50)
+    page.evaluate("p=>document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))", interior)
+    page.wait_for_timeout(300)
+    assert page.evaluate('navCount') == 0
+    assert page.evaluate('document.activeElement.id') == focused
+
     page.evaluate("p=>document.body.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:p.x,clientY:p.y}))", point)
     page.wait_for_timeout(1000)
     assert page.evaluate('navCount') == 1, page.evaluate('({count:navCount,status:__ytafPointerRows.status})')

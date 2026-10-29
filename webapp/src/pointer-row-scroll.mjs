@@ -29,7 +29,7 @@ function ancestor(node, selector, stop = null) {
 export function startPointerRowScroll(doc, win, read) {
   let frame = null, motion = null, pending = null, lastPoint = null;
   let dpadAt = null, pressed = false, menu = false, stopped = false, lastCard = null;
-  let animation = null, nativeReveal = null;
+  let animation = null, nativeReveal = null, lastDirection = 0;
   const ownKeys = new WeakSet();
   const api = {moves: 0, status: 'Point at a video card to reveal it.', destroy};
   const scale = () => Math.max(0.5, (win.innerWidth || 1920) / 1920);
@@ -41,7 +41,7 @@ export function startPointerRowScroll(doc, win, read) {
   }
   function cancel() {
     if (frame !== null) win.cancelAnimationFrame(frame);
-    frame = null; pending = null; lastCard = null; cancelMotion();
+    frame = null; pending = null; lastCard = null; lastDirection = 0; cancelMotion();
   }
   function attached(node) { return Boolean(node && doc.documentElement?.contains(node)); }
   function visible(node) {
@@ -123,10 +123,14 @@ export function startPointerRowScroll(doc, win, read) {
     const owner = ancestor(row,'[dir]');
     return owner?.getAttribute('dir')?.toLowerCase() === 'rtl';
   }
-  function navigateRow(row, card, point) {
+  function edgeDirection(row, point) {
     const edge = 96 * scale();
     const left = Math.max(0,row.box.left), right = Math.min(win.innerWidth,row.box.right);
-    const direction = point.x >= right-edge ? 1 : point.x <= left+edge ? -1 : 0;
+    return point.x >= right-edge ? 1 : point.x <= left+edge ? -1 : 0;
+  }
+  function navigateRow(row, card, point) {
+    const left = Math.max(0,row.box.left), right = Math.min(win.innerWidth,row.box.right);
+    const direction = edgeDirection(row, point);
     const before = bounds(card);
     if (!direction || !before) {api.status = 'Card focused; move the pointer closer to a row edge.';return;}
     const peers = row.node.querySelectorAll(candidates);
@@ -249,9 +253,21 @@ export function startPointerRowScroll(doc, win, read) {
       if (rect.top < 0 || rect.bottom > win.innerHeight) {
         cancel();api.status = 'Card found but vertically clipped.';return;
       }
-      if (card === lastCard) return;
-      cancelMotion();
       const row = rowFor(card,rect);
+      if (card === lastCard) {
+        // Moving within a focused card can enter or leave the edge zone.
+        // Reevaluate the zone without refocusing or restarting every movement.
+        if (row && !row.scrollable) {
+          const direction = edgeDirection(row,point);
+          if (direction !== lastDirection) {
+            lastDirection = direction;
+            cancelMotion();
+            navigateRow(row,card,point);
+          }
+        }
+        return;
+      }
+      cancelMotion();
       if (!row) {lastCard = null;api.status = 'Card found; horizontal row unavailable.';return;}
       const target = focusTarget(card,row.node);
       if (typeof target?.focus !== 'function') return;
@@ -269,6 +285,7 @@ export function startPointerRowScroll(doc, win, read) {
       if (blocked() || !attached(card)) return;
       if (!ownsFocus(card,target)) {api.status = 'Card found; YouTube did not accept focus.';return;}
       lastCard = card;
+      lastDirection = row.scrollable ? 0 : edgeDirection(row,point);
       api.status = 'Card focus accepted; checking row movement.';
       if (!row.scrollable) navigateRow(row,card,point);
       else if (!native) reveal(row,card,target);

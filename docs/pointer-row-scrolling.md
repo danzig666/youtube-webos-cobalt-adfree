@@ -48,3 +48,8 @@ needs confirmation.
 2.6.42: listens to pointer events directly as well as compatibility mouse events,
 accepts clipping wrappers and per-card focus wrappers with metadata, and shows
 pointer movement count plus the last result beneath the General setting.
+
+2.6.45: rechecks the edge zone when the pointer moves within the already
+focused card. Entering the zone starts navigation; leaving it cancels queued
+navigation. Moving within one zone does not restart the bounded request.
+Browser regressions cover centre-to-edge movement and leaving before dispatch.
