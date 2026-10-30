@@ -6,7 +6,6 @@ const defaultConfig = {
   playbackPositions: [],
   channelSeekBehavior: 'immediate',
   highQualityAutoStartup: false,
-  pointerRowScroll: true,
   clockDisplay: 'off',
   hideEndScreens: false,
   enhanceThumbnails: false,

@@ -10,7 +10,6 @@ import { installCornerClock, clockDisplayMode } from './corner-clock.mjs';
 import { startPlaybackResume } from './playback-resume.mjs';
 import { createPlaybackSeek } from './playback-seek.mjs';
 import { startAutoQuality } from './auto-quality.mjs';
-import { startPointerRowScroll } from './pointer-row-scroll.mjs';
 import { startPlaybackHealth } from './playback-health.mjs';
 import { createPlaybackControlsReveal } from './playback-controls-visibility.mjs';
 import { createSeekPreview } from './seek-preview.mjs';
@@ -55,8 +54,6 @@ export function userScriptStartUI() {
   }
   console.info('[ytaf] userScriptStartUI() called');
   startPlaybackHealth(document, window);
-  if (!window.__ytafPointerRows)
-    window.__ytafPointerRows = startPointerRowScroll(document, window, configRead);
   if (['always','browsing'].includes(configRead('clockDisplay')))
     configWrite('clockDisplay', clockDisplayMode(configRead('clockDisplay')));
   installCornerClock(document, window, configRead);
@@ -351,19 +348,6 @@ export function userScriptStartUI() {
     if (isContainerOpen()) closeContainer();
   });
   uiContainer.appendChild(createHomeRefreshButton(document, refreshHome));
-  uiContainer.appendChild(checkboxTools.add('__pointer_row_scroll', 'Pointer row scrolling',
-    configRead('pointerRowScroll'), callbackConfig('pointerRowScroll')));
-  const pointerHelp = document.createElement('div');
-  pointerHelp.className = 'ytaf-setting-help';
-  pointerHelp.textContent = 'Keep the pointer near either row edge to scroll. Move inward to stop. Arrow keys take over until you move the pointer again.';
-  uiContainer.appendChild(pointerHelp);
-  document.addEventListener('ytaf-menu-opened', () => {
-    pointerHelp.textContent = 'Point at a partly visible video card near either edge. Pointer movements received: ' +
-      (window.__ytafPointerRows?.moves || 0) + '. Last result: ' +
-      (window.__ytafPointerRows?.status || 'Not started.') + ' Frames: ' +
-      (window.__ytafPointerRows?.frames || 0) + '; largest frame gap: ' +
-      (window.__ytafPointerRows?.maxFrameGap || 0) + ' ms.';
-  });
   uiContainer.appendChild(choiceTools.add('__clock_display', 'Clock (upper right)', configRead('clockDisplay'), [
     {value:'off',label:'Off'},
     {value:'controls',label:'In menus and with playback controls'}

@@ -6,14 +6,14 @@ Based on **[RF1705/youtube-webos-cobalt-adfree](https://github.com/RF1705/youtub
 
 ## Download and install
 
-**[Latest release: v2.6.47-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.47-beta.1)**
+**[Latest release: v2.6.40-beta.1](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/tag/v2.6.40-beta.1)**
 
 | Package | Download | Behavior |
 | --- | --- | --- |
-| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.47-beta.1/youtube.leanback.v4_2.6.47_arm.ipk) | **Replaces official YouTube; recommended for voice search on the tested C3** |
-| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.47-beta.1/com.cobalt.youtube.adfree_2.6.47_arm.ipk) | Installs alongside official YouTube; microphone capture was rejected on the tested C3 |
+| Original ID · `youtube.leanback.v4` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.40-beta.1/youtube.leanback.v4_2.6.40_arm.ipk) | **Replaces official YouTube; recommended for voice search on the tested C3** |
+| Separate ID · `com.cobalt.youtube.adfree` | [IPK](https://github.com/danzig666/youtube-webos-cobalt-adfree/releases/download/v2.6.40-beta.1/com.cobalt.youtube.adfree_2.6.40_arm.ipk) | Installs alongside official YouTube; microphone capture was rejected on the tested C3 |
 
-**2.6.47** adds continuous pointer scrolling: keep the pointer near either row edge to pan, and move inward to stop between tiles. It avoids refocusing passing tiles, reuses row geometry, and shows a short frame-timing status under **GREEN → General → Pointer row scrolling**. For Hungarian voice search, use **YouTube Settings → Language → Magyar**; the TV may stay English. The Homebrew catalog offers 2.6.47.
+**2.6.40** adds early Home/Shorts ad filtering, keeps ad blocking on by default, and removes the unused voice-language selector. For Hungarian voice search, use **YouTube Settings → Language → Magyar**; the TV may stay English. The Homebrew catalog offers 2.6.40.
 
 Bundled AAC fallback remains included for C4/webOS 26 livestream compatibility, alongside the startup improvements. The older firmware-only 2.6.36 experiment is not recommended for C4 livestreams.
 
@@ -38,7 +38,6 @@ The original ad blocking, Return YouTube Dislike, automatic account selection, s
 | Blue settings interface | Inter typography, TV-safe margins, instant category switching on focus/hover, visible focus and direct option lists |
 | Home refresh | YouTube’s in-place soft-refresh command, available in General and on number keys; confirmed working on the LG C3 |
 | Magic Remote support | Cursor selection and wheel scrolling in settings, option lists, help and diagnostics |
-| Pointer row scrolling | PlxNative-style hover focus and smooth reveal of clipped cards in horizontal browsing rows; on by default, with an off switch in General |
 | In-app voice search | Magic Remote microphone capture with language controlled by YouTube. Hungarian voice search confirmed on C3 with the original-ID package; microphone status and bounded cleanup. |
 | Bundled software AAC | Private ARMv7 audio decoder for the existing legacy playback path; avoids relying on firmware AAC libraries |
 | Video quality profiles | Safe 1080p SDR, 4K SDR or 4K HDR; saved on the TV and applied after a full restart |
@@ -71,8 +70,6 @@ Press **GREEN** to open settings. Use arrows and **OK**, the cursor or the wheel
 **Hungarian voice search:** in **YouTube’s own Settings → Language**, choose **Magyar**, then use the microphone inside YouTube Search. The TV may stay in English. This works on the tested C3 with the original-ID package. The physical remote microphone button can still launch LG’s system assistant. [Details](docs/hungarian-voice-search.md).
 
 **Ad blocking defaults on.** Home, continuation and Shorts ads are filtered before YouTube renders the response, including nested ad tiles and mastheads. Sponsored QR blocking has its own switch. Adapted from [upstream #119](https://github.com/RF1705/youtube-webos-cobalt-adfree/pull/119), with our Cobalt DOM fallback retained. [Details](docs/early-ad-filtering.md).
-
-**General → Pointer row scrolling** follows [PlxNative](https://github.com/danzig666/plx-native): point at a clipped card near either end of a horizontal row to reveal it. Arrow keys take over until you deliberately move the pointer again. It defaults on and excludes playback and menus. [Behavior and validation](docs/pointer-row-scrolling.md).
 
 Four optional display controls are under **General** and default off. Logo visibility changes immediately; feed/video filters apply when the next response loads. Use Home refresh when desired. Sharper thumbnails depend on YouTube’s available image variants. These options do not automatically refresh the Home feed or disable normal sign-in.
 
