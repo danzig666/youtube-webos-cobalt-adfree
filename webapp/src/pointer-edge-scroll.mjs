@@ -15,8 +15,25 @@ export const edgeScrollTuning = {
   sideBand: 120, verticalBand: 80, // px at 1920x1080, as in PlxNative
   dwellMs: 150, rampMs: 350, minShare: 0.35,
   sideStepsPerSecond: 3.5, // PlxNative: 1000 px/s, about three and a half posters
-  verticalStepsPerSecond: 2, tickMs: 50, stallLimit: 2
+  verticalStepsPerSecond: 2, tickMs: 50, stallLimit: 2,
+  glidePxPerSecond: 1000, // PlxNative EDGE_PAN_PX_PER_S at 1920 px wide
+  glideSmoothingSeconds: 0.12
 };
+
+// The sideways glide's target speed in px/s (signed), as PlxNative's pan:
+// nothing during the dwell, smoothstep ease-in, faster nearer the edge.
+export function edgeGlideSpeed(dir, depth, elapsed, width, tuning = edgeScrollTuning) {
+  if (!(elapsed >= tuning.dwellMs)) return 0;
+  const t = Math.min(1, (elapsed - tuning.dwellMs) / tuning.rampMs);
+  const share = tuning.minShare + (1 - tuning.minShare) * Math.max(0, Math.min(1, depth));
+  return dir * tuning.glidePxPerSecond * (width / 1920) * share * t * t * (3 - 2 * t);
+}
+
+function translateX(transform, remPx) {
+  const match = /translateX\((-?[\d.]+)(rem|px)\)/.exec(String(transform || ''));
+  if (!match) return 0;
+  return Number(match[1]) * (match[2] === 'rem' ? remPx : 1);
+}
 
 // Which band the pointer is in, and how deep (0 at the inner border, 1 at the edge).
 export function edgeBand(x, y, width, height, tuning = edgeScrollTuning) {
@@ -61,6 +78,7 @@ export function startPointerEdgeScroll(doc, win, read, log) {
   const now = () => win.performance?.now?.() ?? Date.now();
   let point = null, band = null, timer = null, credit = 0, last = null, stalls = 0, paused = null;
   let menu = false, stopped = false, lastMoveLog = 0, lastFocus = null, steps = 0, check = null;
+  let glide = null;
   const api = {status: 'Rest the pointer near a screen edge to scroll.', steps: () => steps,
     isSynthetic: event => synthetic.has(event), destroy};
   const enabled = () => !stopped && read('pointerEdgeScroll') !== false;
@@ -103,6 +121,102 @@ export function startPointerEdgeScroll(doc, win, read, log) {
     }
     return target;
   }
+  // ---- Sideways glide -------------------------------------------------
+  // YouTube's row is a track (the child of yt-virtual-list) that YouTube
+  // moves one tile per arrow press with translateX(…rem). The glide adds a
+  // pixel offset to that track every frame. Whenever the offset passes half a
+  // tile, one arrow press lets YouTube move focus, load tiles and shift its
+  // track; the offset absorbs that shift in the same frame, so the row moves
+  // continuously. Leaving the band eases the row back to YouTube's position.
+  function remPx() {
+    try {
+      const size = parseFloat(win.getComputedStyle(doc.documentElement).fontSize);
+      if (size > 0) return size;
+    } catch (_) { /* fall back to YouTube TV's 1080p rem */ }
+    return 24 * (win.innerWidth || 1920) / 1920;
+  }
+  function trackFor(node) {
+    for (let current = node, depth = 0; current && depth < 10; current = current.parentElement, depth++)
+      if (current.parentElement?.localName === 'yt-virtual-list') return current;
+    return null;
+  }
+  function tileStep(track, rem) {
+    const offsets = [];
+    for (let i = 0; i < track.children.length && i < 40; i++) {
+      const value = translateX(track.children[i].style?.getPropertyValue?.('transform'), rem);
+      if (Number.isFinite(value) && offsets.indexOf(value) < 0) offsets.push(value);
+    }
+    offsets.sort((a, b) => a - b);
+    let step = Infinity;
+    for (let i = 1; i < offsets.length; i++) step = Math.min(step, offsets[i] - offsets[i - 1]);
+    return step > 20 && step < 4000 ? step : 756 * (win.innerWidth || 1920) / 1920;
+  }
+  function readTransform(track) { return track.style.getPropertyValue('transform') || ''; }
+  function startGlide(dir) {
+    const track = trackFor(doc.activeElement);
+    if (!track) return false;
+    const rem = remPx();
+    glide = {track, dir, rem, f: 0, v: 0, last: null, base: readTransform(track), written: null, pending: null,
+      ended: 0, step: tileStep(track, rem), transition: track.style.getPropertyValue('transition'),
+      frames: 0, maxGap: 0, presses: 0};
+    log.line(`glide start ${dir > 0 ? 'right' : 'left'} step=${Math.round(glide.step)} rem=${rem} base=${glide.base.slice(0, 60)}`);
+    api.status = `Scrolling ${dir > 0 ? 'right' : 'left'}.`;
+    win.requestAnimationFrame(glideFrame);
+    return true;
+  }
+  function endGlide(reason) {
+    const g = glide;
+    if (!g) return;
+    glide = null;
+    try {
+      // Hand the track back exactly as YouTube last wrote it.
+      if (readTransform(g.track) === g.written) g.track.style.setProperty('transform', g.base);
+      if (g.transition) g.track.style.setProperty('transition', g.transition);
+      else g.track.style.removeProperty('transition');
+    } catch (_) { /* a replaced track needs no restore */ }
+    log.line(`glide end reason=${reason} presses=${g.presses} frames=${g.frames} maxGap=${g.maxGap}ms`);
+  }
+  function glideFrame(time) {
+    const g = glide;
+    if (!g) return;
+    if (!doc.documentElement?.contains?.(g.track)) { endGlide('track-replaced'); return; }
+    const gap = g.last === null ? 0 : time - g.last;
+    const dt = Math.min(0.05, Math.max(0, gap) / 1000);
+    g.last = time; g.frames++; g.maxGap = Math.max(g.maxGap, Math.round(gap));
+    const current = readTransform(g.track);
+    if (current !== g.written) {
+      // YouTube moved its track (our arrow press). Keep the row where it is
+      // on screen by moving the same distance into our offset.
+      g.f += translateX(current, g.rem) - translateX(g.base, g.rem);
+      g.base = current;
+      if (g.pending) { log.line(`glide shift n=${g.presses} f=${Math.round(g.f)}`); g.pending = null; }
+    }
+    const side = g.dir > 0 ? 'right' : 'left';
+    const active = band && band.key === side && g.ended !== g.dir;
+    const target = active ? edgeGlideSpeed(g.dir, band.depth, now() - band.since, win.innerWidth || 1920, tuning) : 0;
+    const blend = 1 - Math.exp(-dt / tuning.glideSmoothingSeconds);
+    g.v += (target - g.v) * blend;
+    if (active) g.f += g.v * dt;
+    else {
+      g.v = 0;
+      // Ease back to YouTube's tile position (at most half a tile), then hand over.
+      g.f += (0 - g.f) * (1 - Math.exp(-dt / 0.08));
+      if (Math.abs(g.f) < 2) { endGlide(band ? 'list-end' : 'settled'); return; }
+    }
+    if (active && !g.pending && g.dir * g.f >= g.step / 2) {
+      press(side); steps++; g.presses++; if (band) band.steps++;
+      g.pending = {at: time};
+    } else if (g.pending && time - g.pending.at > 400) {
+      // YouTube did not move: this is the end of the row.
+      log.line(`end ${side} after ${g.presses} presses (track did not move)`);
+      g.pending = null; g.ended = g.dir; api.status = 'End of the list reached.';
+    }
+    g.track.style.setProperty('transition', 'none');
+    g.track.style.setProperty('transform', `${g.base} translateX(${(-g.f).toFixed(1)}px)`.trim());
+    g.written = readTransform(g.track);
+    win.requestAnimationFrame(glideFrame);
+  }
+
   function stepOnce() {
     const before = doc.activeElement;
     const beforeRect = before?.getBoundingClientRect?.();
@@ -128,6 +242,11 @@ export function startPointerEdgeScroll(doc, win, read, log) {
       log.line(`focus-tile ${band.key} ok=${focused === tile || Boolean(tile.contains?.(focused))} ` +
         `tile=${describeChain(tile, win, 3)} focus=${describeElement(focused, win)}`);
       return;
+    }
+    if (band.key === 'left' || band.key === 'right') {
+      if (glide) return;
+      if (startGlide(band.key === 'right' ? 1 : -1)) return;
+      log.line(`glide unavailable: no yt-virtual-list track; stepping instead`);
     }
     const target = press(band.key);
     steps++; band.steps++;
@@ -197,6 +316,7 @@ export function startPointerEdgeScroll(doc, win, read, log) {
   function key(event) {
     if (synthetic.has(event)) return;
     if (band) stop('remote-key');
+    endGlide('remote-key');
     paused = point;
     log.line(`key ${event.keyCode || event.which || 0}`);
   }
@@ -216,7 +336,7 @@ export function startPointerEdgeScroll(doc, win, read, log) {
   ];
   for (const [owner, type, callback, capture] of bindings) owner.addEventListener(type, callback, capture);
   function destroy() {
-    stopped = true; if (band) stop('destroyed');
+    stopped = true; if (band) stop('destroyed'); endGlide('destroyed');
     for (const [owner, type, callback, capture] of bindings) owner.removeEventListener?.(type, callback, capture);
   }
   return api;

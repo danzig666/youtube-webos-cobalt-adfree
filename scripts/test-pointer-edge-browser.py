@@ -11,24 +11,33 @@ from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
-HTML = """<!doctype html><html><head><meta charset="utf-8">
+HTML = """<!doctype html><html style="font-size:24px"><head><meta charset="utf-8">
 <link rel="stylesheet" href="/adblockMain.css">
-<style>body{margin:0;background:#111;overflow:hidden} #row{position:absolute;top:400px;left:0;white-space:nowrap}
-.tile{display:inline-block;width:380px;height:220px;margin-right:20px;background:#345}
-.tile:focus{outline:4px solid #fff}</style></head><body>
-<div id="row"></div>
+<style>body{margin:0;background:#111;overflow:hidden}
+yt-virtual-list{position:absolute;top:400px;left:0;width:100%;height:300px;overflow:hidden;display:block}
+#track{position:absolute;left:0;top:0;height:300px;width:100%}
+.item{position:absolute;left:0;top:0;width:720px}
+ytlr-tile-renderer{display:block;width:720px;height:300px;background:#345}
+ytlr-tile-renderer:focus{outline:4px solid #fff}</style></head><body>
+<yt-virtual-list><div id="track" style="transform:translateX(0rem) translateZ(0px)"></div></yt-virtual-list>
 <script>
 window.logged=[];window.prefs=JSON.stringify({pointerDiagnosticsLog:true});
 window.h5vcc={system:{getYtafUiPreferences:()=>prefs,setYtafUiPreferences:v=>{prefs=v;return true;},
   appendYtafPointerLog:text=>{logged.push(...text.split('\\n'));return true;}}};
-const row=document.getElementById('row');let index=0;
-for(let i=0;i<30;i++){const t=document.createElement('div');t.className='tile';t.tabIndex=0;row.appendChild(t);}
-const tiles=[...row.children];
-function show(){row.style.transform='translateX('+(-index*400+100)+'px)';tiles[index].focus();}
-// Like YouTube TV: hover focuses a tile, arrows move focus and the row.
-tiles.forEach((t,i)=>t.addEventListener('mouseenter',()=>{index=i;tiles[i].focus();}));
-document.addEventListener('keydown',e=>{if(e.keyCode===39&&index<29)index++;else if(e.keyCode===37&&index>0)index--;else return;show();});
-show();
+// Like YouTube TV on Cobalt (from the TV log): items sit at k*31.5rem inside a
+// track moved with translateX(rem); hover does not focus; an arrow key moves
+// focus and the track one tile, applied on the next frame.
+const track=document.getElementById('track');let index=0;
+for(let i=0;i<30;i++){const item=document.createElement('div');item.className='item';
+  item.style.transform='translateX('+(i*31.5)+'rem)';const t=document.createElement('ytlr-tile-renderer');
+  t.tabIndex=0;item.appendChild(t);track.appendChild(item);}
+const tiles=[...track.querySelectorAll('ytlr-tile-renderer')];
+window.searchBox=document.createElement('div');searchBox.tabIndex=0;document.body.appendChild(searchBox);searchBox.focus();
+document.addEventListener('keydown',e=>{
+  if(e.keyCode===39&&index<29)index++;else if(e.keyCode===37&&index>0)index--;else return;
+  requestAnimationFrame(()=>{track.style.transform='translateX('+(-index*31.5)+'rem) translateZ(0px)';tiles[index].focus();});
+});
+window.samples=[];(function sample(){samples.push(track.getBoundingClientRect().left);requestAnimationFrame(sample);})();
 </script><script src="/adblockMain.js"></script></body></html>"""
 
 
@@ -61,24 +70,31 @@ def main():
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.goto("http://test.invalid/tv#/")
             page.wait_for_function("window.__ytafUiInitialized && window.__ytafPointerEdge")
-            y = 500  # inside the fixture row at both sizes
+            y = 550  # inside the fixture row at both sizes
             page.mouse.move(width // 2, y)
+            page.evaluate("samples.length=0")
             page.mouse.move(width - 10, y)
             page.wait_for_timeout(3000)
             moved = page.evaluate("index")
-            assert moved >= 5, f"{width}x{height}: edge rest moved {moved} tiles"
+            assert moved >= 2, f"{width}x{height}: edge rest moved {moved} tiles"
+            # Smooth: no frame jumps by a tile, the row only moves one way.
+            jumps = page.evaluate("samples.slice(1).map((v,i)=>v-samples[i])")
+            assert max(abs(j) for j in jumps) < 60, f"jump {max(abs(j) for j in jumps)}"
+            assert max(jumps) < 1, "right glide never moves back"
             page.mouse.move(width // 2, y)
-            page.wait_for_timeout(200)
+            page.wait_for_timeout(600)
             settled = page.evaluate("index")
-            page.wait_for_timeout(1500)
+            assert page.evaluate("/translateX\\(-?[\\d.]+rem\\) translateZ\\(0px\\)$/.test(track.style.transform)"), \
+                page.evaluate("track.style.transform")
+            page.wait_for_timeout(1000)
             assert page.evaluate("index") == settled, "leaving the band stops"
             page.mouse.move(10, y)
-            page.wait_for_timeout(2000)
+            page.wait_for_timeout(2500)
             assert page.evaluate("index") < settled, "left edge moves back"
             page.evaluate("window.__ytafPointerLog.flush()")
             lines = page.evaluate("logged")
-            assert any(" step right " in line for line in lines) and any(" step left " in line for line in lines)
-            assert any("focusChanged=true" in line for line in lines)
+            assert any(" glide start right " in line for line in lines) and any(" glide start left " in line for line in lines), lines[-20:]
+            assert any(" glide shift " in line for line in lines)
             # The settings menu blocks edge scrolling.
             page.keyboard.press("=")
             page.locator(".ytaf-ui-container").wait_for(state="visible")
@@ -88,7 +104,7 @@ def main():
             page.wait_for_timeout(1500)
             assert page.evaluate("window.__ytafPointerEdge.steps()") == before, "menu open blocks scrolling"
             assert not errors, errors
-            print(f"{width}x{height}: continuous right/left edge stepping ({moved} tiles), stop on leaving the band, "
+            print(f"{width}x{height}: smooth right/left glide ({moved} tiles, max frame move {max(abs(j) for j in jumps):.1f}px), settle on leaving the band, "
                   f"menu blocking and {len(lines)} log lines passed", flush=True)
             context.close()
         browser.close()

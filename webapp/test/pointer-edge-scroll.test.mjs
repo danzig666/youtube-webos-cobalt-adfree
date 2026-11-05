@@ -141,3 +141,13 @@ test('when hover leaves focus elsewhere, the tile under the pointer is focused a
   f.log.flush();
   assert.ok(f.lines.some(line => / focus-tile right ok=true /.test(line)));
 });
+
+test('glide speed follows PlxNative: 1000 px/s at the edge of a 1920 px view, eased in, scaled', async () => {
+  const {edgeGlideSpeed} = await import('../src/pointer-edge-scroll.mjs');
+  const t = edgeScrollTuning;
+  assert.equal(edgeGlideSpeed(1, 1, t.dwellMs - 1, 1920), 0);
+  assert.equal(edgeGlideSpeed(1, 1, 5000, 1920), 1000);
+  assert.equal(edgeGlideSpeed(-1, 0, 5000, 1920), -350);
+  assert.equal(edgeGlideSpeed(1, 1, 5000, 960), 500);
+  assert.ok(edgeGlideSpeed(1, 1, t.dwellMs + 100, 1920) < edgeGlideSpeed(1, 1, t.dwellMs + 300, 1920));
+});
