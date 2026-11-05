@@ -1,11 +1,7 @@
+# Manual ARM builds may select playback/host-tested-v2 as the workflow ref.
 name: Build starterless Cobalt
 
 on:
-  push:
-    branches: [playback/host-tested-v2]
-    paths: [.github/workflows/build-starterless-cobalt.yml]
-  schedule:
-    - cron: '17 3 * * *'
   workflow_dispatch:
     inputs:
       cobalt_ref:
@@ -16,16 +12,11 @@ on:
       build_type:
         description: Cobalt build type
         required: true
-        default: gold
+        default: devel
         type: choice
         options:
           - devel
           - gold
-      bundle_aac:
-        description: Include bundled FDK fallback in the TV packages
-        required: true
-        default: true
-        type: boolean
       build_parallel:
         description: Parallel compiler jobs
         required: true
@@ -39,35 +30,31 @@ permissions:
   contents: read
 
 concurrency:
-  group: cobalt-${{ github.ref_name }}-${{ inputs.cobalt_ref || '23.lts.6' }}-${{ inputs.build_type || 'gold' }}
+  group: cobalt-main-${{ inputs.cobalt_ref }}-${{ inputs.build_type }}
   cancel-in-progress: false
 
 jobs:
   build:
-    name: Cobalt ${{ inputs.cobalt_ref || '23.lts.6' }} from ${{ github.ref_name }}
-    runs-on: ubuntu-24.04
+    name: Cobalt ${{ inputs.cobalt_ref }} from main
+    runs-on: ubuntu-latest
     timeout-minutes: 360
 
     env:
-      CCACHE_HOST_DIR: ${{ github.workspace }}/workdir/ccache
-      CCACHE_MAXSIZE: 5G
       COBALT_SOURCE_DIR: ${{ github.workspace }}/workdir/cobalt-source
       SDL2_BUNDLE_DIR: ${{ github.workspace }}/workdir/deps/SDL2-2.30.12-webos-abi
       WEBOS_LINUX_SDK_VOLUME: ytaf-webos-linux-sdk
-      COBALT_BUILD_TYPE: ${{ inputs.build_type || 'gold' }}
-      NINJA_PARALLEL: ${{ inputs.build_parallel || '4' }}
-      COBALT_BUILD_LOG: ${{ github.workspace }}/output/cobalt-${{ inputs.build_type || 'gold' }}.log
+      COBALT_BUILD_TYPE: ${{ inputs.build_type }}
+      NINJA_PARALLEL: ${{ inputs.build_parallel }}
+      COBALT_BUILD_LOG: ${{ github.workspace }}/output/cobalt-${{ inputs.build_type }}.log
 
     steps:
-      - name: Check out build source
+      - name: Check out main
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.sha }}
+          ref: main
           fetch-depth: 1
 
       - name: Validate source
-        env:
-          COBALT_REF: ${{ inputs.cobalt_ref || '23.lts.6' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -76,13 +63,13 @@ jobs:
           test -f scripts/install-webos-starboard-platform.sh
           test -d cobalt-platform/webos/arm
           echo "Repository SHA: $(git rev-parse HEAD)"
-          echo "Cobalt ref:     $COBALT_REF"
-          echo "Build type:     ${{ inputs.build_type || 'gold' }}"
+          echo "Cobalt ref:     ${{ inputs.cobalt_ref }}"
+          echo "Build type:     ${{ inputs.build_type }}"
 
       - name: Resolve artifact metadata
         id: meta
         env:
-          COBALT_REF: ${{ inputs.cobalt_ref || '23.lts.6' }}
+          COBALT_REF: ${{ inputs.cobalt_ref }}
         shell: bash
         run: |
           set -euo pipefail
@@ -107,7 +94,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y binutils ca-certificates cmake curl findutils g++ git gzip jq make ninja-build patch perl python3 rsync sed xz-utils pkg-config libglib2.0-dev libjson-c-dev
+          sudo apt-get install -y binutils ca-certificates cmake curl findutils git gzip jq make ninja-build patch perl python3 rsync sed xz-utils
 
       - name: Download pinned webOS ARM SDK
         env:
@@ -120,7 +107,6 @@ jobs:
           mkdir -p "$sdk_download"
           gh release download "$SDK_TAG" --repo openlgtv/buildroot-nc4 --pattern 'arm-webos-linux-gnueabi_sdk-buildroot-x86_64.tar.gz' --dir "$sdk_download" --clobber
           test -s "$sdk_download/arm-webos-linux-gnueabi_sdk-buildroot-x86_64.tar.gz"
-          echo "04ad3311b48b4557a7002aef56ae2e167478e8e129f37daac04649bddf813616  $sdk_download/arm-webos-linux-gnueabi_sdk-buildroot-x86_64.tar.gz" | sha256sum --check
           echo "SDK_DOWNLOAD_DIR=$sdk_download" >> "$GITHUB_ENV"
 
       - name: Prepare webOS SDK Docker volume
@@ -141,7 +127,7 @@ jobs:
 
       - name: Check out upstream Cobalt
         env:
-          COBALT_REF: ${{ inputs.cobalt_ref || '23.lts.6' }}
+          COBALT_REF: ${{ inputs.cobalt_ref }}
         shell: bash
         run: |
           set -euo pipefail
@@ -156,10 +142,6 @@ jobs:
             git -C "$COBALT_SOURCE_DIR" fetch --depth 1 origin "$COBALT_REF"
             git -C "$COBALT_SOURCE_DIR" checkout --detach FETCH_HEAD
           fi
-
-      - name: Run cheap native regressions against this Cobalt source
-        shell: bash
-        run: bash scripts/test-native-host.sh "$COBALT_SOURCE_DIR"
 
       - name: Prepare legacy Cobalt Docker definitions
         shell: bash
@@ -187,7 +169,7 @@ jobs:
           set -euo pipefail
           docker build -t cobalt-build-evergreen:latest - <<'EOF'
           FROM cobalt-build-evergreen:latest
-          RUN apt update -qqy && apt install -qqy --no-install-recommends cmake gawk libwayland-bin ccache && /opt/clean-after-apt.sh
+          RUN apt update -qqy && apt install -qqy --no-install-recommends cmake gawk libwayland-bin && /opt/clean-after-apt.sh
           EOF
 
       - name: Build patched SDL-webOS bundle
@@ -201,14 +183,6 @@ jobs:
           git -C "$COBALT_SOURCE_DIR" restore --source=HEAD --worktree -- docker-compose.yml docker/linux/base/Dockerfile docker/linux/base/build/Dockerfile
           git -C "$COBALT_SOURCE_DIR" diff --quiet -- docker-compose.yml docker/linux/base/Dockerfile docker/linux/base/build/Dockerfile
 
-      - name: Restore native compiler cache
-        uses: actions/cache/restore@v4
-        with:
-          path: workdir/ccache
-          key: ccache-webos-arm-v1-${{ steps.meta.outputs.cobalt_slug }}-${{ inputs.build_type || 'gold' }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            ccache-webos-arm-v1-${{ steps.meta.outputs.cobalt_slug }}-${{ inputs.build_type || 'gold' }}-
-
       - name: Build Cobalt
         shell: bash
         run: |
@@ -216,61 +190,14 @@ jobs:
           mkdir -p output
           bash scripts/build-starterless-cobalt-docker.sh
 
-      - name: Save native compiler cache
-        if: ${{ always() }}
-        uses: actions/cache/save@v4
-        with:
-          path: workdir/ccache
-          key: ccache-webos-arm-v1-${{ steps.meta.outputs.cobalt_slug }}-${{ inputs.build_type || 'gold' }}-${{ github.run_id }}-${{ github.run_attempt }}
-
-      - name: Validate actual AAC decoding on the host
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmake -S "$COBALT_SOURCE_DIR/out/fdk-aac-source" -B "$RUNNER_TEMP/fdk-aac-host" \
-            -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DBUILD_PROGRAMS=OFF
-          cmake --build "$RUNNER_TEMP/fdk-aac-host" --parallel 4
-          python3 scripts/test-fdk-aac-decoder.py "$COBALT_SOURCE_DIR" \
-            --library "$RUNNER_TEMP/fdk-aac-host/libfdk-aac.so" | tee output/fdk-aac-host-test.log
-          python3 scripts/test-firmware-aac-probe.py "$COBALT_SOURCE_DIR" \
-            --library "$RUNNER_TEMP/fdk-aac-host/libfdk-aac.so" | tee -a output/fdk-aac-host-test.log
-
-      - name: Validate firmware FFmpeg AAC probe on the host
-        shell: bash
-        run: |
-          set -euo pipefail
-          source_dir="$RUNNER_TEMP/ffmpeg5-source"
-          build_dir="$RUNNER_TEMP/ffmpeg5-host"
-          mkdir -p "$source_dir" "$build_dir"
-          git -C "$source_dir" init -q
-          git -C "$source_dir" fetch --depth 1 https://github.com/FFmpeg/FFmpeg.git 390d6853d0ef408007feb39c0040682c81c02751
-          git -C "$source_dir" checkout --detach FETCH_HEAD
-          (
-            cd "$build_dir"
-            "$source_dir/configure" --disable-everything --enable-decoder=aac \
-              --enable-shared --disable-static --disable-programs --disable-doc \
-              --disable-avdevice --disable-avfilter --disable-swscale --disable-swresample \
-              --disable-avformat --disable-postproc --disable-asm --disable-autodetect \
-              --extra-cflags=-std=gnu11
-            make -j4
-          )
-          python3 scripts/test-firmware-ffmpeg-probe.py \
-            --codec "$build_dir/libavcodec/libavcodec.so.59" \
-            --util "$build_dir/libavutil/libavutil.so.57" | tee output/ffmpeg-probe-host-test.log
-
-          python3 scripts/test-firmware-aac-playback.py \
-            --codec "$build_dir/libavcodec/libavcodec.so.59" \
-            --util "$build_dir/libavutil/libavutil.so.57" | tee output/ffmpeg-playback-host-test.log
-
       - name: Create Cobalt runtime archive
         id: archive
         env:
-          COBALT_REF: ${{ inputs.cobalt_ref || '23.lts.6' }}
+          COBALT_REF: ${{ inputs.cobalt_ref }}
           SOURCE_SHA: ${{ steps.meta.outputs.source_sha }}
           SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
           COBALT_SLUG: ${{ steps.meta.outputs.cobalt_slug }}
-          SOURCE_REF: ${{ github.ref_name }}
-          BUILD_TYPE: ${{ inputs.build_type || 'gold' }}
+          BUILD_TYPE: ${{ inputs.build_type }}
         shell: bash
         run: |
           set -euo pipefail
@@ -279,10 +206,9 @@ jobs:
           test -d "$build_dir/content"
           archive="cobalt-${COBALT_SLUG}-sb13-${BUILD_TYPE}-${SHORT_SHA}.tar.xz"
           archive_path="$GITHUB_WORKSPACE/output/$archive"
-          tar -C "$build_dir" -cJf "$archive_path" cobalt content lib/libfdk-aac.so lib/fdk-aac-build.txt
+          tar -C "$build_dir" -cJf "$archive_path" cobalt content
           sha256sum "$archive_path" > "$archive_path.sha256"
-          sha256sum "$build_dir/cobalt" > "$GITHUB_WORKSPACE/output/cobalt-binary.sha256"
-          printf '%s\n' "repository=$GITHUB_REPOSITORY" "source_ref=$SOURCE_REF" "source_sha=$SOURCE_SHA" "cobalt_ref=$COBALT_REF" "cobalt_source_sha=$(git -C "$COBALT_SOURCE_DIR" rev-parse HEAD)" "starboard_api=13" "build_type=$BUILD_TYPE" "archive=$archive" > "$GITHUB_WORKSPACE/output/cobalt-build.txt"
+          printf '%s\n' "repository=$GITHUB_REPOSITORY" "source_ref=main" "source_sha=$SOURCE_SHA" "cobalt_ref=$COBALT_REF" "starboard_api=13" "build_type=$BUILD_TYPE" "archive=$archive" > "$GITHUB_WORKSPACE/output/cobalt-build.txt"
           echo "archive=$archive" >> "$GITHUB_OUTPUT"
 
       - name: Upload Cobalt runtime
@@ -293,67 +219,6 @@ jobs:
             output/${{ steps.archive.outputs.archive }}
             output/${{ steps.archive.outputs.archive }}.sha256
             output/cobalt-build.txt
-            output/cobalt-binary.sha256
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Set up Node for Gold package validation
-        if: github.event_name != 'workflow_dispatch' || inputs.build_type == 'gold'
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-
-      - name: Validate Gold IPK (artifact only)
-        if: github.event_name != 'workflow_dispatch' || inputs.build_type == 'gold'
-        shell: bash
-        env:
-          # Firmware-only packages are an explicit experiment. The C4 on
-          # webOS 26 needs the bundled fallback for livestream playback.
-          YTAF_PACKAGE_FDK_AAC: ${{ github.event_name == 'workflow_dispatch' && inputs.bundle_aac == false && '0' || '1' }}
-        run: |
-          set -euo pipefail
-          exec > >(tee "$GITHUB_WORKSPACE/output/gold-package.log") 2>&1
-          npm ci --no-audit --no-fund
-          runtime_dir="$GITHUB_WORKSPACE/output/nightly-runtime"
-          mkdir -p "$runtime_dir"
-          docker run --rm -v "$WEBOS_LINUX_SDK_VOLUME:/sdk:ro" -v "$runtime_dir:/output" ubuntu:24.04 bash -c '
-            set -euo pipefail
-            sysroot=/sdk/arm-webos-linux-gnueabi_sdk-buildroot/arm-webos-linux-gnueabi/sysroot
-            for library in libstdc++.so.6 libgcc_s.so.1 libatomic.so.1; do
-              source="$(find "$sysroot" -name "$library" -print -quit)"
-              test -n "$source"
-              cp -L "$source" "/output/$library"
-            done
-          '
-          export COBALT_BUILD_DIR="$COBALT_SOURCE_DIR/out/webos-arm-sbversion-13_${COBALT_BUILD_TYPE}"
-          export COBALT_RUNTIME_DIR="$runtime_dir"
-          WEBAPP_OUTPUT_DIR="$COBALT_BUILD_DIR/content/web/adblock" \
-            bash scripts/package-starterless-cobalt.sh
-          # Package the first runtime before rebuilding the same target with
-          # the original ID. The generated native identity comes from the same
-          # validated renderer as appinfo.json; changing a filename is not enough.
-          YTAF_PACKAGE_ID=youtube.leanback.v4 \
-            COBALT_BUILD_LOG="$GITHUB_WORKSPACE/output/cobalt-${COBALT_BUILD_TYPE}-original-id.log" \
-            bash scripts/build-starterless-cobalt-docker.sh
-          YTAF_PACKAGE_ID=youtube.leanback.v4 \
-            WEBAPP_OUTPUT_DIR="$COBALT_BUILD_DIR/content/web/adblock" \
-            bash scripts/package-starterless-cobalt.sh
-          test -s "output/com.cobalt.youtube.adfree_$(jq -r .version starterless-cobalt/appinfo.json)_arm.ipk"
-          test -s "output/youtube.leanback.v4_$(jq -r .version starterless-cobalt/appinfo.json)_arm.ipk"
-          for package in output/*.ipk; do
-            python3 scripts/verify-ipk-container.py "$package"
-            sha256sum "$package" > "$package.sha256"
-          done
-
-      - name: Upload Gold package validation artifacts
-        if: github.event_name != 'workflow_dispatch' || inputs.build_type == 'gold'
-        uses: actions/upload-artifact@v4
-        with:
-          name: nightly-ipk-${{ steps.meta.outputs.short_sha }}
-          path: |
-            output/*.ipk
-            output/*.ipk.sha256
-            output/cobalt-build.txt
           if-no-files-found: error
           retention-days: 14
 
@@ -362,11 +227,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cobalt-build-log-${{ steps.meta.outputs.short_sha }}
-          path: |
-            output/cobalt-${{ inputs.build_type || 'gold' }}*.log
-            output/gold-package.log
-            output/fdk-aac-host-test.log
-            output/ffmpeg-probe-host-test.log
+          path: output/cobalt-${{ inputs.build_type }}.log
           if-no-files-found: warn
           retention-days: 14
 
