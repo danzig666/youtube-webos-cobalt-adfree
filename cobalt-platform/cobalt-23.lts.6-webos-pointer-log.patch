@@ -1,0 +1,69 @@
+diff --git a/cobalt/h5vcc/h5vcc_system.cc b/cobalt/h5vcc/h5vcc_system.cc
+index ed5b1b8..7186e7d 100644
+--- a/cobalt/h5vcc/h5vcc_system.cc
++++ b/cobalt/h5vcc/h5vcc_system.cc
+@@ -18,6 +18,7 @@
+ #include "cobalt/configuration/configuration.h"
+ #include "cobalt/version.h"
+ #include "cobalt_build_id.h"  // NOLINT(build/include_subdir)
++#include "starboard/file.h"
+ #include "starboard/system.h"
+ #if defined(STARBOARD_WEBOS)
+ #include "starboard/webos/arm/webos_media_report.h"
+@@ -188,6 +189,32 @@ std::string H5vccSystem::GetYtafCapabilityTestReport() const {
+   return "{\"state\":\"unavailable\"}";
+ #endif
+ }
++// Opt-in Magic Remote diagnostics for the user to upload: one bounded,
++// append-only text file in /tmp that is cleared when it grows past 1 MiB.
++bool H5vccSystem::AppendYtafPointerLog(const std::string& text) const {
++#if defined(STARBOARD_WEBOS)
++  static const int64_t kMaximumBytes = 1024 * 1024;
++  if (text.empty()) return true;
++  std::string line = text.substr(0, 4096);
++  if (line.back() != '\n') line += '\n';
++  bool created = false;
++  SbFileError error = kSbFileOk;
++  SbFile file = SbFileOpen("/tmp/ytaf-pointer.log", kSbFileOpenAlways | kSbFileWrite,
++                           &created, &error);
++  if (!SbFileIsValid(file)) return false;
++  int64_t end = SbFileSeek(file, kSbFileFromEnd, 0);
++  if (end < 0 || end + static_cast<int64_t>(line.size()) > kMaximumBytes) {
++    SbFileTruncate(file, 0);
++    SbFileSeek(file, kSbFileFromBegin, 0);
++  }
++  const int written = SbFileWrite(file, line.data(), static_cast<int>(line.size()));
++  SbFileClose(file);
++  return written == static_cast<int>(line.size());
++#else
++  (void)text;
++  return false;
++#endif
++}
+ std::string H5vccSystem::GetYtafMediaReport() const {
+ #if defined(STARBOARD_WEBOS)
+   return starboard::shared::webos::CopyWebOsMediaReport();
+diff --git a/cobalt/h5vcc/h5vcc_system.h b/cobalt/h5vcc/h5vcc_system.h
+index 9c74ccd..2b97af4 100644
+--- a/cobalt/h5vcc/h5vcc_system.h
++++ b/cobalt/h5vcc/h5vcc_system.h
+@@ -51,6 +51,7 @@ class H5vccSystem : public script::Wrappable {
+   bool SetYtafUiPreferences(const std::string& value) const;
+   bool StartYtafCapabilityTest() const;
+   std::string GetYtafCapabilityTestReport() const;
++  bool AppendYtafPointerLog(const std::string& text) const;
+   std::string GetYtafMediaReport() const;
+   void RequestYtafMediaReportCopy() const;
+   int32 GetYtafMediaReportCopyStatus() const;
+diff --git a/cobalt/h5vcc/h5vcc_system.idl b/cobalt/h5vcc/h5vcc_system.idl
+index ba31894..4e66978 100644
+--- a/cobalt/h5vcc/h5vcc_system.idl
++++ b/cobalt/h5vcc/h5vcc_system.idl
+@@ -29,6 +29,7 @@ interface H5vccSystem {
+   boolean setYtafUiPreferences(DOMString value);
+   boolean startYtafCapabilityTest();
+   DOMString getYtafCapabilityTestReport();
++  boolean appendYtafPointerLog(DOMString text);
+   DOMString getYtafMediaReport();
+   void requestYtafMediaReportCopy();
+   long getYtafMediaReportCopyStatus();

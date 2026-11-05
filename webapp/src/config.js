@@ -34,7 +34,9 @@ const defaultConfig = {
   enableSponsorBlockHook: false,
   enableAutoLogin: true,
   enableReturnYouTubeDislike: true,
-  enableShorts: true
+  enableShorts: true,
+  pointerEdgeScroll: true,
+  pointerDiagnosticsLog: false
 };
 
 function normalize(value) {
