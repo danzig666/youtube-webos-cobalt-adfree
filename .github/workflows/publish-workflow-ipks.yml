@@ -26,9 +26,11 @@ jobs:
       - name: Create the release tag at the verified source over git
         env:
           RELEASE_MANIFEST: ${{ inputs.manifest || 'docs/releases/v2.6.48-beta.1/manifest.json' }}
-        # The REST API refuses this token tag creation (HTTP 403). A git push of
-        # an existing commit uses the checkout credentials instead. The publish
-        # script verifies the tag points at the manifest's source either way.
+        # GitHub refuses the Actions token any new ref whose workflow files
+        # differ from the default branch ("without `workflows` permission").
+        # If this fails, create the tag elsewhere, or briefly give main the
+        # source commit's .github/workflows, re-run, then restore main (done
+        # for 2.6.48). The publish script verifies the tag points at the source.
         run: |
           set -euo pipefail
           source_sha="$(jq -r .source_sha "$RELEASE_MANIFEST")"
