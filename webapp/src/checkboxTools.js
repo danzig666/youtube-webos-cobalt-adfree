@@ -41,8 +41,11 @@ function add(name, label, checked = false, callback = null, options = {}) {
   divabel.classList.add('desc');
   divabel.textContent = label;
 
-  wrapper.appendChild(checkboxSliderDiv);
+  // Visual order is DOM order, like the choice rows. Cobalt 23 did not lay out
+  // the CSS `order` property here: the switch sat above its label on TV.
+  checkboxSliderDiv.classList.add('toggler-switch');
   wrapper.appendChild(divabel);
+  wrapper.appendChild(checkboxSliderDiv);
   if (options.color) {
     const colorSwatch = document.createElement('span');
     colorSwatch.classList.add('ytaf-category-swatch');

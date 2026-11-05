@@ -168,8 +168,8 @@
 .ytaf-diagnostic-action {
   position: relative;
   display: block;
-  min-height: 54px;
-  padding: 13px 48px 13px 18px;
+  /* Height from padding only: Cobalt 23 has no box-sizing. */
+  padding: 12px 48px 12px 18px;
   margin: 6px 0;
   box-sizing: border-box;
   border: 2px solid transparent;
@@ -181,21 +181,24 @@
   cursor: pointer;
 }
 .ytaf-diagnostic-action::after {
-  content: '\203A';
+  /* A drawn chevron: no dependence on a font glyph. */
+  content: '';
   position: absolute;
-  right: 20px;
+  right: 24px;
   top: 50%;
-  margin-top: -16px;
-  font-size: 28px;
-  line-height: 30px;
-  color: #8fbcf0;
+  width: 10px;
+  height: 10px;
+  margin-top: -6px;
+  border-top: 3px solid #8fbcf0;
+  border-right: 3px solid #8fbcf0;
+  transform: rotate(45deg);
 }
 .ytaf-diagnostic-action:focus {
   border-color: #85c5ff;
   background: #28517e;
   color: #fff;
 }
-.ytaf-diagnostic-action:focus::after { color: #fff; }
+.ytaf-diagnostic-action:focus::after { border-color: #fff; }
 /* Explanations belong to the row above them: smaller, quieter, indented. */
 .ytaf-setting-help {
   font-size: 16px;
