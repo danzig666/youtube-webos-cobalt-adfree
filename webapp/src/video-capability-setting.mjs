@@ -17,7 +17,7 @@ export function createVideoCapabilitySetting(doc, win, choices) {
   const panel = doc.createElement('div');
   const status = doc.createElement('div');
   status.setAttribute('aria-live', 'polite');
-  status.style.cssText = 'font-size:18px;margin:8px 0;';
+  status.className = 'ytaf-setting-help';
   let state = readVideoCapabilitySetting(win);
   if (!state) {
     status.textContent = 'Video quality settings require the updated native app.';
@@ -45,7 +45,7 @@ export function createVideoCapabilitySetting(doc, win, choices) {
   });
   panel.appendChild(control);
   const help = doc.createElement('div');
-  help.style.cssText = 'font-size:18px;margin:8px 0;';
+  help.className = 'ytaf-setting-help';
   help.textContent = 'Choose 4K or HDR only if your TV supports it. Changes take effect after restarting the app.';
   panel.appendChild(help); panel.appendChild(status);
   describe();

@@ -317,3 +317,4 @@ html.ytaf-hide-youtube-logo ytlr-redux-connect-ytlr-logo-entity {
 }
 
 .ytaf-diagnostics-summary { white-space: pre-wrap; font-size: 18px; line-height: 1.5; color: #fff; padding: 14px 18px; margin-bottom: 12px; background: #123454; border: 1px solid #5787b7; border-radius: 12px; }
+.ytaf-ui-container h2.ytaf-subheading { font-size: 20px; margin: 22px 0 6px 4px; color: #cfe2f7; }

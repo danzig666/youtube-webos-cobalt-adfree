@@ -101,7 +101,7 @@ export function channelSkipPolicy(win, doc, videoId, exclusions) {
 export function createChannelExclusionsPanel(doc, win, read, write, persisted) {
   const panel = doc.createElement('div');
   const title = doc.createElement('h2'); title.textContent = 'SponsorBlock channel exceptions';
-  title.style.cssText = 'font-size:24px;margin:12px 0 8px;'; panel.appendChild(title);
+  title.className = 'ytaf-subheading'; panel.appendChild(title);
   const status = doc.createElement('div'); status.className = 'ytaf-setting-help';
   status.setAttribute('aria-live', 'polite');
   const savedStatus = doc.createElement('div'); savedStatus.className = 'ytaf-setting-help';

@@ -64,6 +64,8 @@ def main():
         page.wait_for_function("window.__ytafUiInitialized")
         page.keyboard.press("=")
         page.locator(".ytaf-ui-container").wait_for(state="visible")
+        # Keep the preview label above the modal's dimmed backdrop.
+        page.evaluate("document.body.appendChild(document.getElementById('label'))")
         shots = []
         for category in ["general", "playback", "captions", "remote", "sponsorblock", "diagnostics"]:
             page.locator("#__settings_" + category).hover()
