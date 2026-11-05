@@ -19,34 +19,52 @@
 }
 .ytaf-ui-container div.center {
   position: relative;
-  margin-bottom: 18px;
-  padding-bottom: 18px;
+  min-height: 44px;
+  padding: 0 64px 12px 4px;
   border-bottom: 1px solid #2b3c52;
-}
-.ytaf-brand {
-  color: #9dcaff;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  margin-bottom: 4px;
 }
 .ytaf-ui-container div.center h1 {
   margin: 0;
-  font-size: 34px;
-  line-height: 1.2;
+  font-size: 28px;
+  line-height: 44px;
   font-weight: 600;
+  white-space: nowrap;
 }
-.ytaf-menu-hint {
-  margin-top: 12px;
-  color: #afc0d5;
-  font-size: 15px;
-  line-height: 1.5;
+.ytaf-brand {
+  margin-left: 14px;
+  color: #8fbcf0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: .5px;
 }
 .ytaf-save-status {
-  margin-top: 8px;
-  color: #afc0d5;
-  font-size: 14px;
-  line-height: 1.4;
+  position: absolute;
+  right: 64px;
+  top: 0;
+  max-width: 55%;
+  color: #9fb4cc;
+  font-size: 15px;
+  line-height: 44px;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.ytaf-save-status.ytaf-save-failed {
+  color: #f0c77e;
+  line-height: 1.35;
+  white-space: normal;
+  top: 2px;
+}
+.ytaf-menu-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  color: #8ea3bc;
+  font-size: 15px;
+  line-height: 20px;
+  text-align: center;
+  white-space: nowrap;
 }
 .ytaf-settings-close {
   position: absolute;
@@ -65,7 +83,7 @@
 .ytaf-settings-close::before, .ytaf-settings-close::after {
   content: '';
   position: absolute;
-  width: 22px;
+  width: 20px;
   height: 2px;
   left: 50%;
   top: 50%;
@@ -80,23 +98,35 @@
 .ytaf-settings-nav {
   position: absolute;
   left: 28px;
-  width: 210px;
-  overflow: auto;
+  width: 220px;
+  overflow: hidden;
 }
 .ytaf-settings-tab {
+  position: relative;
   box-sizing: border-box;
-  padding: 14px 16px;
-  margin: 0 6px 8px 0;
+  padding: 12px 16px 12px 20px;
+  margin: 0 0 6px 0;
   border: 2px solid transparent;
   border-radius: 12px;
-  color: #b9c9dd;
+  color: #a9bdd5;
   font-size: 20px;
   font-weight: 600;
+  line-height: 1.3;
   cursor: pointer;
 }
 .ytaf-settings-tab.ytaf-selected {
-  color: #cde6ff;
-  background: #203c60;
+  color: #eaf4ff;
+  background: #1c3450;
+}
+.ytaf-settings-tab.ytaf-selected::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 12px;
+  bottom: 12px;
+  width: 4px;
+  border-radius: 2px;
+  background: #69b2f5;
 }
 .ytaf-settings-tab:focus {
   border-color: #85c5ff;
@@ -104,58 +134,92 @@
   color: #fff;
 }
 .ytaf-ui-viewport {
-  margin-left: 234px;
+  margin-left: 244px;
 }
 .ytaf-ui-content {
-  padding: 0 4px 14px;
+  padding: 0 22px 18px 4px;
 }
 .ytaf-settings-section > h2 {
-  font-size: 28px;
-  line-height: 1.25;
-  margin: 0 0 6px;
+  font-size: 24px;
+  line-height: 1.3;
+  margin: 0 0 2px;
   font-weight: 600;
 }
 .ytaf-section-description {
-  color: #b3c4da;
-  font-size: 18px;
-  margin-bottom: 22px;
+  color: #9fb4cc;
+  font-size: 16px;
+  line-height: 1.4;
+  margin-bottom: 12px;
 }
 .ytaf-ui-container h2 {
   color: #eef4ff;
-  font-size: 25px;
+  font-size: 22px;
   font-weight: 600;
-  margin: 24px 0 12px;
+  margin: 20px 0 10px;
 }
 .ytaf-ui-container .ytaf-settings-section > h2 {
   margin-top: 0;
 }
 .ytaf-ui-container div.blockquote {
-  margin: 12px 0;
+  margin: 0;
   padding: 0;
 }
+/* Actions look like the setting rows, with a chevron instead of a value. */
 .ytaf-diagnostic-action {
-  padding: 14px 18px;
-  margin: 8px 0;
+  position: relative;
+  display: block;
+  min-height: 54px;
+  padding: 13px 48px 13px 18px;
+  margin: 6px 0;
   box-sizing: border-box;
-  border: 2px solid #304761;
+  border: 2px solid transparent;
   border-radius: 12px;
   background: #1a2e47;
   color: #e5efff;
-  font-size: 21px;
+  font-size: 20px;
   line-height: 1.35;
   cursor: pointer;
+}
+.ytaf-diagnostic-action::after {
+  content: '\203A';
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  margin-top: -16px;
+  font-size: 28px;
+  line-height: 30px;
+  color: #8fbcf0;
 }
 .ytaf-diagnostic-action:focus {
   border-color: #85c5ff;
   background: #28517e;
   color: #fff;
 }
+.ytaf-diagnostic-action:focus::after { color: #fff; }
+/* Explanations belong to the row above them: smaller, quieter, indented. */
 .ytaf-setting-help {
-  font-size: 18px;
-  line-height: 1.5;
-  margin: 12px 4px 20px;
-  color: #b3c4da;
+  font-size: 16px;
+  line-height: 1.45;
+  margin: 2px 20px 12px 20px;
+  color: #9fb4cc;
   white-space: normal;
+}
+.ytaf-scroll-track {
+  display: none;
+  position: absolute;
+  right: 2px;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  border-radius: 3px;
+  background: #1a2b40;
+}
+.ytaf-scroll-thumb {
+  position: absolute;
+  left: 0;
+  width: 5px;
+  border-radius: 3px;
+  background: #5f8fc2;
 }
 .ytaf-playback-diagnostics pre {
   background: #0b1726;
@@ -239,7 +303,7 @@
 .ytaf-choice-option:focus { background: #315f90; color: #fff; border-color: #85c5ff; outline: none; }
 .ytaf-diagnostics-report { white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; padding: 18px; font: 18px/1.5 monospace; background: #0b1726; border: 2px solid #304761; border-radius: 12px; color: #c7dcf5; }
 .ytaf-diagnostics-report:focus { border-color: #85c5ff; }
-@media (max-width:1300px) { .ytaf-settings-nav { width:190px; } .ytaf-ui-viewport { margin-left:214px; } .ytaf-settings-tab { font-size:18px; padding:12px 14px; } }
+@media (max-width:1300px) { .ytaf-settings-nav { width:196px; } .ytaf-ui-viewport { margin-left:216px; } .ytaf-settings-tab { font-size:18px; padding:11px 14px 11px 20px; } }
 
 .ytaf-seek-preview {position:fixed;z-index:2147483646;height:6px;background:#627184;border-radius:3px;pointer-events:none;box-shadow:0 0 0 2px #101e30;}
 .ytaf-seek-fill {position:absolute;left:0;top:0;height:6px;background:#65b9ff;border-radius:3px;}
@@ -252,4 +316,4 @@ html.ytaf-hide-youtube-logo ytlr-redux-connect-ytlr-logo-entity {
   visibility: hidden !important;
 }
 
-.ytaf-diagnostics-summary { white-space: pre-wrap; font-size: 24px; line-height: 1.5; color: #fff; padding: 18px 22px; margin-bottom: 18px; background: #123454; border: 1px solid #5787b7; border-radius: 12px; }
+.ytaf-diagnostics-summary { white-space: pre-wrap; font-size: 18px; line-height: 1.5; color: #fff; padding: 14px 18px; margin-bottom: 12px; background: #123454; border: 1px solid #5787b7; border-radius: 12px; }

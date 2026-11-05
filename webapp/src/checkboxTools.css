@@ -1,10 +1,10 @@
 .toggler-wrapper {
   cursor: pointer;
-  margin: 8px 0;
-  padding: 14px 16px;
+  margin: 6px 0;
+  padding: 10px 18px;
   display: flex;
   align-items: center;
-  min-height: 62px;
+  min-height: 54px;
   box-sizing: border-box;
   border: 2px solid transparent;
   border-radius: 12px;
@@ -30,7 +30,7 @@
   order: 1;
   flex: 1 1 auto;
   color: #e5efff;
-  font-size: 21px;
+  font-size: 20px;
   line-height: 1.35;
 }
 .toggler-wrapper .toggler-slider {

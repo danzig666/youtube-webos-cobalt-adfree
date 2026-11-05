@@ -127,17 +127,29 @@ export function userScriptStartUI() {
     const itemRect = row.getBoundingClientRect();
     const visibleTop = viewportRect.top + visibleMargin;
     const visibleBottom = viewportRect.bottom - visibleMargin;
+    const viewportHeight = Math.max(0, visibleBottom - visibleTop);
+    // Include the help text directly below a row, so moving down never leaves
+    // its explanation cut off at the bottom edge.
+    let revealBottom = itemRect.bottom;
+    for (let help = row.nextElementSibling; help && help.classList?.contains('ytaf-setting-help');
+      help = help.nextElementSibling) {
+      const helpRect = help.getBoundingClientRect?.();
+      if (!helpRect || helpRect.bottom - itemRect.top > viewportHeight) break;
+      revealBottom = Math.max(revealBottom, helpRect.bottom);
+    }
 
     if (itemRect.top < visibleTop) {
       menuOffset += itemRect.top - visibleTop;
     } else if (item.dataset?.ytafControl === 'reader' && itemRect.top > visibleBottom - 81) {
       // Reveal its first lines when a summary pushes a tall reader below the viewport.
       menuOffset += itemRect.top - (visibleBottom - 81);
-    } else if (item.dataset?.ytafControl !== 'reader' && itemRect.bottom > visibleBottom) {
-      menuOffset += itemRect.bottom - visibleBottom;
+    } else if (item.dataset?.ytafControl !== 'reader' && revealBottom > visibleBottom) {
+      menuOffset += revealBottom - visibleBottom;
     }
+    // Controls on the first screen keep the category heading visible.
+    const contentRect = menuContent.getBoundingClientRect?.();
+    if (contentRect && itemRect.bottom - contentRect.top <= viewportHeight) menuOffset = 0;
 
-    const viewportHeight = Math.max(0, visibleBottom - visibleTop);
     const maximumOffset = Math.max(0, menuContent.scrollHeight - viewportHeight);
     menuOffset = Math.max(0, Math.min(maximumOffset, menuOffset));
     menuContent.style.top = `${-menuOffset}px`;
@@ -284,13 +296,14 @@ export function userScriptStartUI() {
     };
   };
 
+  // One compact header line keeps most of the panel for settings rows.
   const divTitle = document.createElement('div');
   divTitle.classList.add('center');
   const title = document.createElement('h1');
-  const brand = document.createElement('div');
-  brand.className = 'ytaf-brand'; brand.textContent = 'YouTube AdFree';
-  divTitle.appendChild(brand);
   title.textContent = 'Settings';
+  const brand = document.createElement('span');
+  brand.className = 'ytaf-brand'; brand.textContent = 'YouTube AdFree';
+  title.appendChild(brand);
   divTitle.appendChild(title);
   const closeButton = document.createElement('button');
   closeButton.id = '__settings_close'; closeButton.className = 'ytaf-settings-close';
@@ -301,18 +314,19 @@ export function userScriptStartUI() {
     if (Number(divTitle.dataset.ytafIgnoreClickUntil || 0) <= Date.now()) closeContainer();
   });
   divTitle.appendChild(closeButton);
+  // Key help sits in a footer line so it never pushes the settings down.
   const menuHint = document.createElement('div');
   menuHint.className = 'ytaf-menu-hint';
-  menuHint.textContent = '↑ ↓ Navigate   ·   → Options   ·   ← Categories   ·   OK Select   ·   BACK Close   ·   Wheel Scroll';
-  divTitle.appendChild(menuHint);
+  menuHint.textContent = '↑ ↓ Move   ·   → Open category   ·   ← Categories   ·   OK Change   ·   BACK Close';
   const saveStatus = document.createElement('div');
   saveStatus.className = 'ytaf-save-status';
   saveStatus.setAttribute('aria-live', 'polite');
   function refreshSaveStatus() {
     const persisted = configPersistenceStatus();
     saveStatus.textContent = persisted === false
-      ? 'Could not save menu preferences. Changes apply only for this session; try changing a setting again.'
+      ? 'Could not save settings: changes last for this session only. Try again.'
       : persisted === true ? 'Changes saved' : 'Changes save automatically';
+    saveStatus.className = 'ytaf-save-status' + (persisted === false ? ' ytaf-save-failed' : '');
     if (menuViewport && isContainerOpen()) {
       applyVisibleContainerStyles();
       queueMenuItemScroll(document.activeElement);
@@ -496,6 +510,7 @@ export function userScriptStartUI() {
     if (menuScrollFrame !== null) window.cancelAnimationFrame(menuScrollFrame);
     menuScrollFrame = null;
     menuOffset = 0; menuContent.style.top = '0'; menuViewport.scrollTop = 0;
+    if (typeof updateScrollIndicator === 'function') updateScrollIndicator();
     currentFocusIndex = -1;
     // A category can be changed by pointer while a hidden setting had focus.
     sections.currentButton().focus();
@@ -516,6 +531,28 @@ export function userScriptStartUI() {
   menuViewport.style.paddingRight = '4px';
   menuViewport.appendChild(menuContent);
   uiContainer.appendChild(menuViewport);
+  // A thin position indicator shows that a category continues off screen.
+  const scrollTrack = document.createElement('div');
+  scrollTrack.className = 'ytaf-scroll-track';
+  const scrollThumb = document.createElement('div');
+  scrollThumb.className = 'ytaf-scroll-thumb';
+  scrollTrack.appendChild(scrollThumb);
+  menuViewport.appendChild(scrollTrack);
+  function updateScrollIndicator() {
+    const viewportHeight = menuViewport.clientHeight;
+    const contentHeight = menuContent.scrollHeight;
+    if (!viewportHeight || contentHeight <= viewportHeight + 2) { scrollTrack.style.display = 'none'; return; }
+    const offset = Math.max(0, -parseFloat(menuContent.style.top || '0') || 0);
+    const thumb = Math.max(36, Math.round(viewportHeight * viewportHeight / contentHeight));
+    const travel = viewportHeight - thumb;
+    scrollTrack.style.display = 'block';
+    scrollThumb.style.height = `${thumb}px`;
+    scrollThumb.style.top = `${Math.round(travel * Math.min(1, offset / Math.max(1, contentHeight - viewportHeight)))}px`;
+  }
+  try {
+    new MutationObserver(updateScrollIndicator).observe(menuContent, {attributes: true, attributeFilter: ['style']});
+  } catch (_) { /* The indicator is optional. */ }
+  uiContainer.appendChild(menuHint);
 
   (document.body || document.documentElement).appendChild(uiContainer);
 
@@ -554,25 +591,35 @@ export function userScriptStartUI() {
     const viewportHeights = [window.innerHeight, document.documentElement?.clientHeight]
       .filter(value => Number.isFinite(value) && value > 0);
     const screenHeight = viewportHeights.length ? Math.min(...viewportHeights) : 720;
-    const menuTop = Math.round(screenHeight * .06);
-    const menuHeight = Math.floor(screenHeight * .86);
+    const widths = [window.innerWidth, document.documentElement?.clientWidth]
+      .filter(value => Number.isFinite(value) && value > 0);
+    const screenWidth = widths.length ? Math.min(...widths) : 1280;
+    // Centred and as large as TV-safe margins allow: more rows fit on screen.
+    const menuWidth = Math.min(Math.round(screenWidth * .9), 1400);
+    const menuTop = Math.round(screenHeight * .05);
+    const menuHeight = Math.floor(screenHeight * .9);
+    const padding = screenHeight < 800 ? 22 : 30;
     Object.assign(uiContainer.style, {
       position: 'fixed', display: 'block', visibility: 'visible', opacity: '1',
-      left: '5vw', top: `${menuTop}px`, width: '90vw', maxWidth: '1160px',
+      left: `${Math.round((screenWidth - menuWidth) / 2)}px`, top: `${menuTop}px`,
+      width: `${menuWidth}px`, maxWidth: 'none',
       height: `${menuHeight}px`, maxHeight: `${menuHeight}px`, minHeight: '0', margin: '0', boxSizing: 'border-box',
       overflow: 'hidden', zIndex: '2147483647', pointerEvents: 'auto',
       background: '#101e30', color: '#eef4ff', border: '1px solid #31465f',
-      borderRadius: '24px', padding: '28px', fontSize: '22px',
+      borderRadius: '20px', padding: `${padding}px`, fontSize: '20px',
       lineHeight: '1.4', fontFamily: '"YTAF Inter", Arial, sans-serif',
       transform: 'none', animation: 'none',
-      boxShadow: '0 20px 64px rgba(0,0,0,0.35), 0 0 0 9999px rgba(3,9,18,0.55)'
+      boxShadow: '0 20px 64px rgba(0,0,0,0.35), 0 0 0 9999px rgba(3,9,18,0.6)'
     });
+    const gap = 14;
     const viewportHeight = Math.max(
-      0, uiContainer.clientHeight - 56 - divTitle.offsetHeight - 18
+      0, uiContainer.clientHeight - 2 * padding - divTitle.offsetHeight - gap - menuHint.offsetHeight - 10
     );
-    sections.nav.style.top = `${28 + divTitle.offsetHeight + 18}px`;
+    sections.nav.style.top = `${padding + divTitle.offsetHeight + gap}px`;
+    sections.nav.style.left = `${padding}px`;
     sections.nav.style.height = `${viewportHeight}px`;
     menuViewport.style.height = `${viewportHeight}px`;
+    updateScrollIndicator();
   }
 
   function focusMenuItem(preferredItem = lastFocusedItem) {

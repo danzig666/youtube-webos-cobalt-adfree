@@ -62,3 +62,25 @@ Diagnostics snapshots refresh when the category opens; no paging/copy controls.
 Native UI preferences use an app-ID-specific mode-0600 file, bounded to 64 KiB,
 with fsync and atomic replacement. Failed saves are shown as session-only. See
 [the C3 fixes](lg-c3-ui-fixes.md) for evidence and remaining TV verification.
+
+## Compact settings layout (2.6.48)
+
+The settings panel was hard to use at 720p: the header took about a third of
+the panel, so only three or four rows were visible, and long explanations
+broke the rhythm of the rows. 2.6.48 keeps every control and category but:
+
+- puts the title, brand, save status and close button on one header line and
+  moves the key help to a footer line;
+- centres the panel and uses up to 90% of the screen (at most 1400 px wide);
+- uses 54 px rows, smaller indented help text under the row it explains, and
+  row-style action buttons with a chevron;
+- shows a thin scroll indicator when a category continues off screen;
+- scrolls far enough to show a focused row's help text, and keeps the
+  category heading visible for controls on its first screen;
+- marks the selected category with an accent bar.
+
+Layout still uses block/absolute positioning, explicit colours and standard
+borders for Cobalt 23. The scroll indicator updates through a style
+MutationObserver and is optional when that API is limited. The settings,
+auto-quality, fork-adaptation and playback-recovery browser regressions pass
+at 1280×720 and 1920×1080; on-TV rendering still needs confirmation.
