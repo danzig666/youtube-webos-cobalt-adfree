@@ -29,7 +29,8 @@ Steps are marked as synthetic, so this app's remote handling ignores them.
 
 ## Diagnostics log for testers
 
-Turn on **GREEN → General → Save pointer diagnostics log**. The app then appends
+**GREEN → General → Save pointer diagnostics log** is on by default in this
+test build; turn it off when you no longer need it. The app appends
 to **`/tmp/ytaf-pointer.log`** (cleared at 1 MiB; `/tmp` empties on TV reboot).
 It records only:
 
