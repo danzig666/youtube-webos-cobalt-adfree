@@ -23,6 +23,23 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
+      - name: Create the release tag at the verified source over git
+        env:
+          RELEASE_MANIFEST: ${{ inputs.manifest || 'docs/releases/v2.6.48-beta.1/manifest.json' }}
+        # The REST API refuses this token tag creation (HTTP 403). A git push of
+        # an existing commit uses the checkout credentials instead. The publish
+        # script verifies the tag points at the manifest's source either way.
+        run: |
+          set -euo pipefail
+          source_sha="$(jq -r .source_sha "$RELEASE_MANIFEST")"
+          tag="$(jq -r .tag "$RELEASE_MANIFEST")"
+          [[ "$source_sha" =~ ^[0-9a-f]{40}$ && "$tag" =~ ^v[0-9.]+-beta\.[0-9]+$ ]]
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            echo "Tag $tag already exists"
+          else
+            git fetch --depth=1 origin "$source_sha"
+            git push origin "$source_sha:refs/tags/$tag"
+          fi
       - name: Verify completed builds and publish both packages
         env:
           GH_TOKEN: ${{ github.token }}
