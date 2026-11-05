@@ -197,6 +197,12 @@ export function startCaptionPreferences(doc, win, read) {
           return;
         }
       }
+      // YouTube restores the account's caption track after metadata loads.
+      // Keep watching briefly so the preferred language can replace it.
+      if (mode === 'youtube' && language !== 'youtube' && !enabled && !trackRequested && attempts < 20) {
+        wait('Waiting for YouTube captions; the preferred language applies when they turn on.');
+        return;
+      }
       // Set at most once per video/configuration. Never retry writes or police later choices.
       done = true;
       if (!trackRequested) {

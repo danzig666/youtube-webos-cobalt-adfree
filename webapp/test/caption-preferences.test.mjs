@@ -235,3 +235,19 @@ test('caption size selection gives feedback independently of player track readin
   assert.equal(settings.captionSize,'extra');assert.equal(notes[0][0],'Extra large caption text applied.');
   assert.equal(notes[0][2],'green');
 });
+test('preferred language applies when YouTube turns captions on after the first check', () => {
+  const f = fixture({ captionLanguage: 'hu' });
+  f.emit('loadedmetadata');
+  assert.equal(f.writes.length, 0, 'captions are still off');
+  // YouTube restores the account's English track a moment later.
+  f.player.setOption('captions', 'track', english); f.writes.length = 0;
+  f.emit('canplay'); f.tick();
+  assert.deepEqual(f.writes, [{ key: 'track', value: hungarian }]);
+});
+test('captions that stay off are left alone after a bounded wait', () => {
+  const f = fixture({ captionLanguage: 'hu' });
+  f.emit('loadedmetadata');
+  for (let i = 0; i < 30; i++) f.tick();
+  assert.equal(f.timers.size, 0);
+  assert.equal(f.writes.length, 0);
+});

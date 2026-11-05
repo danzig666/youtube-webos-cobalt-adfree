@@ -33,13 +33,19 @@ export function startAutoQuality(doc, win, read) {
         const preferred=ticket.player.getPreferredQuality();
         if(preferred===ticket.top || preferred==='auto')ticket.player.setPlaybackQualityRange('auto','auto');
       } catch (_) {text='Could not return quality to Auto. Select Auto in YouTube’s quality menu.';}
+    } else if(release && ticket.pinned && ticket.player) {
+      // The video changed without input while pinned. YouTube reuses the
+      // player, so release a pin that is still ours rather than leave it on
+      // the next video, where it would look like a manual choice.
+      try {if(ticket.player.getPreferredQuality()===ticket.top)ticket.player.setPlaybackQualityRange('auto','auto');}
+      catch (_) {/* The replaced player no longer accepts quality changes. */}
     }
     ticket.pinned=false;status(text);
   }
   function check(ticket) {
     timer=null;
     if(stopped || session!==ticket || ticket.done)return;
-    if(!matches(ticket)){finish(ticket,'Waiting for the next video.',false);return;}
+    if(!matches(ticket)){finish(ticket,'Waiting for the next video.');return;}
     if(doc.hidden || doc.visibilityState==='hidden'){finish(ticket,'Auto startup stopped while the app is in the background.');return;}
     try {
       if(!ticket.pinned) {

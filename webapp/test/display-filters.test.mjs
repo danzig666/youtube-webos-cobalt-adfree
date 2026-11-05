@@ -36,3 +36,19 @@ test('logo visibility toggles live without changing video geometry or reloading 
  installDisplayPreferences(doc,()=>enabled);assert.equal(flags.size,0);enabled=true;listeners['ytaf-config-changed']({detail:{key:'hideYouTubeLogo'}});assert.ok(flags.has('ytaf-hide-youtube-logo'));
  enabled=false;listeners['ytaf-config-changed']({detail:{key:'hideYouTubeLogo'}});assert.equal(flags.size,0);
 });
+test('sharper thumbnails keep 16:9 images and fall back when sddefault is missing',()=>{
+ const mq='https://i.ytimg.com/vi/'+id+'/mqdefault.jpg';
+ assert.equal(sharperThumbnail(mq),mq);
+ const listeners={},attrs={};
+ const doc={documentElement:{classList:{add(){},remove(){}}},addEventListener:(type,fn)=>{listeners[type]=fn;}};
+ installDisplayPreferences(doc,()=>false);
+ const image={tagName:'IMG',naturalWidth:120,complete:true,getAttribute:k=>attrs[k],setAttribute:(k,v)=>{attrs[k]=v;}};
+ attrs.src='https://i.ytimg.com/vi/'+id+'/sddefault.jpg';
+ listeners.load({type:'load',target:image});
+ assert.equal(attrs.src,url);
+ attrs.src='https://i.ytimg.com/vi/'+id+'/sddefault.jpg';image.naturalWidth=640;
+ listeners.load({type:'load',target:image});
+ assert.match(attrs.src,/sddefault/);
+ listeners.error({type:'error',target:image});
+ assert.equal(attrs.src,url);
+});

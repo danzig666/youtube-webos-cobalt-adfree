@@ -12,7 +12,7 @@ function fixture() {
     return current;
   }
   replace();
-  return {api, win, get video() {return current;}, replace, emit: (type, video = current) => handlers.get(type)({target: video})};
+  return {api, win, get video() {return current;}, replace, emit: (type, video = current) => handlers.get(type)(type === 'keydown' ? video : {target: video})};
 }
 test('stop after video follows a replacement media element for the same video', () => {
   const f = fixture(); f.api.activate();
@@ -34,4 +34,30 @@ test('a replacement element for a different video cancels the armed ending', () 
   f.video.ended = true; f.emit('ended');
   assert.equal(f.api.state(), 'idle');
   assert.equal(f.video.paused, false);
+});
+function stopped() {
+  const f = fixture(); f.api.activate();
+  f.video.ended = true; f.emit('ended');
+  assert.equal(f.api.state(), 'stopped');
+  f.video.paused = false; f.video.ended = false;
+  return f;
+}
+test('a stopped video still holds autoplay without user input', () => {
+  const f = stopped();
+  f.emit('play');
+  assert.equal(f.video.paused, true);
+  assert.equal(f.api.state(), 'stopped');
+});
+test('playback the user starts releases the stop instead of pausing', () => {
+  const f = stopped();
+  f.emit('keydown', {keyCode: 13});
+  f.emit('play');
+  assert.equal(f.video.paused, false);
+  assert.equal(f.api.state(), 'idle');
+});
+test('opening settings with GREEN does not count as starting playback', () => {
+  const f = stopped();
+  f.emit('keydown', {keyCode: 404});
+  f.emit('play');
+  assert.equal(f.video.paused, true);
 });

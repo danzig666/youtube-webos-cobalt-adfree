@@ -93,3 +93,15 @@ test('malformed RYD payloads fall back to the native button without throwing', (
     assert.equal(f.label.children.length, 0);
   }
 });
+
+test('removing an existing dislike lowers the shown count', () => {
+  const f = fixture(), controller = f.start();
+  f.requests[0].respond({dislikes: 40});
+  let pressed = 'true';
+  f.button.getAttribute = name => name === 'aria-pressed' ? pressed : null;
+  controller.handleDislikeToggle();
+  assert.equal(controller.dislikes, 39);
+  pressed = 'false'; controller.lastLocalToggleAt = 0;
+  controller.handleDislikeToggle();
+  assert.equal(controller.dislikes, 40);
+});

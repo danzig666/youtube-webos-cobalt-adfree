@@ -26,3 +26,22 @@ test('actual ad hider supports Cobalt indexed NodeLists and missing Element.clos
  assert.equal(disconnected,true);assert.equal(first.flags.size+second.flags.size,0);
  assert.equal(classes.size,0);
 });
+test('a reused tile is shown again once its ad renderer is removed',()=>{
+ let observer;const listeners={};
+ const body={nodeType:1};
+ const flags=new Set();let holdsAd=true;
+ const reused={nodeType:1,parentElement:body,matches:s=>!s.includes('ad-slot'),
+  querySelector:()=>holdsAd?{}:null,classList:{add:n=>flags.add(n),remove:n=>flags.delete(n)}};
+ const ad={nodeType:1,parentElement:reused,matches:s=>s.includes('ad-slot'),querySelectorAll:()=>list([])};
+ const doc={body,documentElement:{classList:{toggle(){}}},addEventListener:(type,fn)=>listeners[type]=fn,
+  querySelectorAll:s=>s==='.ytaf-hidden-ad-tile'?list(flags.size?[reused]:[]):list(holdsAd?[ad]:[])};
+ const ctx=vm.createContext({document:doc,window:{getComputedStyle:()=>({display:'block'})},
+  configRead:()=>true,MutationObserver:class{constructor(fn){observer=fn;}observe(){}disconnect(){}}});
+ vm.runInContext(source,ctx);vm.runInContext('userScriptStartAdBlock()',ctx);
+ assert.ok(flags.has('ytaf-hidden-ad-tile'));
+ observer([{addedNodes:list([]),removedNodes:list([{nodeType:1}])}]);
+ assert.ok(flags.has('ytaf-hidden-ad-tile'),'still an ad');
+ holdsAd=false;
+ observer([{addedNodes:list([]),removedNodes:list([ad])}]);
+ assert.equal(flags.size,0);
+});

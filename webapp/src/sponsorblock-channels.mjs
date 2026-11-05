@@ -29,7 +29,9 @@ export function rememberPlayerChannel(win, response) {
   win.__ytafPlayerChannels = [channel, ...cache.filter(item => item.videoId !== channel.videoId)].slice(0, 8);
 }
 
-export function getCurrentVideoId(win, doc, allowResponseFallback = true) {
+// The watch/Shorts route only. The player and cached responses keep the
+// previous video after leaving it, so they cannot tell that the user left.
+export function getRouteVideoId(win) {
   for (const candidate of [win.location?.hash, win.location?.href, win.location?.search]) {
     const pathMatch = String(candidate || '').match(/\/shorts\/([A-Za-z0-9_-]{11})(?:[?&#/]|$)/);
     if (pathMatch) return pathMatch[1];
@@ -37,10 +39,17 @@ export function getCurrentVideoId(win, doc, allowResponseFallback = true) {
     if (match) {
       try {
         const id = decodeURIComponent(match[1]).replace(/^v=/, '');
-        return videoPattern.test(id) ? id : null;
-      } catch (_) { return null; }
+        return videoPattern.test(id) ? id : false;
+      } catch (_) { return false; }
     }
   }
+  return null;
+}
+
+export function getCurrentVideoId(win, doc, allowResponseFallback = true) {
+  const routeId = getRouteVideoId(win);
+  if (routeId) return routeId;
+  if (routeId === false) return null;
   try {
     const player = doc?.getElementById?.('ytlr-player__player-container-player') ||
       doc?.querySelector?.('.html5-video-player');

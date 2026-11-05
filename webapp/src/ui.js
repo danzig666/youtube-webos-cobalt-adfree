@@ -38,7 +38,8 @@ import { sponsorBlockCategories, sponsorBlockCategoryConfig, sponsorBlockCategor
 import { sponsorBlockAction, sponsorBlockActionOptions } from './sponsorblock-actions.mjs';
 import { toggleSubtitles } from './subtitle-shortcut.js';
 
-let lastTabIndex = 0;
+// The control to restore on reopen. Tracked by element: tab indexes are not unique.
+let lastFocusedItem = null;
 
 function text(key) {
   return languageText('ui', key);
@@ -212,7 +213,7 @@ export function userScriptStartUI() {
     if (nextItem) {
       nextItem.focus();
       queueMenuItemScroll(nextItem);
-      lastTabIndex = nextItem.tabIndex;
+      lastFocusedItem = nextItem;
     }
   }
 
@@ -236,7 +237,7 @@ export function userScriptStartUI() {
           uiContainer.querySelectorAll('[tabindex]')
         ).filter((item) => item.tabIndex > 0 && item.getClientRects?.().length !== 0);
         currentFocusIndex = focusableItems.indexOf(focusAfterEvent);
-        lastTabIndex = focusAfterEvent.tabIndex;
+        lastFocusedItem = focusAfterEvent;
         queueMenuItemScroll(focusAfterEvent);
         return;
       }
@@ -262,7 +263,7 @@ export function userScriptStartUI() {
         focusedElement.tabIndex !== null &&
         focusedElement.tabIndex > 0
       ) {
-        lastTabIndex = focusedElement.tabIndex;
+        lastFocusedItem = focusedElement;
         queueMenuItemScroll(focusedElement);
       }
     },
@@ -574,26 +575,19 @@ export function userScriptStartUI() {
     menuViewport.style.height = `${viewportHeight}px`;
   }
 
-  function focusMenuItem(preferredTabIndex = lastTabIndex) {
+  function focusMenuItem(preferredItem = lastFocusedItem) {
     const focusableItems = Array.from(
       uiContainer.querySelectorAll('[tabindex]')
     ).filter((item) => item.tabIndex > 0 && item.getClientRects?.().length !== 0);
 
-    let target = null;
-    if (preferredTabIndex > 0) {
-      target =
-        focusableItems.find((item) => item.tabIndex === preferredTabIndex) ||
-        sections.currentButton();
-    } else {
-      target = sections.currentButton();
-    }
+    const target = focusableItems.includes(preferredItem) ? preferredItem : sections.currentButton();
 
     if (target) {
       target.focus();
       queueMenuItemScroll(target);
       currentFocusIndex = focusableItems.indexOf(target);
       if (target.tabIndex !== null && target.tabIndex > 0) {
-        lastTabIndex = target.tabIndex;
+        lastFocusedItem = target;
       }
       return true;
     }
@@ -802,8 +796,11 @@ export function userScriptStartUI() {
       if (!focusInsideMenu) {
         evt.preventDefault();
         evt.stopPropagation();
-      evt.stopImmediatePropagation?.();
+        evt.stopImmediatePropagation?.();
         captureMenuFocus();
+        // This press only brings focus back. Acting on it as well would move
+        // past, or toggle, a control the user could not see was focused.
+        if (eventDirection || isActivationKey) return false;
       }
 
       const direction = eventDirection;
@@ -893,7 +890,15 @@ export function userScriptStartUI() {
       evt.stopImmediatePropagation?.();
       }
     }
-    if (!menuOpen && typeof revealPlaybackControls !== 'undefined') revealPlaybackControls.handleKey?.(evt);
+    if (menuOpen) {
+      // The settings menu is modal: keys it does not use (media, colour,
+      // digits) must not reach YouTube's player behind it.
+      evt.preventDefault();
+      evt.stopPropagation();
+      evt.stopImmediatePropagation?.();
+      return false;
+    }
+    if (typeof revealPlaybackControls !== 'undefined') revealPlaybackControls.handleKey?.(evt);
     return true;
   };
 
@@ -960,7 +965,7 @@ export function userScriptStartUI() {
       wheelFocusing = true;
       try { target.focus(); } finally { wheelFocusing = false; }
       currentFocusIndex = -1;
-      lastTabIndex = target.tabIndex;
+      lastFocusedItem = target;
     } else {
       // A tall text-only section (help/report) may fill the entire viewport.
       // Focus the container so OK cannot toggle an off-screen setting.

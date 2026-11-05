@@ -91,9 +91,11 @@ export function createPlaybackControlsReveal(doc, win) {
           doc.body.classList.contains('WEB_PAGE_TYPE_SHORTS')) return null;
       const video = doc.querySelector('video'), id = getCurrentVideoId(win, doc, false);
       if (!video || video.readyState < 1 || !id) return null;
-      for (const overlay of doc.querySelectorAll('.ytaf-ui-container, [role="dialog"], [role="menu"], [role="listbox"]')) {
+      // Cobalt 23 collections are index-only: for...of on them throws.
+      const overlays = doc.querySelectorAll('.ytaf-ui-container, [role="dialog"], [role="menu"], [role="listbox"]');
+      for (let index = 0; index < overlays.length; index++) {
         // An uninspectable overlay might be interactive; fail closed.
-        if (visible(overlay, doc, win) !== false) return null;
+        if (visible(overlays[index], doc, win) !== false) return null;
       }
       const controls = doc.querySelector(controlsSelector);
       if (!controls) return null;

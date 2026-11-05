@@ -9,7 +9,7 @@ import {
   sponsorBlockCategoryColors as categoryColors
 } from './sponsorblock-categories.js';
 import { getSponsorBlockSkipTarget } from './sponsorblock-skip-target.mjs';
-import { channelExclusionsKey, channelSkipPolicy, getCurrentVideoId as readCurrentVideoId } from './sponsorblock-channels.mjs';
+import { channelExclusionsKey, channelSkipPolicy, getCurrentVideoId as readCurrentVideoId, getRouteVideoId } from './sponsorblock-channels.mjs';
 
 const sponsorblockAPI = 'https://sponsor.ajay.app/api';
 const markerAttribute = 'data-ytaf-sponsorblock-marker';
@@ -260,6 +260,7 @@ class SponsorBlockController {
   requestToken = 0;
   skipped = {};
   prompted = {};
+  leftVideoRoute = false;
   pendingPrompt = null;
   fetchRetryTimeout = null;
   fetchRetries = 0;
@@ -351,6 +352,10 @@ class SponsorBlockController {
       return;
     }
 
+    const routeId = getRouteVideoId(window);
+    // Leaving the watch page (Home, search, a channel) ends this viewing even
+    // though the player still reports the previous video.
+    if (!routeId && this.videoID) this.leftVideoRoute = true;
     const nextVideoId = getCurrentVideoId();
     if (!nextVideoId) return;
 
@@ -359,6 +364,24 @@ class SponsorBlockController {
       this.loadVideo(nextVideoId);
       return;
     }
+    if (this.leftVideoRoute && routeId === nextVideoId) {
+      this.leftVideoRoute = false;
+      this.revisitVideo();
+    }
+  }
+
+  // Reopening the same video is a new viewing: its segments skip and prompt
+  // again. A response dropped while away (or a failed fetch) is requested again.
+  revisitVideo() {
+    if (!['segments-loaded', 'no-segments'].includes(this.fetchStatus)) {
+      this.loadVideo(this.videoID);
+      return;
+    }
+    this.clearPrompt();
+    this.skipped = {};
+    this.prompted = {};
+    this.lastMarkerFrameHash = null;
+    this.scheduleSkip();
   }
 
   reset() {
@@ -493,7 +516,7 @@ class SponsorBlockController {
       width: Math.round(segmentRect.width),
       height: Math.max(2, Math.round(segmentRect.height))
     };
-    const frameHash = `${frame.left}:${frame.top}:${frame.width}:${frame.height}`;
+    const frameHash = `${frame.left}:${frame.top}:${frame.width}:${frame.height}:${duration}`;
     if (frameHash === this.lastMarkerFrameHash) return;
 
     this.lastMarkerFrameHash = frameHash;
@@ -613,6 +636,7 @@ class SponsorBlockController {
     this.clearPrompt();
     const requestToken = ++this.requestToken;
     this.videoID = videoId;
+    this.leftVideoRoute = false;
     this.segments = [];
     this.skipped = {};
     this.prompted = {};

@@ -1,6 +1,8 @@
 // Optional display ideas adapted from ja3850/c4-speed-legacy. Gate on actual
 // YouTube response shapes; account/authentication and playback tracking survive.
-const THUMB=/^(https:\/\/i\.ytimg\.com\/)vi(?:_webp)?\/([A-Za-z0-9_-]{11})\/(?:hq|mq)?default\.(?:jpg|webp)(?:\?[^\s]*)?$/;
+// Only 4:3 sources: mqdefault is 16:9, and sddefault would letterbox it.
+const THUMB=/^(https:\/\/i\.ytimg\.com\/)vi(?:_webp)?\/([A-Za-z0-9_-]{11})\/(?:hq)?default\.(?:jpg|webp)(?:\?[^\s]*)?$/;
+const SHARP=/^https:\/\/i\.ytimg\.com\/vi\/([A-Za-z0-9_-]{11})\/sddefault\.jpg$/;
 export function sharperThumbnail(url) {
  const match=typeof url==='string'&&THUMB.exec(url);
  return match?`${match[1]}vi/${match[2]}/sddefault.jpg`:url;
@@ -60,7 +62,17 @@ export function applyDisplayFilters(value,flags) {
  }
  walk(value);return changed;
 }
+// Some videos have no sddefault image: YouTube then serves an error or a
+// 120x90 placeholder. Return such images to the standard thumbnail.
+export function restoreMissingSharpThumbnail(image,failed=false) {
+ const match=SHARP.exec(image?.getAttribute?.('src')||'');
+ if(!match)return false;
+ if(!failed&&!(image.naturalWidth<=120))return false;
+ image.setAttribute('src',`https://i.ytimg.com/vi/${match[1]}/hqdefault.jpg`);return true;
+}
 export function installDisplayPreferences(doc,read) {
+ const fallback=event=>{const target=event?.target;if(target?.tagName==='IMG'&&(event.type==='error'||target.naturalWidth<=120))restoreMissingSharpThumbnail(target,event.type==='error');};
+ doc.addEventListener('error',fallback,true);doc.addEventListener('load',fallback,true);
  function refresh(){const classes=doc.documentElement?.classList;if(!classes)return;
   if(read('hideYouTubeLogo'))classes.add('ytaf-hide-youtube-logo');else classes.remove('ytaf-hide-youtube-logo');}
  refresh();doc.addEventListener('ytaf-config-changed',event=>{if(event.detail?.key==='hideYouTubeLogo')refresh();});

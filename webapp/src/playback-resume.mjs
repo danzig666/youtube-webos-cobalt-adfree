@@ -353,11 +353,11 @@ export function startPlaybackResume(doc, win, read, save, notify) {
   win.addEventListener('blur', api.flush);
   win.addEventListener('keydown', event => {
     if (!doc.body?.classList.contains('WEB_PAGE_TYPE_WATCH')) return;
-    if (event.target?.closest?.('.ytaf-ui-container, .ytaf-choice-popup')) return;
+    if (closestMatch(event.target, '.ytaf-ui-container, .ytaf-choice-popup')) return;
     if ([37, 39, 36, 35].includes(event.keyCode) || ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) api.manual();
   }, true);
   for (const type of ['pointerdown', 'mousedown']) doc.addEventListener(type, event => {
-    if (event.target?.closest?.('[role="slider"], ytlr-progress-bar')) api.manual();
+    if (closestMatch(event.target, '[role="slider"], ytlr-progress-bar')) api.manual();
   }, true);
   doc.addEventListener('ytaf-config-changed', event => {
     if (event.detail?.key !== 'playbackResumeMode') return;
@@ -384,4 +384,13 @@ export function startPlaybackResume(doc, win, read, save, notify) {
   }
   observe(null, true);
   return api;
+}
+
+// Cobalt 23 has matches() but no Element.closest().
+function closestMatch(node, selector) {
+  if (typeof node?.closest === 'function') return node.closest(selector);
+  for (let current = node; current && current.nodeType !== 9; current = current.parentElement) {
+    try { if (current.matches?.(selector)) return current; } catch (_) { return null; }
+  }
+  return null;
 }

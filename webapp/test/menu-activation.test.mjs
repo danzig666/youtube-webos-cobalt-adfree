@@ -5,7 +5,7 @@ import test from 'node:test';
 
 // Run the actual checkbox and document key handler with a small DOM fixture.
 // No YouTube runtime is needed to reproduce duplicate remote-control input.
-function setup() {
+function setup(options = {}) {
   const elements = new Map();
   const writes = [];
   const renders = [];
@@ -35,7 +35,8 @@ function setup() {
     },
     Date: { now: () => now },
     isContainerOpen: () => true,
-    menuHasFocus: () => true,
+    menuHasFocus: () => options.focusInside ?? true,
+    captureMenuFocus: () => { options.captured = (options.captured || 0) + 1; },
     queueMenuItemScroll: () => {},
     getDirectionFromEvent: () => null,
     isGreenKey: () => false,
@@ -56,7 +57,7 @@ function setup() {
   vm.runInContext('let closedActivationReleaseUntil=0,heldActivationControl = null;\n' + uiSource.slice(start, end), context);
   function event(type, extra = {}) {
     return { type, key: 'Enter', keyCode: 13, repeat: false,
-      preventDefault() {}, stopPropagation() {}, ...extra };
+      preventDefault() { this.blocked = true; }, stopPropagation() {}, ...extra };
   }
   return {
     writes, renders,
@@ -65,6 +66,7 @@ function setup() {
     key(type, extra) {
       context.input = event(type, extra);
       vm.runInContext('eventHandler(input)', context);
+      return context.input;
     },
     click() { focused.parentElement.listeners.click(event('click')); }
   };
@@ -181,4 +183,23 @@ test('closing settings clears stale OK latches but consumes the actual trailing 
   assert.equal(trailing.key('keydown'),false);
   const choice=fixture();choice.choice();choice.close();
   assert.equal(choice.key('keyup'),true);assert.equal(choice.key('keydown'),false);
+});
+
+test('OK while focus has left the open menu only restores focus', () => {
+  const options = { focusInside: false };
+  const menu = setup(options);
+  menu.key('keydown');
+  menu.key('keyup');
+  assert.equal(options.captured, 1);
+  assert.deepEqual(menu.writes, []);
+  assert.equal(menu.checked(), false);
+});
+
+test('keys the open menu does not use are kept from YouTube', () => {
+  const menu = setup();
+  for (const keyCode of [415, 19, 403, 49]) {
+    for (const type of ['keydown', 'keyup'])
+      assert.equal(menu.key(type, { key: '', keyCode }).blocked, true, `${type} ${keyCode}`);
+  }
+  assert.deepEqual(menu.writes, []);
 });

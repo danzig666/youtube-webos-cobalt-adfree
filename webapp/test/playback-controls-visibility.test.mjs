@@ -284,3 +284,13 @@ test('arrows in recommendation cards never send synthetic Enter to hidden player
   assert.equal(f.events.length,0);
  }
 });
+
+test('index-only Cobalt collections still allow the hidden-controls reveal', () => {
+  const f = fixture();
+  const hiddenOverlay = f.node('DIV', f.doc.body);
+  hiddenOverlay.style.display = 'none';
+  // Cobalt 23 NodeLists have length and indexes but no iterator.
+  f.doc.overlays = {length: 1, 0: hiddenOverlay};
+  assert.equal(f.show(), f.controls);
+  assert.equal(f.events.length, 2);
+});

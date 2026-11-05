@@ -67,8 +67,11 @@ test('navigation, element replacement and stale callbacks never apply quality to
   else if(variant==='leave')f.doc.body.classList.contains=()=>false;
   else {f.win.location.href='?v=bbbbbbbbbbb';f.state.id='bbbbbbbbbbb';}
   if(variant==='hash')f.win.emit('hashchange');
-  f.advance(12000);assert.equal(f.calls.length,1,variant);assert.equal(f.timers.size,0,variant);
+  // Only our still-active pin is released; no quality is chosen for the new video.
+  f.advance(12000);assert.deepEqual(f.calls,[['hd2160','hd2160'],['auto','auto']],variant);assert.equal(f.timers.size,0,variant);
  }
+ const manual=fixture();manual.win.location.href='?v=bbbbbbbbbbb';manual.state.id='bbbbbbbbbbb';manual.state.preferred='hd1080';
+ manual.advance(12000);assert.deepEqual(manual.calls,[['hd2160','hd2160']],'a different preference is left alone');
 });
 test('new videos get their own attempt after ending; stale route data is not boosted',()=>{
  const f=fixture();f.media('ended');assert.deepEqual(f.calls.at(-1),['auto','auto']);

@@ -13,12 +13,14 @@ export function userScriptStartShortsBlockUI() {
     description.textContent = label;
   }
 
-  const blocked = !Boolean(configRead('enableShorts'));
+  // The switch means "Block Shorts", the inverse of the stored setting.
+  const blocked = !configRead('enableShorts');
   if (blocked) {
     control.setAttribute('checked', 'checked');
   } else {
     control.removeAttribute('checked');
   }
+  control.setAttribute('aria-checked', String(blocked));
 
   checkboxTools.setCallback('__shorts', (newState) => {
     configWrite('enableShorts', !newState);

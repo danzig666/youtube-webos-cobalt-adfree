@@ -23,7 +23,7 @@ export function cardVideoId(card) {
     const id = videoIdFromUrl(href);
     if (id) return id;
   }
-  for (const image of card.querySelectorAll('img')) {
+  for (const image of Array.from(card.querySelectorAll('img'))) {
     const src = image.getAttribute('src') || '';
     if (/^https:\/\/(?:i|i\d)\.ytimg\.com\//.test(src)) {
       const id = videoIdFromUrl(src);
@@ -268,7 +268,7 @@ export function createDeArrowSettings(doc, win, choices, read, write) {
   const row = doc.createElement('div'),
     button = doc.createElement('div');
   button.id = '__dearrow_originals';
-  button.tabIndex = 903;
+  button.tabIndex = 905;
   button.dataset.ytafControl = 'action';
   button.className = 'ytaf-diagnostic-action';
   button.setAttribute('role', 'button');

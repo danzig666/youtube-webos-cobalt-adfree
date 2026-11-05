@@ -139,3 +139,23 @@ test('higher-quality Auto startup defaults off and persists independently of vid
  f.context.configWrite('highQualityAutoStartup',true);
  assert.equal(load(f.saved()).context.configRead('highQualityAutoStartup'),true);
 });
+test('oversized saves drop the oldest TV positions so later settings still persist', () => {
+  const {context, saved} = load('{}');
+  const now = Date.now();
+  const positions = Array.from({length: 100}, (_, i) => ({id: String(i).padStart(11, 'a'), position: 60, duration: 600, updated: now - i}));
+  const channels = Array.from({length: 200}, (_, i) => ({id: 'UC' + String(i).padStart(22, '0'), name: '频道'.repeat(40)}));
+  context.configWrite('playbackPositions', positions);
+  context.configWrite('sponsorBlockExcludedChannels', channels);
+  assert.ok(context.utf8Length(saved()) <= 60000);
+  const stored = JSON.parse(saved());
+  assert.equal(stored.sponsorBlockExcludedChannels.length, 200, 'every exception is kept');
+  assert.match(stored.sponsorBlockExcludedChannels[0].name, /频道/, 'names are kept while positions can be dropped');
+  assert.ok(stored.playbackPositions.length < 100);
+  if (stored.playbackPositions.length) assert.equal(stored.playbackPositions[0].updated, now, 'newest kept');
+  context.configWrite('enableShorts', false);
+  assert.equal(JSON.parse(saved()).enableShorts, false);
+});
+test('UTF-8 length counts multi-byte characters', () => {
+  const {context} = load('{}');
+  assert.equal(context.utf8Length('aé频😀'), 1 + 2 + 3 + 4);
+});

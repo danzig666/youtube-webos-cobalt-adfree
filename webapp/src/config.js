@@ -87,8 +87,46 @@ function dispatchConfigChanged(target, key, value) {
   }
 }
 
+// The native store rejects files over 64 KiB, which would make every later
+// save fail. Keep headroom, measured in UTF-8 bytes (channel names may be CJK).
+const preferenceByteLimit = 60000;
+export function utf8Length(text) {
+  let bytes = 0;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff) { bytes += 4; i++; }
+    else bytes += 3;
+  }
+  return bytes;
+}
+// Drop the oldest TV fallback positions first, then shorten saved channel
+// names to their IDs. Settings themselves always fit.
+export function fitPreferences(config, limit = preferenceByteLimit) {
+  let serialized = JSON.stringify(config);
+  if (utf8Length(serialized) <= limit) return serialized;
+  if (Array.isArray(config.playbackPositions)) {
+    const positions = config.playbackPositions.slice().sort((a, b) => (b?.updated || 0) - (a?.updated || 0));
+    while (positions.length && utf8Length(serialized) > limit) {
+      positions.pop();
+      config.playbackPositions = positions.slice();
+      serialized = JSON.stringify(config);
+    }
+  }
+  const channels = config.sponsorBlockExcludedChannels;
+  if (Array.isArray(channels) && utf8Length(serialized) > limit) {
+    config.sponsorBlockExcludedChannels = channels.map(entry => entry && typeof entry === 'object' ? {...entry, name: entry.id} : entry);
+    serialized = JSON.stringify(config);
+  }
+  return serialized;
+}
+
 function persistConfiguration() {
-  const serialized = JSON.stringify(normalize(localConfig));
+  const fitted = normalize(localConfig);
+  const serialized = fitPreferences(fitted);
+  localConfig.playbackPositions = fitted.playbackPositions;
+  localConfig.sponsorBlockExcludedChannels = fitted.sponsorBlockExcludedChannels;
   let saved = false;
   const api = window.h5vcc?.system;
   if (api?.setYtafUiPreferences && api?.getYtafUiPreferences) {

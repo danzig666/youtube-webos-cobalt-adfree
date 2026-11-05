@@ -1,4 +1,5 @@
 import { getCurrentVideoId } from './sponsorblock-channels.mjs';
+const userPlayWindowMs = 2500;
 // Session-only: never changes the account's autoplay preference.
 export function createEndStop(doc, win, notify) {
   let state = 'idle',
@@ -79,12 +80,25 @@ export function createEndStop(doc, win, notify) {
     },
     true
   );
+  // The stop holds autoplay only. Playback the user starts (Play, or choosing
+  // a video with OK or the pointer) releases it instead of being paused.
+  let lastUserInputAt = -Infinity;
+  const noteUserInput = (event) => {
+    const code = event?.keyCode || event?.which || 0;
+    if (code !== 404 && code !== 172) lastUserInputAt = Date.now(); // GREEN opens settings
+  };
+  for (const type of ['keydown', 'pointerdown', 'mousedown'])
+    win.addEventListener(type, noteUserInput, true);
   doc.addEventListener(
     'play',
     (event) => {
-      if (state === 'stopped' && event.target === doc.querySelector('video'))
-        pause(event.target);
-      else checkNavigation();
+      if (state === 'stopped' && event.target === doc.querySelector('video')) {
+        if (Date.now() - lastUserInputAt < userPlayWindowMs) {
+          state = 'idle';
+          target = null;
+          api.render();
+        } else pause(event.target);
+      } else checkNavigation();
     },
     true
   );
@@ -114,7 +128,7 @@ export function createEndStopPanel(doc, win, notify) {
   const row = doc.createElement('div'),
     button = doc.createElement('div');
   button.id = '__stop_after_video';
-  button.tabIndex = 902;
+  button.tabIndex = 904;
   button.dataset.ytafControl = 'action';
   button.className = 'ytaf-diagnostic-action';
   button.setAttribute('role', 'button');

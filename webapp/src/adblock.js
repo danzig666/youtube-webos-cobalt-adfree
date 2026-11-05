@@ -75,6 +75,17 @@ function processAddedNode(node) {
   for (let i = 0; i < children.length; i++) hideAdRenderer(children[i]);
 }
 
+// YouTube's virtual lists reuse tile wrappers. Once a hidden tile no longer
+// holds an ad renderer it shows an ordinary video again and must be visible.
+export function revealReusedTiles(doc = document) {
+  const tiles = doc.querySelectorAll('.ytaf-hidden-ad-tile');
+  for (let i = 0; i < tiles.length; i++) {
+    const tile = tiles[i];
+    if (!tile.matches(AD_RENDERER_SELECTOR) && !tile.querySelector(AD_RENDERER_SELECTOR))
+      tile.classList.remove('ytaf-hidden-ad-tile');
+  }
+}
+
 function startAdSlotObserver() {
   if (adSlotObserver || !document.body) return;
 
@@ -82,10 +93,13 @@ function startAdSlotObserver() {
   for (let i = 0; i < renderers.length; i++) hideAdRenderer(renderers[i]);
 
   adSlotObserver = new MutationObserver((mutations) => {
+    let removed = false;
     mutations.forEach((mutation) => {
+      if (mutation.removedNodes && mutation.removedNodes.length) removed = true;
       for (let i = 0; i < mutation.addedNodes.length; i++)
         processAddedNode(mutation.addedNodes[i]);
     });
+    if (removed) revealReusedTiles();
   });
   adSlotObserver.observe(document.body, {
     childList: true,

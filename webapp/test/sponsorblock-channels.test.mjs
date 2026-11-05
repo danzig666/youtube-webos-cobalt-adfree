@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { normalizeChannelExclusions, rememberPlayerChannel, readVideoChannel,
-  getCurrentVideoId, channelSkipPolicy, channelExclusionsKey, createChannelExclusionsPanel } from '../src/sponsorblock-channels.mjs';
+  getCurrentVideoId, getRouteVideoId, channelSkipPolicy, channelExclusionsKey, createChannelExclusionsPanel } from '../src/sponsorblock-channels.mjs';
 import { getSponsorBlockSkipTarget } from '../src/sponsorblock-skip-target.mjs';
 import { menuFixture } from './helpers/menu-fixture.mjs';
 const a='UCaaaaaaaaaaaaaaaaaaaaaa',b='UCbbbbbbbbbbbbbbbbbbbbbb';
@@ -78,7 +78,7 @@ function controllerFixture(exclusions=[],known=true, mode=null, initiallyHome=fa
   const context=vm.createContext({window:win,document:doc,XMLHttpRequest:XHR,MutationObserver:class{observe(){}disconnect(){}},
     sponsorBlockAction, segmentKey, automaticSkipTarget,
     showSegmentPrompt:(_doc,_win,_label,confirm,decline)=>{prompts.push({confirm,decline});return ()=>{};},
-    configRead:key=>config[key],channelExclusionsKey,channelSkipPolicy,readCurrentVideoId:getCurrentVideoId,
+    configRead:key=>config[key],channelExclusionsKey,channelSkipPolicy,readCurrentVideoId:getCurrentVideoId,getRouteVideoId,
     categories:['sponsor'],categoryConfig:{sponsor:'enableSponsorBlockSponsor'},categoryColors:{},
     getSponsorBlockSkipTarget,showNotification(){},text:(_section,key)=>key,console:{warn(){},info(){}}});
   const source=fs.readFileSync(new URL('../src/sponsorblock.js',import.meta.url),'utf8').replace(/^import[\s\S]*?;\n/gm,'').replaceAll('export function ','function ');

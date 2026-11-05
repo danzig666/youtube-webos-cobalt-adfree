@@ -23,8 +23,11 @@ export function shortcutAction(key, mapping) {
     : { 0: 'captions', 1: 'slower', 3: 'faster' }[key] || 'none';
 }
 export function createShortcutHandler(doc, read, perform, win = doc.defaultView) {
-  const held = new Set();
+  // Key -> time of its latest event. Some remotes omit keyup: after 500 ms
+  // without repeats, a keydown is a new press rather than a held key.
+  const held = new Map();
   const handler = (event, allowNew = true) => {
+    const now = Date.now();
     const code = event.keyCode || event.which;
     const key = /^\d$/.test(event.key || '')
       ? event.key
@@ -36,8 +39,11 @@ export function createShortcutHandler(doc, read, perform, win = doc.defaultView)
             ? String(code - 96)
             : null;
     if (key === null) return false;
+    if (held.has(key) && event.type === 'keydown' && !event.repeat && now - held.get(key) >= 500)
+      held.delete(key);
     if (held.has(key)) {
       if (event.type === 'keyup') held.delete(key);
+      else held.set(key, now);
       event.preventDefault();
       event.stopPropagation();
       return true;
@@ -48,7 +54,8 @@ export function createShortcutHandler(doc, read, perform, win = doc.defaultView)
     if (!allowNew || !canUseNumericShortcuts(event, doc, read('enableNumericShortcuts'), homeRefresh))
       return false;
     if (action === 'none') return false;
-    held.add(key);
+    if (event.type !== 'keydown') return false;
+    held.set(key, now);
     event.preventDefault();
     event.stopPropagation();
     perform(action);

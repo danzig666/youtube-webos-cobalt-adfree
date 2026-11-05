@@ -14,8 +14,16 @@ function imageId(node) {
   }
   return id;
 }
+// Cobalt 23 has matches() but no Element.closest().
+function closestCard(node) {
+  if (typeof node?.closest === 'function') return node.closest(cardSelector);
+  for (let current = node; current && current.nodeType !== 9; current = current.parentElement) {
+    try { if (current.matches?.(cardSelector)) return current; } catch (_) { return null; }
+  }
+  return null;
+}
 function identity(node) {
-  const image = imageId(node), card = node.closest?.(cardSelector);
+  const image = imageId(node), card = closestCard(node);
   if (image === false) return null;
   const data = card?.__instance?.props?.data;
   const endpoint = data?.onSelectCommand?.watchEndpoint?.videoId ||

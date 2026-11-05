@@ -114,6 +114,19 @@ function requestJSON(url, timeout, onSuccess, onFailure) {
     };
 }
 
+function dislikePressedState(button) {
+    if (!button) return null;
+    const nodes = [button];
+    const descendants = button.querySelectorAll ? button.querySelectorAll('[aria-pressed]') : [];
+    for (let i = 0; i < descendants.length; i++) nodes.push(descendants[i]);
+    for (let i = 0; i < nodes.length; i++) {
+        const value = nodes[i].getAttribute ? nodes[i].getAttribute('aria-pressed') : null;
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+    }
+    return null;
+}
+
 function findDislikeButton() {
     return document.querySelector('[idomkey="dislike-button"]');
 }
@@ -433,7 +446,10 @@ class ReturnYouTubeDislike {
         const base = Number.isFinite(current) ? current : 0;
 
         this.votesLoaded = true;
-        this.optimisticDisliked = !this.optimisticDisliked;
+        // This runs before YouTube handles the press, so the button still shows
+        // whether the video was disliked already (for example on a revisit).
+        const pressed = dislikePressedState(this.dislikeButton);
+        this.optimisticDisliked = pressed === null ? !this.optimisticDisliked : !pressed;
         this.dislikes = Math.max(0, base + (this.optimisticDisliked ? 1 : -1));
 
         this.applyDislikeCount();

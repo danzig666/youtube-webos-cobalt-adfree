@@ -301,3 +301,12 @@ test('dispatching the reference event never treats DOM acceptance as confirmed n
   const report=homeRefreshReport(f.doc,f.win);assert.match(report,/soft-command-sent/);
   assert.equal(report.includes('returned-home'),false);assert.equal(f.reloads,0);
 });
+test('a shortcut key recovers when the remote never sends keyup',()=>{
+  const f=fixture(),calls=[];let now=1000;const realNow=Date.now;Date.now=()=>now;
+  try {
+    const handle=createShortcutHandler(f.doc,k=>k==='enableNumericShortcuts'?true:{9:'refresh_home'},action=>calls.push(action));
+    handle(key());now+=100;handle(key());assert.equal(calls.length,1,'a quick second keydown is the same press');
+    now+=600;handle(key());assert.equal(calls.length,2,'a later keydown is a new press');
+    now+=600;assert.equal(handle(key('keydown',{repeat:true})),true);assert.equal(calls.length,2,'repeats stay held');
+  } finally {Date.now=realNow;}
+});

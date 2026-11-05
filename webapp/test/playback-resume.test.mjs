@@ -368,3 +368,11 @@ test('an old player metadata event cannot authorize early resume after only its 
   assert.equal(f.video.currentTime,0);assert.equal(f.timers.size,0);
   f.media('loadedmetadata');assert.equal(f.video.currentTime,90);
 });
+test('arrow keys inside settings do not cancel resume on Cobalt without closest()',()=>{
+  const f=playbackFixture();f.settings.playbackPositions=[f.bookmark()];start(f);
+  f.doc.body.classList.add?.('WEB_PAGE_TYPE_WATCH');
+  const menu={nodeType:1,matches:selector=>selector.includes('.ytaf-ui-container'),parentElement:null};
+  const item={nodeType:1,matches:()=>false,parentElement:menu};
+  f.win.emit('keydown',{keyCode:39,target:item});f.media('playing');f.advance(1500);
+  assert.equal(f.video.currentTime,90);
+});
