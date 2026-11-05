@@ -1,4 +1,5 @@
 name: Publish checked build IPKs
+# Publishing creates the release tag when the token may not create refs.
 on:
   push:
     branches: [playback/host-tested-v2]

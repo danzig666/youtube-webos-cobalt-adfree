@@ -55,7 +55,12 @@ def main():
         refs=api(repo,'git/matching-refs/tags/'+tag)
         exact=[x for x in refs if x['ref']=='refs/tags/'+tag]
         if exact: assert exact[0]['object']['type']=='commit' and exact[0]['object']['sha']==source
-        else: api(repo,'git/refs',{'ref':'refs/tags/'+tag,'sha':source},'POST')
+        else:
+            # The workflow token may be refused tag creation (HTTP 403). The
+            # draft below then creates the tag at the verified source when it
+            # is published; the tag is checked again afterwards.
+            try: api(repo,'git/refs',{'ref':'refs/tags/'+tag,'sha':source},'POST')
+            except subprocess.CalledProcessError: print('Tag creation refused; publication will create it at',source,flush=True)
         releases=api(repo,'releases?per_page=100');existing=[r for r in releases if r['tag_name']==tag]
         assert len(existing)<=1
         release=existing[0] if existing else api(repo,'releases',{'tag_name':tag,'target_commitish':source,'name':m['title'],'body':(folder/'release-body.md').read_text(),'draft':True,'prerelease':True},'POST')
@@ -64,12 +69,18 @@ def main():
         assert set(assets)<=set(digests)
         for name,digest in digests.items():
             if name in assets: assert assets[name]['digest']=='sha256:'+digest and assets[name]['size']==(root/name).stat().st_size
-            else: subprocess.run(['gh','release','upload',tag,'--repo',repo,str(root/name)],check=True)
+            else:
+                # Upload by release ID: a draft's tag may not exist yet.
+                subprocess.run(['gh','api','--method','POST','-H','Content-Type: application/octet-stream',
+                    f'https://uploads.github.com/repos/{repo}/releases/{release["id"]}/assets?name={name}',
+                    '--input',str(root/name)],check=True,stdout=subprocess.DEVNULL)
         after=api(repo,f'releases/{release["id"]}')
         assert {x['name'] for x in after['assets']}==set(digests)
         for asset in after['assets']:
             assert asset['digest']=='sha256:'+digests[asset['name']] and asset['size']==(root/asset['name']).stat().st_size
         if after['draft']: api(repo,f'releases/{release["id"]}',{'draft':False},'PATCH')
+        refs=[x for x in api(repo,'git/matching-refs/tags/'+tag) if x['ref']=='refs/tags/'+tag]
+        assert refs and refs[0]['object']['type']=='commit' and refs[0]['object']['sha']==source, 'published tag is not the verified source'
         print('Published verified prerelease:',tag,flush=True)
         if not m.get('update_catalog',True):
             print('Experimental prerelease: Homebrew catalog unchanged',flush=True); return
