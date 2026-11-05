@@ -246,6 +246,12 @@ if ! grep -q "StartYtafCapabilityTest" "$cobalt_root/cobalt/h5vcc/h5vcc_system.c
   git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-capability-test.patch"
 fi
 
+# Opt-in Magic Remote pointer diagnostics written to /tmp/ytaf-pointer.log.
+if ! grep -q "AppendYtafPointerLog" "$cobalt_root/cobalt/h5vcc/h5vcc_system.cc"; then
+  git -C "$cobalt_root" apply --check "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-pointer-log.patch"
+  git -C "$cobalt_root" apply "$repo_root/cobalt-platform/cobalt-23.lts.6-webos-pointer-log.patch"
+fi
+
 # System and bundled families overlap: retain owners of unique aliases/faces.
 font_ownership_patch="$repo_root/cobalt-platform/cobalt-23.lts.6-webos-font-ownership.patch"
 if ! git -C "$cobalt_root" apply --reverse --check "$font_ownership_patch" 2>/dev/null; then

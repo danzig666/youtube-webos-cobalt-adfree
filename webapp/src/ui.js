@@ -29,6 +29,8 @@ import { createPlaybackDiagnostics } from './playback-diagnostics.mjs';
 import { createSleepTimerPanel } from './sleep-timer.mjs';
 import { createRemoteHelp } from './remote-help.mjs';
 import { createChannelExclusionsPanel } from './sponsorblock-channels.mjs';
+import { startPointerEdgeScroll } from './pointer-edge-scroll.mjs';
+import { createPointerLog } from './pointer-log.mjs';
 
 import { configRead, configWrite, configPersistenceStatus, persistPlaybackPositions } from './config.js';
 import { checkboxTools } from './checkboxTools.js';
@@ -379,6 +381,25 @@ export function userScriptStartUI() {
   }
   renderClockStatus();document.addEventListener('ytaf-config-changed',renderClockStatus);
   uiContainer.appendChild(clockStatus);
+  const pointerLog = window.__ytafPointerLog || (window.__ytafPointerLog = createPointerLog(window, configRead));
+  const edgeScroll = window.__ytafPointerEdge ||
+    (window.__ytafPointerEdge = startPointerEdgeScroll(document, window, configRead, pointerLog));
+  const pointerPanel = document.createElement('div');
+  pointerPanel.dataset.ytafSection = 'general';
+  pointerPanel.appendChild(checkboxTools.add('__pointer_edge_scroll', 'Magic Remote edge scrolling',
+    configRead('pointerEdgeScroll'), callbackConfig('pointerEdgeScroll')));
+  pointerPanel.appendChild(checkboxTools.add('__pointer_diagnostics_log', 'Save pointer diagnostics log',
+    configRead('pointerDiagnosticsLog'), callbackConfig('pointerDiagnosticsLog')));
+  const pointerStatus = document.createElement('div'); pointerStatus.className = 'ytaf-setting-help';
+  pointerStatus.id = '__pointer_status';
+  function renderPointerStatus() {
+    pointerStatus.textContent = 'Rest the pointer near the left or right screen edge to move a row, or near the top or bottom to move between rows. ' +
+      edgeScroll.status + ' ' + pointerLog.status();
+  }
+  renderPointerStatus(); document.addEventListener('ytaf-config-changed', renderPointerStatus);
+  document.addEventListener('ytaf-menu-opened', () => { pointerLog.flush(); renderPointerStatus(); });
+  pointerPanel.appendChild(pointerStatus);
+  uiContainer.appendChild(pointerPanel);
   installDisplayPreferences(document,configRead);
   uiContainer.appendChild(createDisplaySettings(document,checkboxTools,configRead,configWrite));
   const videoQuality = createVideoCapabilitySetting(document, window, choiceTools);
@@ -768,6 +789,8 @@ export function userScriptStartUI() {
   const menuBackGuard = createMenuBackGuard(isContainerOpen, closeContainer);
   const eventHandler = (evt) => {
     if (typeof revealPlaybackControls !== 'undefined' && revealPlaybackControls.isSynthetic(evt)) return true;
+    // Edge-scroll steps are YouTube navigation, not remote input for this app.
+    if (typeof window !== 'undefined' && window.__ytafPointerEdge?.isSynthetic(evt)) return true;
     const activationKey = evt.key === 'Enter' || evt.key === ' ' || [13,32].includes(evt.keyCode || evt.which);
     // A missing release from settings must not swallow the next deliberate OK.
     // Still consume the trailing release of the gesture that closed the menu.
