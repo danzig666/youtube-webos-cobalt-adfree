@@ -38,7 +38,18 @@ jobs:
             echo "Tag $tag already exists"
           else
             git fetch --depth=1 origin "$source_sha"
-            git push origin "$source_sha:refs/tags/$tag"
+            if ! git push origin "$source_sha:refs/tags/$tag"; then
+              # Diagnose: is the refusal about workflow files that differ from
+              # the default branch? A throwaway tag at main's head tells.
+              git fetch --depth=1 origin main
+              if git push origin "FETCH_HEAD:refs/tags/ytaf-ci-tag-probe"; then
+                echo "PROBE: tagging main's head is allowed"
+                git push origin :refs/tags/ytaf-ci-tag-probe || echo "PROBE: could not delete probe tag"
+              else
+                echo "PROBE: tagging main's head is refused too"
+              fi
+              exit 1
+            fi
           fi
       - name: Verify completed builds and publish both packages
         env:
