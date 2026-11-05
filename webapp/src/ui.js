@@ -623,8 +623,11 @@ export function userScriptStartUI() {
     Object.assign(uiContainer.style, {
       position: 'fixed', display: 'block', visibility: 'visible', opacity: '1',
       left: `${Math.round((screenWidth - menuWidth) / 2)}px`, top: `${menuTop}px`,
-      width: `${menuWidth}px`, maxWidth: 'none',
-      height: `${menuHeight}px`, maxHeight: `${menuHeight}px`, minHeight: '0', margin: '0', boxSizing: 'border-box',
+      // Cobalt 23 has no box-sizing, so size the content box explicitly:
+      // padding and the 1px border sit outside it in every engine.
+      width: `${menuWidth - 2 * padding - 2}px`, maxWidth: 'none',
+      height: `${menuHeight - 2 * padding - 2}px`, maxHeight: `${menuHeight - 2 * padding - 2}px`,
+      minHeight: '0', margin: '0', boxSizing: 'content-box',
       overflow: 'hidden', zIndex: '2147483647', pointerEvents: 'auto',
       background: '#101e30', color: '#eef4ff', border: '1px solid #31465f',
       borderRadius: '20px', padding: `${padding}px`, fontSize: '20px',

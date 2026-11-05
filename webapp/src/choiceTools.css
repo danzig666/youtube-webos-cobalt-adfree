@@ -7,7 +7,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 54px;
+  /* Height from padding only: Cobalt 23 has no box-sizing. */
   box-sizing: border-box;
   border: 2px solid transparent;
   border-radius: 12px;
