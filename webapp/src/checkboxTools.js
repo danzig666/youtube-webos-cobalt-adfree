@@ -4,6 +4,18 @@ let checkboxTabIndex = 1;
 
 let callbacks = {};
 
+function applyRowStyle(wrapper, focused) {
+  const style = wrapper.style;
+  style.display = 'flex';
+  style.alignItems = 'center';
+  style.justifyContent = 'space-between';
+  style.margin = '6px 0';
+  style.padding = '11px 18px';
+  style.borderRadius = '12px';
+  style.border = '2px solid ' + (focused ? '#85c5ff' : 'transparent');
+  style.backgroundColor = focused ? '#28517e' : '#1a2e47';
+}
+
 function add(name, label, checked = false, callback = null, options = {}) {
   /*
   <div class="toggler-wrapper" for="adblock">
@@ -18,6 +30,9 @@ function add(name, label, checked = false, callback = null, options = {}) {
 
   const wrapper = document.createElement('div');
   wrapper.classList.add('toggler-wrapper');
+  // Cobalt 23 on the TV dropped the stylesheet rule for this row, leaving the
+  // switch stacked over its label. Inline styles are always applied there.
+  applyRowStyle(wrapper, false);
   if (options.color) {
     wrapper.classList.add('ytaf-sponsorblock-category');
   }
@@ -40,6 +55,13 @@ function add(name, label, checked = false, callback = null, options = {}) {
   const divabel = document.createElement('div');
   divabel.classList.add('desc');
   divabel.textContent = label;
+  divabel.style.flex = '1 1 auto';
+  checkboxSliderDiv.style.display = 'block';
+  checkboxSliderDiv.style.flex = '0 0 48px';
+  checkboxSliderDiv.style.width = '48px';
+  checkboxSliderDiv.style.height = '28px';
+  checkboxSliderDiv.style.position = 'relative';
+  checkboxSliderDiv.style.marginLeft = '18px';
 
   // Visual order is DOM order, like the choice rows. Cobalt 23 did not lay out
   // the CSS `order` property here: the switch sat above its label on TV.
@@ -85,9 +107,11 @@ function add(name, label, checked = false, callback = null, options = {}) {
   );
   checkboxSliderDiv.addEventListener('focus', () => {
     wrapper.classList.add('ytaf-focused');
+    applyRowStyle(wrapper, true);
   });
   checkboxSliderDiv.addEventListener('blur', () => {
     wrapper.classList.remove('ytaf-focused');
+    applyRowStyle(wrapper, false);
   });
 
   checkboxTabIndex += 1;

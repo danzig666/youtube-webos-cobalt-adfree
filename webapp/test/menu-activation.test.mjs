@@ -15,6 +15,7 @@ function setup(options = {}) {
     const attributes = new Map();
     return {
       dataset: {},
+      style: {},
       listeners: {},
       classList: { add() {}, remove() {} },
       appendChild(child) { child.parentElement = this; },

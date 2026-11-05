@@ -42,6 +42,17 @@ export function edgeStepRate(key, depth, elapsed, tuning = edgeScrollTuning) {
   return top * share * ramp;
 }
 
+const tiles = 'ytlr-tile-renderer, ytlr-grid-video-renderer, ytlr-video-renderer, ytlr-compact-video-renderer';
+// The focusable tile containing a pointer hit. Cobalt has matches(), no closest().
+function tileAt(node) {
+  for (let current = node, depth = 0; current && depth < 12; current = current.parentElement, depth++) {
+    try {
+      if (current.matches?.(tiles)) return current;
+    } catch (_) { return null; }
+  }
+  return null;
+}
+
 const keys = {left: ['ArrowLeft', 37], right: ['ArrowRight', 39], up: ['ArrowUp', 38], down: ['ArrowDown', 40]};
 const overlays = '.ytaf-ui-container, .ytaf-choice-popup, [role="dialog"], [role="menu"], [role="listbox"]';
 
@@ -97,10 +108,25 @@ export function startPointerEdgeScroll(doc, win, read, log) {
     const beforeRect = before?.getBoundingClientRect?.();
     // A sideways step must move the row under the pointer, not another row
     // that kept focus. YouTube's hover focus normally makes them the same.
-    if ((band.key === 'left' || band.key === 'right') && beforeRect && point &&
-        (point.y < beforeRect.top - 40 || point.y > beforeRect.bottom + 40)) {
-      log.line(`skip ${band.key} focus-not-under-pointer pointer=${Math.round(point.x)},${Math.round(point.y)} focus=${describeElement(before, win)}`);
-      api.status = 'Focused tile is not under the pointer; hover a tile first.';
+    if ((band.key === 'left' || band.key === 'right') && point &&
+        (!beforeRect || point.y < beforeRect.top - 40 || point.y > beforeRect.bottom + 40)) {
+      // On Cobalt, hovering a tile does not move YouTube's focus (the TV log
+      // kept the search box focused). Focus the tile under the pointer first;
+      // YouTube then owns the row and the next ticks step it.
+      const tile = tileAt(point.target);
+      if (!tile || band.focusAttempts >= 2) {
+        log.line(`skip ${band.key} focus-not-under-pointer pointer=${Math.round(point.x)},${Math.round(point.y)} ` +
+          `focus=${describeElement(before, win)} tile=${describeElement(tile, win)} attempts=${band.focusAttempts}`);
+        api.status = 'No video row under the pointer.';
+        return;
+      }
+      band.focusAttempts++;
+      try { tile.focus(); } catch (_) { /* reported below */ }
+      const focused = doc.activeElement;
+      // Step soon after YouTube has applied the new focus.
+      credit = 1; band.holdUntil = now() + 150;
+      log.line(`focus-tile ${band.key} ok=${focused === tile || Boolean(tile.contains?.(focused))} ` +
+        `tile=${describeChain(tile, win, 3)} focus=${describeElement(focused, win)}`);
       return;
     }
     const target = press(band.key);
@@ -133,7 +159,7 @@ export function startPointerEdgeScroll(doc, win, read, log) {
     const time = now();
     const dt = last === null ? 0 : Math.min(0.1, (time - last) / 1000);
     last = time;
-    if (!band.ended) {
+    if (!band.ended && !(band.holdUntil > time)) {
       const rate = edgeStepRate(band.key, band.depth, time - band.since, tuning);
       if (rate > 0) {
         credit += rate * dt;
@@ -146,7 +172,7 @@ export function startPointerEdgeScroll(doc, win, read, log) {
     const x = event.clientX, y = event.clientY;
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     if (point && point.x === x && point.y === y) return;
-    point = {x, y};
+    point = {x, y, target: event.target};
     const time = now();
     if (time - lastMoveLog > 150 || doc.activeElement !== lastFocus) {
       lastMoveLog = time; lastFocus = doc.activeElement;
@@ -161,9 +187,9 @@ export function startPointerEdgeScroll(doc, win, read, log) {
     if (band) stop('changed-band');
     const reason = blockedReason();
     if (reason) { log.line(`blocked ${next.key} reason=${reason}`); api.status = `Edge scrolling paused: ${reason}.`; return; }
-    band = {key: next.key, depth: next.depth, since: time, steps: 0, ended: false};
-    // The first step follows soon after the dwell instead of a full interval.
-    credit = 0.6; last = null; stalls = 0;
+    band = {key: next.key, depth: next.depth, since: time, steps: 0, ended: false, focusAttempts: 0};
+    // The first step follows right after the dwell: TV rests were short.
+    credit = 1; last = null; stalls = 0;
     log.line(`enter ${next.key} depth=${next.depth.toFixed(2)} pointer=${Math.round(x)},${Math.round(y)} ` +
       `view=${win.innerWidth}x${win.innerHeight} focus=${describeChain(doc.activeElement, win, 6)}`);
     timer = win.setTimeout(tick, tuning.tickMs);

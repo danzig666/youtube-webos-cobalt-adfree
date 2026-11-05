@@ -397,7 +397,36 @@ export function userScriptStartUI() {
       edgeScroll.status + ' ' + pointerLog.status();
   }
   renderPointerStatus(); document.addEventListener('ytaf-config-changed', renderPointerStatus);
-  document.addEventListener('ytaf-menu-opened', () => { pointerLog.flush(); renderPointerStatus(); });
+  document.addEventListener('ytaf-menu-opened', () => { logMenuCss(); pointerLog.flush(); renderPointerStatus(); });
+  // What Cobalt actually computes for a toggle row versus a choice row, and
+  // which toggle rules its CSS parser kept. Layout facts only.
+  let menuCssLogged = false;
+  function logMenuCss() {
+    if (menuCssLogged || !pointerLog.enabled()) return;
+    menuCssLogged = true;
+    const describe = node => {
+      if (!node) return 'missing';
+      try {
+        const st = window.getComputedStyle(node), r = node.getBoundingClientRect();
+        return `display=${st.display} bg=${st.backgroundColor} padding=${st.paddingTop} ` +
+          `align=${st.alignItems} justify=${st.justifyContent} box=${Math.round(r.width)}x${Math.round(r.height)}`;
+      } catch (_) { return 'unreadable'; }
+    };
+    pointerLog.line('css toggle ' + describe(uiContainer.querySelector('.toggler-wrapper')));
+    pointerLog.line('css choice ' + describe(uiContainer.querySelector('.choice-wrapper')));
+    try {
+      const kept = [];
+      for (let i = 0; i < document.styleSheets.length; i++) {
+        const rules = document.styleSheets[i].cssRules || [];
+        for (let j = 0; j < rules.length; j++) {
+          const selector = rules[j].selectorText || '';
+          if (selector.indexOf('toggler-wrapper') >= 0 || selector.indexOf('choice-wrapper') === 0)
+            kept.push(selector.replace(/[^a-z0-9.\-[\]=' ]/gi, '').slice(0, 60) + '#' + j);
+        }
+      }
+      pointerLog.line('css rules ' + (kept.join(' | ') || 'none readable'));
+    } catch (_) { pointerLog.line('css rules unreadable'); }
+  }
   pointerPanel.appendChild(pointerStatus);
   uiContainer.appendChild(pointerPanel);
   installDisplayPreferences(document,configRead);

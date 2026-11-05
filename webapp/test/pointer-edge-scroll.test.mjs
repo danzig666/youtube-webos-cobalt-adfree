@@ -125,3 +125,19 @@ test('element descriptions hold only tag, geometry and layout hints', () => {
   assert.equal(describeElement(node, {getComputedStyle: () => ({overflow: 'hidden'})}),
     'ytlr-tile-renderer@10,20 300x170 tab tf=translateX(-400px) of=hidden');
 });
+
+test('when hover leaves focus elsewhere, the tile under the pointer is focused and then stepped', () => {
+  const f = fixture();
+  const search = {localName: 'ytlr-text-box', getBoundingClientRect: () => ({left: 156, top: 66, width: 720, height: 72, bottom: 138}),
+    dispatchEvent: () => true};
+  for (const tile of f.tiles) {
+    tile.matches = selector => selector.includes('ytlr-tile-renderer');
+    tile.focus = function () { f.doc.activeElement = this; };
+  }
+  f.doc.activeElement = search;
+  f.pointer(1910, 600);
+  f.advance(2000);
+  assert.ok(f.focus() >= 3, `stepped after focusing: ${f.focus()}`);
+  f.log.flush();
+  assert.ok(f.lines.some(line => / focus-tile right ok=true /.test(line)));
+});
