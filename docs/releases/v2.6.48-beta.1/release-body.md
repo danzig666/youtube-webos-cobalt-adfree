@@ -20,3 +20,5 @@ Bug fixes from a full code review, and a compact GREEN settings menu that shows 
 If you installed an experimental 2.6.41–2.6.47 package, this update replaces it.
 
 Validation: 440 web tests, production webpack build, settings/auto-quality/fork-adaptation/playback-recovery browser regressions at 720p and 1080p, source CI with native host regressions, full ARM Gold build and inspection of both final IPKs. No TV was available for this release; on-TV confirmation is still needed. Checksums and exact build/source records are attached. The Homebrew catalog is updated after verified publication.
+
+Source: `bd9202988debb53af124f7f5ed808f31543f727f` · [CI](https://github.com/danzig666/youtube-webos-cobalt-adfree/actions/runs/42101872967) · [ARM build](https://github.com/danzig666/youtube-webos-cobalt-adfree/actions/runs/42101941999)

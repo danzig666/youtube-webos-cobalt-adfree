@@ -1,0 +1,11 @@
+{
+  "repository": "danzig666/youtube-webos-cobalt-adfree",
+  "source_sha": "bd9202988debb53af124f7f5ed808f31543f727f",
+  "version": "2.6.48",
+  "tag": "v2.6.48-beta.1",
+  "title": "2.6.48 beta 1 \u2014 Bug fixes and a compact settings menu",
+  "native_run": 42101941999,
+  "ci_run": 42101872967,
+  "artifact_id": 13451821310,
+  "update_catalog": true
+}
