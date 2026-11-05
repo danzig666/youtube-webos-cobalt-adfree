@@ -36,7 +36,7 @@ const defaultConfig = {
   enableReturnYouTubeDislike: true,
   enableShorts: true,
   pointerEdgeScroll: true,
-  pointerDiagnosticsLog: false
+  pointerDiagnosticsLog: true
 };
 
 function normalize(value) {
