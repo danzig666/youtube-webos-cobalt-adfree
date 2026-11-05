@@ -5,14 +5,16 @@ import vm from 'node:vm';
 import {wheelScrollDelta} from '../src/wheel-scroll.mjs';
 
 // Exercise the actual menu handler with controllable geometry and RAF queues.
-function menu(section = 'general') {
+function menu(section = 'general', options = {}) {
   let open = true, handler;
   const cancelled = [], items = [];
   const doc = {activeElement: null, addEventListener(type, fn) {if(type === 'wheel') handler = fn;}};
   const container = {scrollTop: 12, focus() {doc.activeElement = this;}, getBoundingClientRect: () => ({top: 0, bottom: 400})};
   const viewport = {scrollTop: 20, getBoundingClientRect: () => ({top: 100, bottom: 400, height: 300})};
   const content = {style: {}, scrollHeight: 1800, querySelectorAll: () => items};
-  const context = vm.createContext({document: doc, window: {cancelAnimationFrame: id => cancelled.push(id)}, isContainerOpen: () => open, sections:{current:()=>section}, wheelScrollDelta, menuViewport: viewport, menuContent: content, uiContainer: container});
+  const frames = [];
+  const context = vm.createContext({document: doc, window: {cancelAnimationFrame: id => cancelled.push(id),
+    ...(options.raf ? {requestAnimationFrame: fn => frames.push(fn)} : {})}, isContainerOpen: () => open, sections:{current:()=>section}, wheelScrollDelta, menuViewport: viewport, menuContent: content, uiContainer: container});
   vm.runInContext('let menuOffset=0, menuScrollFrame=8, directionMoveFrame=9, wheelFocusing=false, currentFocusIndex=-1, lastTabIndex=0;', context);
   for (let i = 0; i < 10; i++) {
     const node = {tabIndex: i + 1, focus() {
@@ -27,8 +29,9 @@ function menu(section = 'general') {
   doc.activeElement = items[0];
   const src = fs.readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
   const start = src.indexOf('  // Own the wheel');
-  vm.runInContext(src.slice(start, src.indexOf('}, {capture: true, passive: false});', start) + '}, {capture: true, passive: false});'.length), context);
-  return {doc, container, content, viewport, items, cancelled,
+  vm.runInContext(src.slice(start, src.indexOf('\n  window.__ytafAttachSettings', start)), context);
+  return {doc, container, content, viewport, items, cancelled, frames, context,
+    run(ms = 16) { let time = 0; while (frames.length) { time += ms; frames.shift()(time); } },
     close: () => {open = false;},
     wheel(deltaY, extra = {}) {
       const event = {deltaY, deltaMode: 0, ...extra, preventDefault() {this.prevented = true;}, stopPropagation() {this.stopped = true;}};
@@ -67,4 +70,18 @@ test('diagnostics menu wheel scrolls a few lines even when the TV sends a full-p
   assert.equal(f.content.style.top,'-72px');
   f.wheel(-100,{deltaMode:1});
   assert.equal(f.content.style.top,'0px');
+});
+
+test('on the TV the wheel eases to the accumulated target and focuses once it settles', () => {
+  const f = menu('general', {raf: true});
+  f.wheel(150); f.wheel(150);
+  assert.equal(f.content.style.top, undefined, 'no jump on the event itself');
+  assert.equal(f.doc.activeElement, f.items[0], 'focus waits for the glide');
+  const tops = [];
+  let time = 0;
+  while (f.frames.length) { time += 16; f.frames.shift()(time); tops.push(parseFloat(f.content.style.top)); }
+  assert.equal(tops.at(-1), -300);
+  assert.ok(tops.length > 5, 'eased over several frames');
+  for (let i = 1; i < tops.length; i++) assert.ok(tops[i] <= tops[i - 1], 'moves one way');
+  assert.equal(f.doc.activeElement, f.items[2]);
 });

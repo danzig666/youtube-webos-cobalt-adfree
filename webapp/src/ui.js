@@ -895,6 +895,7 @@ export function userScriptStartUI() {
     }
 
     if (evt.type === 'keydown' && menuOpen) {
+      if (typeof window !== 'undefined') window.__ytafSettleWheelGlide?.();
       if (!focusInsideMenu) {
         evt.preventDefault();
         evt.stopPropagation();
@@ -1047,10 +1048,54 @@ export function userScriptStartUI() {
       window.cancelAnimationFrame(directionMoveFrame);
       directionMoveFrame = null;
     }
-    menuOffset = Math.max(0, Math.min(
-      Math.max(0, menuContent.scrollHeight - rect.height), menuOffset + delta
-    ));
+    const maximum = Math.max(0, menuContent.scrollHeight - rect.height);
+    const from = wheelGlide ? wheelGlide.target : menuOffset;
+    const target = Math.max(0, Math.min(maximum, from + delta));
+    if (typeof window.requestAnimationFrame !== 'function') {
+      menuOffset = target;
+      menuContent.style.top = `${-menuOffset}px`;
+      focusVisibleAfterWheel(rect);
+    } else {
+      // Ease toward the accumulated target instead of jumping a whole notch:
+      // Cobalt redraws each jump, which made Magic Remote wheel scrolling
+      // look janky. Picking the visible control waits until it settles.
+      if (!wheelGlide) {
+        wheelGlide = {target, last: null, rect};
+        wheelGlide.frame = window.requestAnimationFrame(wheelGlideFrame);
+      }
+      wheelGlide.target = target; wheelGlide.rect = rect;
+    }
+    menuViewport.scrollTop = 0;
+    uiContainer.scrollTop = 0;
+  }, {capture: true, passive: false});
+  let wheelGlide = null;
+  function wheelGlideFrame(time) {
+    const glide = wheelGlide;
+    if (!glide) return;
+    const dt = glide.last === null ? 16 : Math.min(50, Math.max(0, time - glide.last));
+    glide.last = time;
+    menuOffset += (glide.target - menuOffset) * (1 - Math.exp(-dt / 70));
+    if (Math.abs(glide.target - menuOffset) < 0.5) menuOffset = glide.target;
+    menuContent.style.top = `${-Math.round(menuOffset)}px`;
+    if (menuOffset === glide.target) {
+      wheelGlide = null;
+      focusVisibleAfterWheel(glide.rect);
+      return;
+    }
+    glide.frame = window.requestAnimationFrame(wheelGlideFrame);
+  }
+  // Finish a wheel glide at once: a key press or another scroll takes over.
+  function settleWheelGlide() {
+    const glide = wheelGlide;
+    if (!glide) return;
+    wheelGlide = null;
+    if (glide.frame !== undefined) window.cancelAnimationFrame?.(glide.frame);
+    menuOffset = glide.target;
     menuContent.style.top = `${-menuOffset}px`;
+    focusVisibleAfterWheel(glide.rect);
+  }
+  window.__ytafSettleWheelGlide = settleWheelGlide;
+  function focusVisibleAfterWheel(rect) {
     // Keep OK and subsequent arrows attached to a visible control, without
     // activating it or snapping back to the previously focused setting.
     const items = Array.from(menuContent.querySelectorAll('[tabindex]'))
@@ -1076,7 +1121,7 @@ export function userScriptStartUI() {
     }
     menuViewport.scrollTop = 0;
     uiContainer.scrollTop = 0;
-  }, {capture: true, passive: false});
+  }
 
   window.__ytafAttachSettings = () => ensureSettingsMounted(document, uiContainer);
   window.__ytafUiInitialized = true;
