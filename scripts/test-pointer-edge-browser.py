@@ -33,11 +33,25 @@ for(let i=0;i<30;i++){const item=document.createElement('div');item.className='i
   t.tabIndex=0;item.appendChild(t);track.appendChild(item);}
 const tiles=[...track.querySelectorAll('ytlr-tile-renderer')];
 window.searchBox=document.createElement('div');searchBox.tabIndex=0;document.body.appendChild(searchBox);searchBox.focus();
+// As on the TV: the track moves only when focus would leave the screen,
+// then by a page; only tiles near focus are rendered (virtual list).
+let trackRem=0;
+function render(){tiles.forEach((t,i)=>{t.parentElement.style.display=Math.abs(i-index)<=3?'block':'none';});}
+render();
 document.addEventListener('keydown',e=>{
   if(e.keyCode===39&&index<29)index++;else if(e.keyCode===37&&index>0)index--;else return;
-  requestAnimationFrame(()=>{track.style.transform='translateX('+(-index*31.5)+'rem) translateZ(0px)';tiles[index].focus();});
+  requestAnimationFrame(()=>{
+    const left=(index*31.5+trackRem)*24;
+    if(left+720>1920||left<0){trackRem=-index*31.5+6.5;track.style.transform='translateX('+trackRem+'rem) translateZ(0px)';}
+    render();tiles[index].focus();
+  });
 });
-window.samples=[];(function sample(){samples.push(track.getBoundingClientRect().left);requestAnimationFrame(sample);})();
+window.samples=[];window.blank=0;(function sample(){
+  // Position of tile 0 in screen space (moves with the whole track).
+  samples.push(track.getBoundingClientRect().left);
+  let right=-1e9,leftmost=1e9;for(const t of tiles){if(t.parentElement.style.display==='none')continue;const r=t.getBoundingClientRect();right=Math.max(right,r.right);leftmost=Math.min(leftmost,r.left);}
+  if(right<innerWidth-2||leftmost>2)blank++;
+  requestAnimationFrame(sample);})();
 </script><script src="/adblockMain.js"></script></body></html>"""
 
 
@@ -84,10 +98,10 @@ def main():
             page.mouse.move(width // 2, y)
             page.wait_for_timeout(600)
             settled = page.evaluate("index")
-            assert page.evaluate("/translateX\\(-?[\\d.]+rem\\) translateZ\\(0px\\)$/.test(track.style.transform)"), \
-                page.evaluate("track.style.transform")
+            before = page.evaluate("track.getBoundingClientRect().left")
             page.wait_for_timeout(1000)
             assert page.evaluate("index") == settled, "leaving the band stops"
+            assert abs(page.evaluate("track.getBoundingClientRect().left") - before) < 40, "the row rests where it is"
             page.mouse.move(10, y)
             page.wait_for_timeout(2500)
             assert page.evaluate("index") < settled, "left edge moves back"
@@ -102,6 +116,7 @@ def main():
                 elif " glide end " in line: gliding = False
                 elif gliding: assert " focus-tile " not in line, line
             assert not any(" end right after " in line for line in lines), [l for l in lines if " end " in l]
+            assert page.evaluate("blank") == 0, f"{page.evaluate('blank')} frames showed an empty part of the row"
             # The settings menu blocks edge scrolling.
             page.keyboard.press("=")
             page.locator(".ytaf-ui-container").wait_for(state="visible")

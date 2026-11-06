@@ -152,67 +152,104 @@ export function startPointerEdgeScroll(doc, win, read, log) {
     return step > 20 && step < 4000 ? step : 756 * (win.innerWidth || 1920) / 1920;
   }
   function readTransform(track) { return track.style.getPropertyValue('transform') || ''; }
+  // Per track: YouTube's own transform and our offset, so a later glide (or
+  // a resting row) continues from where the last one left it.
+  const parked = new WeakMap();
   function startGlide(dir, track) {
     if (!track) return false;
     const rem = remPx();
-    glide = {track, dir, rem, f: 0, v: 0, last: null, base: readTransform(track), written: null, pending: null,
-      ended: 0, step: tileStep(track, rem), transition: track.style.getPropertyValue('transition'),
-      frames: 0, maxGap: 0, presses: 0};
-    log.line(`glide start ${dir > 0 ? 'right' : 'left'} step=${Math.round(glide.step)} rem=${rem} base=${glide.base.slice(0, 60)}`);
+    const current = readTransform(track), rest = parked.get(track);
+    const resumed = rest && rest.written === current;
+    glide = {track, dir, rem, f: resumed ? rest.f : 0, v: 0, last: null,
+      base: resumed ? rest.base : current, written: resumed ? current : null, pending: null,
+      ended: 0, step: tileStep(track, rem), frames: 0, maxGap: 0, presses: 0, bounds: null, boundsAt: -1,
+      transition: resumed ? rest.transition : track.style.getPropertyValue('transition')};
+    log.line(`glide start ${dir > 0 ? 'right' : 'left'} step=${Math.round(glide.step)} rem=${rem} ` +
+      `f=${Math.round(glide.f)} base=${glide.base.slice(0, 60)}`);
     api.status = `Scrolling ${dir > 0 ? 'right' : 'left'}.`;
     win.requestAnimationFrame(glideFrame);
     return true;
   }
-  function endGlide(reason) {
+  function endGlide(reason, release = false) {
     const g = glide;
     if (!g) return;
     glide = null;
     try {
-      // Hand the track back exactly as YouTube last wrote it.
-      if (readTransform(g.track) === g.written) g.track.style.setProperty('transform', g.base);
       if (g.transition) g.track.style.setProperty('transition', g.transition);
       else g.track.style.removeProperty('transition');
+      // The row rests where the glide left it, with focus on a visible tile.
+      // A remote key (or YouTube moving the row itself) hands it back.
+      if (release || Math.abs(g.f) < 1) {
+        if (readTransform(g.track) === g.written) g.track.style.setProperty('transform', g.base);
+        parked.delete(g.track);
+      } else parked.set(g.track, {base: g.base, f: g.f, written: g.written, transition: g.transition});
     } catch (_) { /* a replaced track needs no restore */ }
-    log.line(`glide end reason=${reason} presses=${g.presses} frames=${g.frames} maxGap=${g.maxGap}ms`);
+    log.line(`glide end reason=${reason} presses=${g.presses} f=${Math.round(g.f)} frames=${g.frames} maxGap=${g.maxGap}ms`);
+  }
+  // Horizontal extent of the tiles YouTube has rendered in this row.
+  function renderedBounds(track) {
+    const nodes = track.querySelectorAll(tiles);
+    let left = Infinity, right = -Infinity;
+    for (let i = 0; i < nodes.length && i < 60; i++) {
+      const r = nodes[i].getBoundingClientRect?.();
+      if (!r || !(r.width > 0)) continue;
+      left = Math.min(left, r.left); right = Math.max(right, r.right);
+    }
+    return Number.isFinite(left) ? {left, right} : null;
   }
   function glideFrame(time) {
     const g = glide;
     if (!g) return;
-    if (!doc.documentElement?.contains?.(g.track)) { endGlide('track-replaced'); return; }
+    if (!doc.documentElement?.contains?.(g.track)) { endGlide('track-replaced', true); return; }
     const gap = g.last === null ? 0 : time - g.last;
     const dt = Math.min(0.05, Math.max(0, gap) / 1000);
     g.last = time; g.frames++; g.maxGap = Math.max(g.maxGap, Math.round(gap));
     const current = readTransform(g.track);
-    if (current !== g.written) {
-      // YouTube moved its track (our arrow press). Keep the row where it is
-      // on screen by moving the same distance into our offset.
-      g.f += translateX(current, g.rem) - translateX(g.base, g.rem);
-      g.base = current;
-      if (g.pending) { log.line(`glide shift n=${g.presses} f=${Math.round(g.f)}`); g.pending = null; }
-    }
+    if (current !== g.written && g.written !== null) {
+      // YouTube moved its track (after our focus press). Keep the row where
+      // it is on screen by taking the same distance into our offset.
+      const shift = translateX(current, g.rem) - translateX(g.base, g.rem);
+      g.f += shift; g.base = current; g.boundsAt = -1;
+      log.line(`glide shift ${Math.round(shift)}px f=${Math.round(g.f)}`);
+    } else if (g.written === null) g.base = current;
+    const width = win.innerWidth || 1920;
     const side = g.dir > 0 ? 'right' : 'left';
-    const active = band && band.key === side && g.ended !== g.dir;
-    const target = active ? edgeGlideSpeed(g.dir, band.depth, now() - band.since, win.innerWidth || 1920, tuning) : 0;
-    const blend = 1 - Math.exp(-dt / tuning.glideSmoothingSeconds);
-    g.v += (target - g.v) * blend;
-    if (active) g.f += g.v * dt;
-    else {
-      g.v = 0;
-      // Ease back to YouTube's tile position (at most half a tile), then hand over.
-      g.f += (0 - g.f) * (1 - Math.exp(-dt / 0.08));
-      if (Math.abs(g.f) < 2) { endGlide(band ? 'list-end' : 'settled'); return; }
+    const active = band && band.key === side;
+    const target = active ? edgeGlideSpeed(g.dir, band.depth, now() - band.since, width, tuning) : 0;
+    g.v += (target - g.v) * (1 - Math.exp(-dt / tuning.glideSmoothingSeconds));
+    // Only reveal tiles YouTube has rendered: wait at the last one, which is
+    // also the end of the row. Measured every few frames to stay cheap.
+    if (g.boundsAt < 0 || g.frames - g.boundsAt >= 4) { g.bounds = renderedBounds(g.track); g.boundsAt = g.frames; }
+    let move = g.v * dt;
+    if (g.bounds) {
+      if (move > 0) move = Math.max(0, Math.min(move, g.bounds.right - width));
+      else if (move < 0) move = Math.min(0, Math.max(move, g.bounds.left));
+      g.bounds = {left: g.bounds.left - move, right: g.bounds.right - move};
     }
-    if (active && !g.pending && g.dir * g.f >= g.step / 2) {
-      press(side); steps++; g.presses++; if (band) band.steps++;
-      g.pending = {at: time};
-    } else if (g.pending && time - g.pending.at > 500) {
-      // YouTube did not move: this is the end of the row.
-      log.line(`end ${side} after ${g.presses} presses (track did not move)`);
-      g.pending = null; g.ended = g.dir; api.status = 'End of the list reached.';
+    g.f += move;
+    // Keep YouTube's focus near the middle of the screen, so it renders
+    // tiles on both sides of what is visible. A press that does not move
+    // focus means the row has no more tiles that way.
+    const focus = doc.activeElement, fr = focus?.getBoundingClientRect?.();
+    if (g.pending) {
+      if (focus !== g.pending.focus) g.pending = null;
+      else if (time - g.pending.at > 450) {
+        if (g.ended !== g.pending.dir) log.line(`end ${g.pending.dir > 0 ? 'right' : 'left'} after ${g.presses} presses (focus did not move)`);
+        g.ended = g.pending.dir; g.pending = null;
+      }
+    } else if (active && fr && fr.width > 0 && g.ended !== g.dir) {
+      const centre = (fr.left + fr.right) / 2 - move;
+      if ((g.dir > 0 && centre < width / 2 - g.step / 2) || (g.dir < 0 && centre > width / 2 + g.step / 2)) {
+        press(side); steps++; g.presses++; if (band) band.steps++;
+        g.pending = {at: time, focus, dir: g.dir};
+      }
     }
-    g.track.style.setProperty('transition', 'none');
-    g.track.style.setProperty('transform', `${g.base} translateX(${(-g.f).toFixed(1)}px)`.trim());
-    g.written = readTransform(g.track);
+    if (!active && Math.abs(g.v) < 5) { endGlide(band ? 'list-end' : 'settled'); return; }
+    if (g.f !== 0 || g.written !== null) {
+      g.track.style.setProperty('transition', 'none');
+      g.track.style.setProperty('transform', `${g.base} translateX(${(-g.f).toFixed(1)}px)`.trim());
+      g.written = readTransform(g.track);
+    }
     win.requestAnimationFrame(glideFrame);
   }
 
