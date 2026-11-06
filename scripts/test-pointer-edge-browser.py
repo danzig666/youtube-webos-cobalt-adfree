@@ -19,7 +19,8 @@ yt-virtual-list{position:absolute;top:400px;left:0;width:100%;height:300px;overf
 .item{position:absolute;left:0;top:0;width:720px}
 ytlr-tile-renderer{display:block;width:720px;height:300px;background:#345}
 ytlr-tile-renderer:focus{outline:4px solid #fff}</style></head><body>
-<yt-virtual-list><div id="track" style="transform:translateX(0rem) translateZ(0px)"></div></yt-virtual-list>
+<ytlr-horizontal-list-renderer><yt-virtual-list><div id="track" style="transform:translateX(0rem) translateZ(0px)"></div></yt-virtual-list></ytlr-horizontal-list-renderer>
+<ytlr-guide-response style="position:fixed;left:0;top:0;width:156px;height:100%;z-index:5;display:block;background:#222"></ytlr-guide-response>
 <script>
 window.logged=[];window.prefs=JSON.stringify({pointerDiagnosticsLog:true});
 window.h5vcc={system:{getYtafUiPreferences:()=>prefs,setYtafUiPreferences:v=>{prefs=v;return true;},
@@ -42,7 +43,9 @@ document.addEventListener('keydown',e=>{
   if(e.keyCode===39&&index<29)index++;else if(e.keyCode===37&&index>0)index--;else return;
   requestAnimationFrame(()=>{
     const left=(index*31.5+trackRem)*24;
-    if(left+720>1920||left<0){trackRem=-index*31.5+6.5;track.style.transform='translateX('+trackRem+'rem) translateZ(0px)';}
+    // "page": shift only when focus would leave the screen (Home on the TV);
+    // "slot": keep focus in the left slot, shifting on every press.
+    if(location.hash==='#slot'||left+720>1920||left<0){trackRem=-index*31.5+6.5;track.style.transform='translateX('+trackRem+'rem) translateZ(0px)';}
     render();tiles[index].focus();
   });
 });
@@ -61,7 +64,7 @@ def main():
         if Path("/usr/bin/chromium").is_file():
             options["executable_path"] = "/usr/bin/chromium"
         browser = playwright.chromium.launch(**options)
-        for width, height in [(1280, 720), (1920, 1080)]:
+        for width, height, mode in [(1280, 720, "page"), (1920, 1080, "page"), (1920, 1080, "slot")]:
             context = browser.new_context(viewport={"width": width, "height": height})
 
             def route(request):
@@ -82,7 +85,7 @@ def main():
             page = context.new_page()
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
-            page.goto("http://test.invalid/tv#/")
+            page.goto("http://test.invalid/tv#" + mode)
             page.wait_for_function("window.__ytafUiInitialized && window.__ytafPointerEdge")
             y = 550  # inside the fixture row at both sizes
             page.mouse.move(width // 2, y)
@@ -126,7 +129,7 @@ def main():
             page.wait_for_timeout(1500)
             assert page.evaluate("window.__ytafPointerEdge.steps()") == before, "menu open blocks scrolling"
             assert not errors, errors
-            print(f"{width}x{height}: smooth right/left glide ({moved} tiles, max frame move {max(abs(j) for j in jumps):.1f}px), settle on leaving the band, "
+            print(f"{width}x{height} {mode}: smooth right/left glide ({moved} tiles, max frame move {max(abs(j) for j in jumps):.1f}px), settle on leaving the band, "
                   f"menu blocking and {len(lines)} log lines passed", flush=True)
             context.close()
         browser.close()

@@ -161,7 +161,7 @@ export function startPointerEdgeScroll(doc, win, read, log) {
     const current = readTransform(track), rest = parked.get(track);
     const resumed = rest && rest.written === current;
     glide = {track, dir, rem, f: resumed ? rest.f : 0, v: 0, last: null,
-      base: resumed ? rest.base : current, written: resumed ? current : null, pending: null,
+      base: resumed ? rest.base : current, written: current, pending: null, retryAt: 0,
       ended: 0, step: tileStep(track, rem), frames: 0, maxGap: 0, presses: 0, bounds: null, boundsAt: -1,
       transition: resumed ? rest.transition : track.style.getPropertyValue('transition')};
     log.line(`glide start ${dir > 0 ? 'right' : 'left'} step=${Math.round(glide.step)} rem=${rem} ` +
@@ -205,13 +205,13 @@ export function startPointerEdgeScroll(doc, win, read, log) {
     const dt = Math.min(0.05, Math.max(0, gap) / 1000);
     g.last = time; g.frames++; g.maxGap = Math.max(g.maxGap, Math.round(gap));
     const current = readTransform(g.track);
-    if (current !== g.written && g.written !== null) {
+    if (current !== g.written) {
       // YouTube moved its track (after our focus press). Keep the row where
       // it is on screen by taking the same distance into our offset.
       const shift = translateX(current, g.rem) - translateX(g.base, g.rem);
       g.f += shift; g.base = current; g.boundsAt = -1;
       log.line(`glide shift ${Math.round(shift)}px f=${Math.round(g.f)}`);
-    } else if (g.written === null) g.base = current;
+    }
     const width = win.innerWidth || 1920;
     const side = g.dir > 0 ? 'right' : 'left';
     const active = band && band.key === side;
@@ -234,10 +234,12 @@ export function startPointerEdgeScroll(doc, win, read, log) {
     if (g.pending) {
       if (focus !== g.pending.focus) g.pending = null;
       else if (time - g.pending.at > 450) {
-        if (g.ended !== g.pending.dir) log.line(`end ${g.pending.dir > 0 ? 'right' : 'left'} after ${g.presses} presses (focus did not move)`);
-        g.ended = g.pending.dir; g.pending = null;
+        // YouTube can ignore a press while it is still moving: try again
+        // shortly. The rendered-tile limit above already stops at the end.
+        log.line(`press ignored ${g.pending.dir > 0 ? 'right' : 'left'} after ${g.presses} presses; retrying`);
+        g.pending = null; g.retryAt = time + 350;
       }
-    } else if (active && fr && fr.width > 0 && g.ended !== g.dir) {
+    } else if (active && fr && fr.width > 0 && time >= g.retryAt) {
       const centre = (fr.left + fr.right) / 2 - move;
       if ((g.dir > 0 && centre < width / 2 - g.step / 2) || (g.dir < 0 && centre > width / 2 + g.step / 2)) {
         press(side); steps++; g.presses++; if (band) band.steps++;
@@ -245,7 +247,7 @@ export function startPointerEdgeScroll(doc, win, read, log) {
       }
     }
     if (!active && Math.abs(g.v) < 5) { endGlide(band ? 'list-end' : 'settled'); return; }
-    if (g.f !== 0 || g.written !== null) {
+    {
       g.track.style.setProperty('transition', 'none');
       g.track.style.setProperty('transform', `${g.base} translateX(${(-g.f).toFixed(1)}px)`.trim());
       g.written = readTransform(g.track);
@@ -253,6 +255,19 @@ export function startPointerEdgeScroll(doc, win, read, log) {
     win.requestAnimationFrame(glideFrame);
   }
 
+  // The horizontal row whose band contains this height. At the left edge
+  // YouTube's sidebar covers the rows, so the pointer never hits a tile there.
+  function rowAtHeight(y) {
+    const lists = doc.querySelectorAll('ytlr-horizontal-list-renderer yt-virtual-list');
+    for (let i = 0; i < lists.length && i < 30; i++) {
+      const r = lists[i].getBoundingClientRect?.();
+      if (!r || !(r.height > 0) || y < r.top || y > r.bottom) continue;
+      const children = lists[i].children;
+      for (let j = 0; j < children.length; j++)
+        if (/translateX\(/.test(readTransform(children[j]))) return children[j];
+    }
+    return null;
+  }
   // The visible tile nearest the row's left edge. Focusing it keeps
   // YouTube's track where it is, so each later arrow shifts one tile.
   function anchorTile(track) {
@@ -271,7 +286,7 @@ export function startPointerEdgeScroll(doc, win, read, log) {
   function sideStep() {
     if (glide || band.noTarget) return;
     const tile = point && tileAt(point.target);
-    const track = tile && trackFor(tile);
+    const track = (tile && trackFor(tile)) || (point && rowAtHeight(point.y));
     if (!track || !/translateX\(/.test(readTransform(track))) {
       band.noTarget = true;
       log.line(`skip ${band.key} no-row-under-pointer pointer=${point ? Math.round(point.x) + ',' + Math.round(point.y) : 'none'} ` +
