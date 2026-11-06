@@ -95,6 +95,13 @@ def main():
             lines = page.evaluate("logged")
             assert any(" glide start right " in line for line in lines) and any(" glide start left " in line for line in lines), lines[-20:]
             assert any(" glide shift " in line for line in lines)
+            # TV regressions: never refocus a tile while gliding, no false row end.
+            gliding = False
+            for line in lines:
+                if " glide start " in line: gliding = True
+                elif " glide end " in line: gliding = False
+                elif gliding: assert " focus-tile " not in line, line
+            assert not any(" end right after " in line for line in lines), [l for l in lines if " end " in l]
             # The settings menu blocks edge scrolling.
             page.keyboard.press("=")
             page.locator(".ytaf-ui-container").wait_for(state="visible")

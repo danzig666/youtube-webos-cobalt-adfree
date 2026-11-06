@@ -33,8 +33,9 @@ function fixture({watch = false, focusTop = 500} = {}) {
     getBoundingClientRect: () => ({left: 100 + (i - focusIndex) * 400, top: focusTop, width: 380, height: 220, bottom: focusTop + 220}),
     dispatchEvent(event) {
       dispatched.push([event.type, event.keyCode]);
-      if (event.type === 'keydown' && event.keyCode === 39 && focusIndex < 9) { focusIndex++; doc.activeElement = tiles[focusIndex]; }
-      if (event.type === 'keydown' && event.keyCode === 37 && focusIndex > 0) { focusIndex--; doc.activeElement = tiles[focusIndex]; }
+      // Rows of a vertical list: Down/Up move focus to the next/previous row.
+      if (event.type === 'keydown' && [39, 40].includes(event.keyCode) && focusIndex < 9) { focusIndex++; doc.activeElement = tiles[focusIndex]; }
+      if (event.type === 'keydown' && [37, 38].includes(event.keyCode) && focusIndex > 0) { focusIndex--; doc.activeElement = tiles[focusIndex]; }
       return true;
     }
   }));
@@ -65,56 +66,56 @@ function fixture({watch = false, focusTop = 500} = {}) {
     }};
 }
 
-test('resting at the right edge keeps stepping YouTube navigation, not just once', () => {
+test('resting at the bottom edge keeps stepping YouTube navigation, not just once', () => {
   const f = fixture();
-  f.pointer(1910, 600);
+  f.pointer(960, 1070);
   f.advance(140);
   assert.equal(f.focus(), 0, 'nothing during the dwell');
   f.advance(3000);
-  assert.ok(f.focus() >= 6, `kept moving: ${f.focus()}`);
-  assert.ok(f.dispatched.every(([, code]) => code === 39));
+  assert.ok(f.focus() >= 4, `kept moving: ${f.focus()}`);
+  assert.ok(f.dispatched.every(([, code]) => code === 40));
   assert.equal(f.dispatched.filter(([type]) => type === 'keydown').length, f.api.steps());
 });
 
 test('the list end, leaving the band and a real remote key stop the steps', () => {
   const f = fixture();
-  f.pointer(1910, 600); f.advance(8000);
+  f.pointer(960, 1070); f.advance(8000);
   assert.equal(f.focus(), 9);
   const sent = f.dispatched.length;
   f.advance(2000);
-  assert.equal(f.dispatched.length, sent, 'stops after the end of the row');
+  assert.equal(f.dispatched.length, sent, 'stops after the end of the list');
   f.log.flush();
-  assert.ok(f.lines.some(line => / end right after \d+ steps/.test(line)));
+  assert.ok(f.lines.some(line => / end down after \d+ steps/.test(line)));
 
   const g = fixture();
-  g.pointer(1910, 600); g.advance(800); const moved = g.focus();
-  g.pointer(900, 600); g.advance(2000);
+  g.pointer(960, 1070); g.advance(800); const moved = g.focus();
+  g.pointer(960, 600); g.advance(2000);
   assert.equal(g.focus(), moved, 'leaving the band stops');
-  g.pointer(1910, 600); g.advance(600); g.key(13); const atKey = g.focus(); g.advance(2000);
+  g.pointer(960, 1070); g.advance(600); g.key(13); const atKey = g.focus(); g.advance(2000);
   assert.equal(g.focus(), atKey, 'a real key stops');
 });
 
-test('playback pages and a row other than the focused one are not scrolled', () => {
+test('playback pages are not scrolled, and a side edge without a row under the pointer does nothing once', () => {
   const f = fixture({watch: true});
-  f.pointer(1910, 600); f.advance(2000);
+  f.pointer(960, 1070); f.advance(2000);
   assert.equal(f.dispatched.length, 0);
-  const g = fixture({focusTop: 100});
-  g.pointer(1910, 900); g.advance(2000);
-  assert.equal(g.dispatched.length, 0);
+  const g = fixture();
+  g.pointer(1910, 600); g.advance(3000);
+  assert.equal(g.dispatched.length, 0, 'no presses without a horizontal row track');
   g.log.flush();
-  assert.ok(g.lines.some(line => line.includes('focus-not-under-pointer')));
+  assert.equal(g.lines.filter(line => line.includes('no-row-under-pointer')).length, 1, 'logged once, not every tick');
 });
 
 test('the log records steps and results to the native file, and nothing when off', () => {
   const f = fixture();
-  f.pointer(1910, 600); f.advance(1500); f.log.flush();
+  f.pointer(960, 1070); f.advance(1500); f.log.flush();
   assert.match(f.lines[0], /session ua=Cobalt test view=1920x1080/);
-  assert.ok(f.lines.some(line => / enter right /.test(line)));
-  assert.ok(f.lines.some(line => / step right n=1 /.test(line)));
-  assert.ok(f.lines.some(line => / result right n=1 focusChanged=true dx=/.test(line)));
+  assert.ok(f.lines.some(line => / enter down /.test(line)));
+  assert.ok(f.lines.some(line => / step down n=1 /.test(line)));
+  assert.ok(f.lines.some(line => / result down n=1 focusChanged=true dx=/.test(line)));
   assert.ok(f.lines.every(line => !/https?:|watch\?v=/.test(line)));
   const g = fixture(); g.config.pointerDiagnosticsLog = false;
-  g.pointer(1910, 600); g.advance(1500); g.log.flush();
+  g.pointer(960, 1070); g.advance(1500); g.log.flush();
   assert.equal(g.lines.length, 0);
 });
 
@@ -124,22 +125,6 @@ test('element descriptions hold only tag, geometry and layout hints', () => {
     style: {getPropertyValue: () => 'translateX(-400px)'}, getAttribute: () => 'Secret title'};
   assert.equal(describeElement(node, {getComputedStyle: () => ({overflow: 'hidden'})}),
     'ytlr-tile-renderer@10,20 300x170 tab tf=translateX(-400px) of=hidden');
-});
-
-test('when hover leaves focus elsewhere, the tile under the pointer is focused and then stepped', () => {
-  const f = fixture();
-  const search = {localName: 'ytlr-text-box', getBoundingClientRect: () => ({left: 156, top: 66, width: 720, height: 72, bottom: 138}),
-    dispatchEvent: () => true};
-  for (const tile of f.tiles) {
-    tile.matches = selector => selector.includes('ytlr-tile-renderer');
-    tile.focus = function () { f.doc.activeElement = this; };
-  }
-  f.doc.activeElement = search;
-  f.pointer(1910, 600);
-  f.advance(2000);
-  assert.ok(f.focus() >= 3, `stepped after focusing: ${f.focus()}`);
-  f.log.flush();
-  assert.ok(f.lines.some(line => / focus-tile right ok=true /.test(line)));
 });
 
 test('glide speed follows PlxNative: 1000 px/s at the edge of a 1920 px view, eased in, scaled', async () => {

@@ -152,8 +152,7 @@ export function startPointerEdgeScroll(doc, win, read, log) {
     return step > 20 && step < 4000 ? step : 756 * (win.innerWidth || 1920) / 1920;
   }
   function readTransform(track) { return track.style.getPropertyValue('transform') || ''; }
-  function startGlide(dir) {
-    const track = trackFor(doc.activeElement);
+  function startGlide(dir, track) {
     if (!track) return false;
     const rem = remPx();
     glide = {track, dir, rem, f: 0, v: 0, last: null, base: readTransform(track), written: null, pending: null,
@@ -206,7 +205,7 @@ export function startPointerEdgeScroll(doc, win, read, log) {
     if (active && !g.pending && g.dir * g.f >= g.step / 2) {
       press(side); steps++; g.presses++; if (band) band.steps++;
       g.pending = {at: time};
-    } else if (g.pending && time - g.pending.at > 400) {
+    } else if (g.pending && time - g.pending.at > 500) {
       // YouTube did not move: this is the end of the row.
       log.line(`end ${side} after ${g.presses} presses (track did not move)`);
       g.pending = null; g.ended = g.dir; api.status = 'End of the list reached.';
@@ -217,37 +216,50 @@ export function startPointerEdgeScroll(doc, win, read, log) {
     win.requestAnimationFrame(glideFrame);
   }
 
-  function stepOnce() {
-    const before = doc.activeElement;
-    const beforeRect = before?.getBoundingClientRect?.();
-    // A sideways step must move the row under the pointer, not another row
-    // that kept focus. YouTube's hover focus normally makes them the same.
-    if ((band.key === 'left' || band.key === 'right') && point &&
-        (!beforeRect || point.y < beforeRect.top - 40 || point.y > beforeRect.bottom + 40)) {
-      // On Cobalt, hovering a tile does not move YouTube's focus (the TV log
-      // kept the search box focused). Focus the tile under the pointer first;
-      // YouTube then owns the row and the next ticks step it.
-      const tile = tileAt(point.target);
-      if (!tile || band.focusAttempts >= 2) {
-        log.line(`skip ${band.key} focus-not-under-pointer pointer=${Math.round(point.x)},${Math.round(point.y)} ` +
-          `focus=${describeElement(before, win)} tile=${describeElement(tile, win)} attempts=${band.focusAttempts}`);
-        api.status = 'No video row under the pointer.';
+  // The visible tile nearest the row's left edge. Focusing it keeps
+  // YouTube's track where it is, so each later arrow shifts one tile.
+  function anchorTile(track) {
+    const nodes = track.querySelectorAll(tiles);
+    let best = null, bestLeft = Infinity;
+    for (let i = 0; i < nodes.length && i < 60; i++) {
+      const r = nodes[i].getBoundingClientRect?.();
+      if (r && r.width > 0 && r.left >= -8 && r.left < bestLeft && r.left < (win.innerWidth || 1920)) {
+        best = nodes[i]; bestLeft = r.left;
+      }
+    }
+    return best;
+  }
+  // Sideways: the row is the one under the pointer, never whatever has
+  // focus. Nothing here runs while a glide is moving the row.
+  function sideStep() {
+    if (glide || band.noTarget) return;
+    const tile = point && tileAt(point.target);
+    const track = tile && trackFor(tile);
+    if (!track || !/translateX\(/.test(readTransform(track))) {
+      band.noTarget = true;
+      log.line(`skip ${band.key} no-row-under-pointer pointer=${point ? Math.round(point.x) + ',' + Math.round(point.y) : 'none'} ` +
+        `hit=${describeChain(point?.target, win, 3)}`);
+      api.status = 'No video row under the pointer.';
+      return;
+    }
+    if (!track.contains(doc.activeElement)) {
+      if (band.focusAttempts >= 2) {
+        band.noTarget = true;
+        log.line(`skip ${band.key} focus-refused focus=${describeElement(doc.activeElement, win)}`);
         return;
       }
       band.focusAttempts++;
-      try { tile.focus(); } catch (_) { /* reported below */ }
-      const focused = doc.activeElement;
-      // Step soon after YouTube has applied the new focus.
-      credit = 1; band.holdUntil = now() + 150;
-      log.line(`focus-tile ${band.key} ok=${focused === tile || Boolean(tile.contains?.(focused))} ` +
-        `tile=${describeChain(tile, win, 3)} focus=${describeElement(focused, win)}`);
+      const anchor = anchorTile(track) || tile;
+      try { anchor.focus(); } catch (_) { /* reported below */ }
+      band.holdUntil = now() + 150;
+      log.line(`focus-tile ${band.key} ok=${track.contains(doc.activeElement)} tile=${describeChain(anchor, win, 3)}`);
       return;
     }
-    if (band.key === 'left' || band.key === 'right') {
-      if (glide) return;
-      if (startGlide(band.key === 'right' ? 1 : -1)) return;
-      log.line(`glide unavailable: no yt-virtual-list track; stepping instead`);
-    }
+    startGlide(band.key === 'right' ? 1 : -1, track);
+  }
+  function stepOnce() {
+    const before = doc.activeElement;
+    const beforeRect = before?.getBoundingClientRect?.();
     const target = press(band.key);
     steps++; band.steps++;
     log.line(`step ${band.key} n=${band.steps} depth=${band.depth.toFixed(2)} target=${describeElement(target, win)}`);
@@ -278,7 +290,10 @@ export function startPointerEdgeScroll(doc, win, read, log) {
     const time = now();
     const dt = last === null ? 0 : Math.min(0.1, (time - last) / 1000);
     last = time;
-    if (!band.ended && !(band.holdUntil > time)) {
+    const sideways = band.key === 'left' || band.key === 'right';
+    if (sideways) {
+      if (time - band.since >= tuning.dwellMs && !(band.holdUntil > time)) sideStep();
+    } else if (!band.ended && !(band.holdUntil > time)) {
       const rate = edgeStepRate(band.key, band.depth, time - band.since, tuning);
       if (rate > 0) {
         credit += rate * dt;
