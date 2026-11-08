@@ -141,9 +141,12 @@ export function startPointerEdgeScroll(doc, win, read, log) {
     const match = new RegExp(axis.fn + '\\((-?[\\d.]+)(rem|px)\\)').exec(String(transform || ''));
     return match ? Number(match[1]) * (match[2] === 'rem' ? rem : 1) : NaN;
   }
-  // YouTube's transform with only its first translate value replaced.
-  function withTranslate(transform, axis, px) {
-    return String(transform).replace(new RegExp(axis.fn + '\\([^)]*\\)'), `${axis.fn}(${px.toFixed(1)}px)`);
+  // YouTube's transform with only its first translate value replaced, in
+  // YouTube's own unit: Cobalt then never interpolates px against rem (or
+  // different function lists) when YouTube animates the track afterwards.
+  function withTranslate(transform, axis, px, rem) {
+    return String(transform).replace(new RegExp(axis.fn + '\\((-?[\\d.]+)(rem|px)\\)'), (_, __, unit) =>
+      unit === 'rem' ? `${axis.fn}(${(px / rem).toFixed(4)}rem)` : `${axis.fn}(${px.toFixed(1)}px)`);
   }
   function readTransform(track) { return track.style.getPropertyValue('transform') || ''; }
   function trackFor(node, axis) {
@@ -254,8 +257,8 @@ export function startPointerEdgeScroll(doc, win, read, log) {
         }
       }
       if (!active && Math.abs(g.v) < 5) { endGlide(band ? 'blocked' : 'settled'); return; }
-      g.track.style.setProperty('transition', 'none');
-      if (Number.isFinite(baseOffset)) g.track.style.setProperty('transform', withTranslate(g.base, axis, baseOffset - g.f));
+      if (g.track.style.getPropertyValue('transition') !== 'none') g.track.style.setProperty('transition', 'none');
+      if (Number.isFinite(baseOffset)) g.track.style.setProperty('transform', withTranslate(g.base, axis, baseOffset - g.f, g.rem));
       g.written = readTransform(g.track);
       win.requestAnimationFrame(glideFrame);
     } catch (error) {

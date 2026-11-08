@@ -123,9 +123,9 @@ def main():
             page.wait_for_timeout(1000)
             assert page.evaluate("index") == settled, "leaving the band stops"
             assert abs(page.evaluate("track.getBoundingClientRect().left") - before) < 40, "the row rests where it is"
-            # A resting row keeps YouTube's own function list (no appended
+            # A resting row keeps YouTube's own function list and unit (no appended
             # translate), so YouTube's transitions never interpolate mismatched lists.
-            assert page.evaluate("/^translateX\\(-?[\\d.]+(px|rem)\\) translateZ\\(0px\\)$/.test(track.style.transform)"), \
+            assert page.evaluate("/^translateX\\(-?[\\d.]+rem\\) translateZ\\(0px\\)$/.test(track.style.transform)"), \
                 page.evaluate("track.style.transform")
             page.mouse.move(10, y)
             page.wait_for_timeout(2500)
